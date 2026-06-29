@@ -1,0 +1,7 @@
+[toolchain]
+channel = "1.96"
+components = [ "rust-src", "rustfmt", "llvm-tools" ]
+targets = [
+    "i686-pc-windows-msvc",
+    "x86_64-pc-windows-msvc"
+]

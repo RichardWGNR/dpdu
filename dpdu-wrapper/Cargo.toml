@@ -1,0 +1,14 @@
+[package]
+name = "dpdu-wrapper"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { version = "1.0.228", features = ["default", "derive"], optional = true }
+serde_json = { version = "1.0.150", optional = true }
+dpdu-wrapper-support = { version = "0.1.0", path = "../dpdu-wrapper-support", optional = true }
+
+[features]
+default = []
+with-serde = ["serde"]
+with-serde-json = ["with-serde", "serde_json", "dpdu-wrapper-support"]
