@@ -4,11 +4,20 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-serde = { version = "1.0.228", features = ["default", "derive"], optional = true }
+thiserror = { version = "2.0.18" }
+quick-xml = { version = "0.40.1", features = ["serialize"] }
+serde = { version = "1.0.228", features = ["default", "derive"] }
+winreg = { version = "0.56.0" }
+cfg-if = { version = "1.0.4" }
+tracing = { version = "0.1.44" }
+exe = { version = "0.5.7" }
+regex = { version = "1.12.4" }
+semver = { version = "1.0.28" }
+strum = { version = "0.28.0", features = ["derive", "strum_macros"] }
+
 serde_json = { version = "1.0.150", optional = true }
 dpdu-wrapper-support = { version = "0.1.0", path = "../dpdu-wrapper-support", optional = true }
 
 [features]
 default = []
-with-serde = ["serde"]
-with-serde-json = ["with-serde", "serde_json", "dpdu-wrapper-support"]
+with-serde-json = ["serde_json", "dpdu-wrapper-support"]
