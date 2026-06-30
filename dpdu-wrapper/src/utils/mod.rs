@@ -1,4 +1,4 @@
-mod module_description;
+pub mod module_description;
 pub mod root_file;
 
 use std::ffi::{CStr, c_char, c_void};
