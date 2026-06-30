@@ -410,6 +410,27 @@ pub struct VersionData {
     pub pdu_api_sw_date: u32,
 }
 
+impl Default for VersionData {
+    fn default() -> Self {
+        VersionData {
+            mvci_part1_standard_version: 0,
+            mvci_part2_standard_version: 0,
+            hw_serial_number: 0,
+            hw_name: [0u8; 64],
+            hw_version: 0,
+            hw_date: 0,
+            hw_interface: 0,
+            fw_name: [0u8; 64],
+            fw_version: 0,
+            fw_date: 0,
+            vendor_name: [0u8; 64],
+            pdu_api_sw_name: [0u8; 64],
+            pdu_api_sw_version: 0,
+            pdu_api_sw_date: 0,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Com primitive control data
