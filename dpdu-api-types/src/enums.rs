@@ -353,7 +353,13 @@ pub enum PduError {
     /// DoIP general timeout
     #[error("DoIP general timeout")]
     DoIPResponseTimeout = 0x000000BC,
+}
 
+impl PduError {
+    /// Returns `true` if the result indicates success according to the API.
+    pub fn is_success(&self) -> bool {
+        matches!(self, PduError::StatusNoError)
+    }
 }
 
 #[repr(u32)]
