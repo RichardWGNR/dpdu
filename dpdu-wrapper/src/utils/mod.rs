@@ -1,9 +1,11 @@
 mod module_description;
 pub mod root_file;
 
-use std::ffi::{CStr, c_char};
+use std::ffi::{CStr, c_char, c_void};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Read, Seek};
+use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::ptr::NonNull;
 
@@ -33,4 +35,55 @@ pub(crate) fn get_bomless_file_reader(path: &Path) -> Result<BufReader<File>, st
     }
 
     Ok(reader)
+}
+
+/// A lifetime-bound opaque pointer (`*const c_void`).
+///
+/// Does not own the pointed-to value.
+#[derive(Debug)]
+pub(crate) struct VoidPtr<'a> {
+    pub ptr: *const c_void,
+    _marker: PhantomData<&'a ()>
+}
+
+impl<'a> VoidPtr<'a> {
+    /// Returns the pointer as `*const c_void`.
+    pub fn as_ptr(&self) -> *const c_void {
+        self.ptr
+    }
+
+    /// Returns the pointer as `*mut c_void`.
+    ///
+    /// This only casts the pointer type and does not guarantee mutability
+    /// of the underlying data.
+    pub fn as_mut(&self) -> *mut c_void {
+        self.ptr as _
+    }
+}
+
+/// Marks the wrapped value as `Send` and `Sync`.
+///
+/// # Safety
+///
+/// The caller must ensure that sharing or transferring `T` across threads
+/// is sound. Wrapping a non-thread-safe type in `SendSync` can cause
+/// undefined behavior.
+#[derive(Debug, Clone)]
+struct SendSync<T>(T);
+
+unsafe impl<T> Send for SendSync<T> {}
+unsafe impl<T> Sync for SendSync<T> {}
+
+impl<T> Deref for SendSync<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for SendSync<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
