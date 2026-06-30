@@ -14,3 +14,4 @@ maintenance = { status = "actively-developed" }
 
 [dependencies]
 strum = { version = "0.28.0", features = ["strum_macros", "derive"] }
+thiserror = { version = "2.0.18" }
