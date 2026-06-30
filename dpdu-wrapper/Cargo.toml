@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 thiserror = { version = "2.0.18" }
-quick-xml = { version = "0.40.1", features = ["serialize"] }
+quick-xml = { version = "0.41.0", features = ["serialize"] }
 serde = { version = "1.0.228", features = ["default", "derive"] }
 winreg = { version = "0.56.0" }
 cfg-if = { version = "1.0.4" }
@@ -14,7 +14,9 @@ exe = { version = "0.5.7" }
 regex = { version = "1.12.4" }
 semver = { version = "1.0.28" }
 strum = { version = "0.28.0", features = ["derive", "strum_macros"] }
-dpdu-api-types = { version = "0.9.1" }
+dpdu-api-types = { version = "0.9.2", path = "../dpdu-api-types" }
+libloading = { version = "0.9.0" }
+rand = { version = "0.10.1" }
 
 serde_json = { version = "1.0.150", optional = true }
 dpdu-wrapper-support = { version = "0.1.0", path = "../dpdu-wrapper-support", optional = true }
