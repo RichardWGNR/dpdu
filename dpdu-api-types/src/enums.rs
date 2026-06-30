@@ -1,5 +1,6 @@
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// Item type values
 pub enum PduIt {
     /// IOCTL UNUM32
@@ -44,6 +45,7 @@ pub enum PduIt {
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// Communication primitive (ComParam) type
 pub enum PduCopt {
     /// Start communication with an ECU
@@ -63,6 +65,7 @@ pub enum PduCopt {
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// Object type
 pub enum PduObjt {
     /// Protocol object
@@ -81,6 +84,7 @@ pub enum PduObjt {
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// Status codes
 pub enum PduStatus {
     /// Communication parameter has not been acted upon yet
@@ -111,6 +115,7 @@ pub enum PduStatus {
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// Information events
 pub enum PduInfo {
     /// New vehicle communication list is available
@@ -123,6 +128,7 @@ pub enum PduInfo {
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// Event callback
 pub enum PduEvtData {
     /// There is event data available to read by the application
@@ -133,6 +139,7 @@ pub enum PduEvtData {
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// Filter type
 pub enum PduFilter {
     /// Matched messages go into the receive queue
@@ -147,6 +154,7 @@ pub enum PduFilter {
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// IOCTL queue mode
 pub enum PduQueueMode {
     /// Attempt to allocate memory for every event coming in to the receive queue. This queue size can keep
@@ -162,6 +170,7 @@ pub enum PduQueueMode {
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// Function return values
 pub enum PduError {
     /// No Error (Function call OK)
@@ -258,6 +267,7 @@ pub enum PduError {
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// Function error events (Used in asynchronous situations)
 pub enum PduErrorEvt {
     /// No error
@@ -286,6 +296,7 @@ pub enum PduErrorEvt {
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// ComParam data type
 pub enum PduPt {
     /// Unsigned 8 bit
@@ -310,6 +321,7 @@ pub enum PduPt {
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// ComParam data class
 pub enum PduPc {
     /// Message timing
@@ -330,6 +342,7 @@ pub enum PduPc {
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// ComParam struct type
 pub enum PduCpst {
     /// Session timing
@@ -340,6 +353,7 @@ pub enum PduCpst {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// Vehicle preselection mode
 pub enum VidPreselectMode {
     /// No preselection
@@ -352,6 +366,7 @@ pub enum VidPreselectMode {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// DoIP Combination mode
 pub enum CombinationMode {
     /// No combination
@@ -366,6 +381,7 @@ pub enum CombinationMode {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(strum::AsRefStr)]
 /// Timing set types used by [ParamStructAccessTiming]
 pub enum TimingSet {
     /// Default timing set
