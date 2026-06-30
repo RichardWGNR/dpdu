@@ -102,7 +102,7 @@ impl Api {
                 .join(" ")
         };
 
-        debug!(func = FUNC, options_str, "D-PDU API Call Args");
+        trace!(func = FUNC, options_str, "D-PDU API Call Args");
 
         let options_str = CString::new(options_str).expect("CString::new() failed");
         let construct_fn = self.get_pdu_function::<PduConstructFn>(FUNC.as_bytes())?;
