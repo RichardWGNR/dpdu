@@ -171,98 +171,189 @@ pub enum PduQueueMode {
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[derive(strum::AsRefStr)]
+#[derive(thiserror::Error)]
 /// Function return values
 pub enum PduError {
     /// No Error (Function call OK)
+    #[error("No error (function call OK)")]
     StatusNoError = 0x00000000,
+
     /// Function call failed (Generic failure)
+    #[error("Function call failed (Generic failure)")]
     FctFailed = 0x00000001,
+
     /// Reserved for ISO 22900-2
+    #[error("Reserved for ISO 22900-2")]
     Reserved1 = 0x00000010,
+
     /// Communication failed between host and MVCI
+    #[error("Communication failed between host and MVCI")]
     CommPcToVciFailed = 0x00000011,
+
     /// PDU API has not yet been constructed
+    #[error("PDU API has not yet been constructed")]
     PduApiNotConstructed = 0x00000020,
+
     /// PDU Destruct was not called before another PDU Construct
+    #[error("PDU Destruct was not called before another PDU Construct")]
     SharingViolation = 0x00000021,
+
     /// Resource is already in use
+    #[error("Resource is already in use")]
     ResourceBusy = 0x00000030,
+
     /// Resource table changed
+    #[error("Resource table changed")]
     ResourceTableChanged = 0x00000031,
+
     /// Generic resource error
+    #[error("Generic resource error")]
     ResourceError = 0x00000032,
+
     /// ComLogicalLink cannot be offline and perform the requested action
+    #[error("ComLogicalLink cannot be offline and perform the requested action")]
     CllNotConnected = 0x00000040,
+
     /// ComLogicalLink must be started to perform the requested action
+    #[error("ComLogicalLink must be started to perform the requested action")]
     CllNotStarted = 0x00000041,
+
     /// A parameter parsed into the function was invalid
+    #[error("A parameter parsed into the function was invalid")]
     InvalidParameters = 0x00000050,
+
     /// A handle provided was invalid
+    #[error("A handle provided was invalid")]
     InvalidHandle = 0x00000060,
+
     /// Option value was unsupported
+    #[error("Option value was unsupported")]
     ValueNotSupported = 0x00000061,
+
     /// IOCTL Command ID was unsupported
+    #[error("IOCTL Command ID was unsupported")]
     IdNotSupported = 0x00000062,
+
     /// Communication parameter was unsupported
+    #[error("Communication parameter was unsupported")]
     ComParamNotSupported = 0x00000063,
+
     /// Physical communication parameter cannot be changed as it is locked by another LogicalLink
+    #[error("Physical communication parameter cannot be changed as it is locked by another LogicalLink")]
     ComParamLocked = 0x00000064,
+
     /// Transmit queue is full
+    #[error("Transmit queue is full")]
     TxQueueFull = 0x00000070,
+
     /// No more events are available to read
+    #[error("No more events are available to read")]
     EventQueueEmpty = 0x00000071,
+
     /// IOCTL - Voltage value supplied is unsupported by the MVCI module
+    #[error("IOCTL - Voltage value supplied is unsupported by the MVCI module")]
     VoltageNotSupported = 0x00000080,
+
     /// IOCTL - Pin or resource is not supported by the MVCI module
+    #[error("IOCTL - Pin or resource is not supported by the MVCI module")]
     MuxRscNotSupported = 0x00000081,
+
     /// Cable attached to MVCI module is unknown
+    #[error("Cable attached to MVCI module is unknown")]
     CableUnknown = 0x00000082,
+
     /// No cable attached to the MVCI module
+    #[error("No cable attached to the MVCI module")]
     NoCableDetected = 0x00000083,
+
     /// ComLogicalLink is already connected
+    #[error("ComLogicalLink is already connected")]
     CllConnected = 0x00000084,
+
     /// Physical Com parameters cannot be changes as a temporary one
+    #[error("Physical Com parameters cannot be changes as a temporary one")]
     TempParamNotAllowed = 0x00000090,
+
     /// Resource is already locked
+    #[error("Resource is already locked")]
     RscLocked = 0x000000A0,
+
     /// Resource is already locked by another ComLogicalLink
+    #[error("Resource is already locked by another ComLogicalLink")]
     RscLockedByAnotherCll = 0x000000A1,
+
     /// Resource is already unlocked
+    #[error("Resource is already unlocked")]
     RscNotLocked = 0x000000A2,
+
     /// Module is not connected or ready
+    #[error("Module is not connected or ready")]
     ModuleNotConnected = 0x000000A3,
+
     /// API software is out of date
+    #[error("API software is out of date")]
     ApiSwOutOfDate = 0x000000A4,
+
     /// VCI firmware is out of date
+    #[error("VCI firmware is out of date")]
     ModuleFwOutOfDate = 0x000000A5,
+
     /// Requested pin is not routed by the MVCI's cable
+    #[error("Requested pin is not routed by the MVCI's cable")]
     PinNotConnected = 0x000000A6,
+
     /// IP protocol not supported
+    #[error("IP protocol not supported")]
     IpProtocolNotSupported = 0x000000B0,
+
     /// DoIP Routing activation failed (Generic failure)
+    #[error("DoIP Routing activation failed (Generic failure)")]
     DoIPRoutingActivationFailed = 0x000000B1,
+
     /// DoIP Routing activation failed - missing / wrong authentication
+    #[error("DoIP Routing activation failed - missing / wrong authentication")]
     DoIPRoutingActivationAuthFailed = 0x000000B2,
+
     /// DoIP Logical address is defined multiple times so it is ambiguous
+    #[error("DoIP Logical address is defined multiple times so it is ambiguous")]
     DoIPAmbiguousLogicalAddress = 0x000000B3,
+
     /// DoIP Routing activation failed - Unknown or invalid source address
+    #[error("DoIP Routing activation failed - Unknown or invalid source address")]
     DoIPRoutineActivationInvalidSrcAddress = 0x000000B4,
+
     /// DoIP Routing activation failed - No more free sockets available
+    #[error("DoIP Routing activation failed - No more free sockets available")]
     DoIPRoutingActivationNoDataSocketAvailable = 0x000000B5,
+
     /// DoIP Routing activation failed - The source address changed
+    #[error("DoIP Routing activation failed - The source address changed")]
     DoIPRoutineActivationSourceAddressChanged = 0x000000B6,
+
     /// DoIP Routing activation failed - Source address already in use
+    #[error("DoIP Routing activation failed - Source address already in use")]
     DoIPRoutingActivationSourceAddressInUse = 0x000000B7,
+
     /// DoIP Routing activation failed - Rejected confirmation
+    #[error("DoIP Routing activation failed - Rejected confirmation")]
     DoIPRoutineActivationConfirmationRejected = 0x000000B8,
+
     /// DoIP Routing activation failed - Requested activation type was unsupported
+    #[error("DoIP Routing activation failed - Requested activation type was unsupported")]
     DoIPRoutineActivationTypeUnsupported = 0x000000B9,
+
     /// DoIP Routing activation failed - Response code was unknown
+    #[error("DoIP Routing activation failed - Response code was unknown")]
     DoIPRoutineActivationResponseCodeUnknown = 0x000000BA,
+
     /// DoIP Routing activation failed - Timeout waiting for activation response
+    #[error("DoIP Routing activation failed - Timeout waiting for activation response")]
     DoIPRoutingActivationResponseTimeout = 0x000000BB,
+
     /// DoIP general timeout
+    #[error("DoIP general timeout")]
     DoIPResponseTimeout = 0x000000BC,
+
 }
 
 #[repr(u32)]
