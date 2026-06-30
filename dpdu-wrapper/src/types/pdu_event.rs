@@ -110,12 +110,18 @@ impl PduEventData {
         }
     }
 
-    pub fn is_error(&self) -> bool {
-        matches!(self, PduEventData::Error(..))
+    pub fn as_error(&self) -> Option<&PduErrorEvent> {
+        match self {
+            PduEventData::Error(v) => Some(v),
+            _ => None
+        }
     }
 
-    pub fn is_info(&self) -> bool {
-        matches!(self, PduEventData::Info { .. })
+    pub fn as_info(&self) -> Option<&PduInfoEvent> {
+        match self {
+            PduEventData::Info(v) => Some(v),
+            _ => None
+        }
     }
 }
 
