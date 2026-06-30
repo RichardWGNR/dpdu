@@ -276,7 +276,7 @@ impl Api {
     }
 
     pub fn pdu_get_version(&self, h_mod: u32, version_data: &mut VersionData) -> Result<PduVersionData> {
-        const FUNC: &'static str = "PDUGetEventItem";
+        const FUNC: &'static str = "PDUGetVersion";
         self.log_api_call(FUNC);
 
         trace!(func = FUNC, h_mod, "D-PDU API Call Args");
