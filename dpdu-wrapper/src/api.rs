@@ -267,9 +267,9 @@ impl Api {
         self.pdu_destroy_item(item_ptr as _)?;
 
         Ok(Some(PduEvent {
-            h_mod: if h_mod != PDU_HANDLE_UNDEF { Some(h_mod) } else { None },
-            h_cll: if h_cll != PDU_HANDLE_UNDEF { Some(h_cll) } else { None },
-            h_cop: if item.h_cop != PDU_HANDLE_UNDEF { Some(item.h_cop) } else { None },
+            h_mod: (h_mod != PDU_HANDLE_UNDEF).then(|| h_mod),
+            h_cll: (h_cll != PDU_HANDLE_UNDEF).then(|| h_cll),
+            h_cop: (item.h_cop != PDU_HANDLE_UNDEF).then(|| item.h_cop),
             timestamp: item.timestamp,
             data,
         }))
