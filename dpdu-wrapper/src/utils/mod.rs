@@ -69,7 +69,7 @@ impl<'a> VoidPtr<'a> {
 /// is sound. Wrapping a non-thread-safe type in `SendSync` can cause
 /// undefined behavior.
 #[derive(Debug, Clone)]
-struct SendSync<T>(T);
+pub(crate) struct SendSync<T>(T);
 
 unsafe impl<T> Send for SendSync<T> {}
 unsafe impl<T> Sync for SendSync<T> {}
