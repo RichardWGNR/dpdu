@@ -326,37 +326,32 @@ impl Api {
 
         trace!(func = FUNC, object = object.as_ref(), short_name, use_mdf, "D-PDU API Call Args");
 
-        if use_mdf {
+        if use_mdf && let Some(desc) = &self.module_description {
             // First, we will try to obtain the required object ID from the module description
             // file supplied with the D-PDU API driver in order to reduce
             // the number of D-PDU API calls.
-            let mdf_object_id = self.module_description
-                .as_ref()
-                .map(|desc| {
-                    match object {
-                        PduObjt::IoCtrl => desc.io_controls
-                            .get_by_short_name(short_name)
-                            .map(|v| v.id),
-                        PduObjt::Resource => desc.resources
-                            .get_by_short_name(short_name)
-                            .map(|v| v.id),
-                        PduObjt::Protocol => desc.protocols
-                            .get_by_short_name(short_name)
-                            .map(|v| v.id),
-                        PduObjt::BusType => desc.bus_types
-                            .get_by_short_name(short_name)
-                            .map(|v| v.id),
-                        PduObjt::PinType => desc.pin_types
-                            .get_by_short_name(short_name)
-                            .map(|v| v.id),
-                        PduObjt::ComParam => desc.com_params
-                            .get_by_short_name(short_name)
-                            .map(|v| v.id),
-                    }
-                })
-                .flatten();
+            let object_id = match object {
+                PduObjt::IoCtrl => desc.io_controls
+                    .get_by_short_name(short_name)
+                    .map(|v| v.id),
+                PduObjt::Resource => desc.resources
+                    .get_by_short_name(short_name)
+                    .map(|v| v.id),
+                PduObjt::Protocol => desc.protocols
+                    .get_by_short_name(short_name)
+                    .map(|v| v.id),
+                PduObjt::BusType => desc.bus_types
+                    .get_by_short_name(short_name)
+                    .map(|v| v.id),
+                PduObjt::PinType => desc.pin_types
+                    .get_by_short_name(short_name)
+                    .map(|v| v.id),
+                PduObjt::ComParam => desc.com_params
+                    .get_by_short_name(short_name)
+                    .map(|v| v.id),
+            };
 
-            if let Some(id) = mdf_object_id {
+            if let Some(id) = object_id {
                 return Ok(id);
             }
         }
