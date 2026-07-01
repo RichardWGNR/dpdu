@@ -1,9 +1,10 @@
 use std::ffi::{c_void, CString};
 use std::{ptr, slice};
 use std::cell::{Cell, OnceCell};
+use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::sync::{Arc, Weak};
-use dpdu_api_types::{ErrorData, EventItem, InfoData, PduConstructFn, PduDestroyItemFn, PduDestructFn, PduError, PduGetEventItemFn, PduGetVersionFn, PduIt, PduItem, PduStatus, ResultData, VersionData, PDU_HANDLE_UNDEF};
+use dpdu_api_types::{ErrorData, EventItem, InfoData, PduConstructFn, PduDestroyItemFn, PduDestructFn, PduError, PduGetEventItemFn, PduGetObjectIdFn, PduGetVersionFn, PduIt, PduItem, PduObjt, PduStatus, ResultData, VersionData, PDU_HANDLE_UNDEF};
 use rand::random;
 use tracing::{debug, error, trace};
 use crate::types::{PduCllHandle, PduLibraryPath, PduModuleHandle, PduOptions, PduUniqueId};
@@ -315,5 +316,68 @@ impl Api {
         };
 
         Ok(version_data)
+    }
+
+    pub fn pdu_get_object_id(&self, object: PduObjt, short_name: &str, use_mdf: Option<bool>) -> Result<u32> {
+        const FUNC: &'static str = "PDUGetObjectId";
+        self.log_api_call(FUNC);
+
+        let use_mdf = use_mdf.unwrap_or(true);
+
+        trace!(func = FUNC, object = object.as_ref(), short_name, use_mdf, "D-PDU API Call Args");
+
+        if use_mdf {
+            // First, we will try to obtain the required object ID from the module description
+            // file supplied with the D-PDU API driver in order to reduce
+            // the number of D-PDU API calls.
+            let mdf_object_id = self.module_description
+                .as_ref()
+                .map(|desc| {
+                    match object {
+                        PduObjt::IoCtrl => desc.io_controls
+                            .get_by_short_name(short_name)
+                            .map(|v| v.id),
+                        PduObjt::Resource => desc.resources
+                            .get_by_short_name(short_name)
+                            .map(|v| v.id),
+                        PduObjt::Protocol => desc.protocols
+                            .get_by_short_name(short_name)
+                            .map(|v| v.id),
+                        PduObjt::BusType => desc.bus_types
+                            .get_by_short_name(short_name)
+                            .map(|v| v.id),
+                        PduObjt::PinType => desc.pin_types
+                            .get_by_short_name(short_name)
+                            .map(|v| v.id),
+                        PduObjt::ComParam => desc.com_params
+                            .get_by_short_name(short_name)
+                            .map(|v| v.id),
+                    }
+                })
+                .flatten();
+
+            if let Some(id) = mdf_object_id {
+                return Ok(id);
+            }
+        }
+
+        let short_name = CString::new(short_name).expect("CString::new() failed");
+        let mut object_id: MaybeUninit<u32> = MaybeUninit::uninit();
+
+        let get_object_id_fn = self.get_pdu_function::<PduGetObjectIdFn>(FUNC.as_bytes())?;
+        let result = get_object_id_fn(
+            object,
+            short_name.as_ptr() as _,
+            object_id.as_mut_ptr()
+        );
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        // SAFETY:
+        // PDUGetObjectId guarantees that `object_id` is initialized on success.
+        Ok(unsafe { object_id.assume_init() })
     }
 }
