@@ -3,11 +3,12 @@ pub mod root_file;
 
 use std::ffi::{CStr, c_char, c_void};
 use std::fs::{File, OpenOptions};
-use std::io::{BufReader, Read, Seek};
+use std::io::{BufReader, Cursor, Read, Seek};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::ptr::NonNull;
+use crate::types::PduUniqueRespIdentifier;
 
 /// Converts a nullable C string to `Option<String>`.
 ///
@@ -93,4 +94,17 @@ impl<T> DerefMut for SendSync<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
+}
+
+/// When calling [`PDUSetUniqueRespIdTable`], the caller must provide a unique 32-bit identifier
+/// that is used to identify subsequent requests to and responses from the ECU.
+///
+/// This function converts block names (for example, `EZS213`) into a 32-bit identifier.
+/// The conversion is performed by hashing the string using the MurmurHash3 algorithm,
+/// which provides a low probability of collisions compared to many other hashing algorithms.
+pub fn ecu_name_to_unique_resp_id<S>(name: S) -> PduUniqueRespIdentifier
+where
+    S: AsRef<str>,
+{
+    murmur3::murmur3_32(&mut Cursor::new(name.as_ref()), 0).expect("murmur failed")
 }

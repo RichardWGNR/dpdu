@@ -1,14 +1,18 @@
 use std::ffi::{CString};
 use std::{ptr, slice};
 use std::cell::{OnceCell};
+use std::collections::{HashMap, HashSet};
 use std::mem::MaybeUninit;
+use std::ops::Deref;
+use std::pin::{pin, Pin};
 use std::ptr::NonNull;
 use std::sync::{Arc, Weak};
-use dpdu_api_types::{ErrorData, EventItem, InfoData, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConstructFn, PduDestroyItemFn, PduDestructFn, PduError, PduGetComParamFn, PduGetEventItemFn, PduGetObjectIdFn, PduGetVersionFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduSetComParamFn, PduStatus, ResultData, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
+use dpdu_api_types::{EcuUniqueRespData, ErrorData, EventItem, InfoData, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConstructFn, PduDestroyItemFn, PduDestructFn, PduError, PduGetComParamFn, PduGetEventItemFn, PduGetObjectIdFn, PduGetVersionFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStatus, ResultData, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
 use rand::random;
 use tracing::{debug, error, trace, warn};
 use crate::types::{PduCllHandle, PduLibraryPath, PduModuleHandle, PduObjectId, PduOptions, PduUniqueId};
 use crate::types::pdu_com_param::{FieldComParam, PduComParam, PduCpVariant, StructComParam};
+use crate::types::pdu_com_param_table::PduComParamTable;
 use crate::types::pdu_event::{PduErrorEvent, PduEvent, PduEventData, PduInfoEvent, PduResultEvent, PduStatusEvent};
 use crate::types::pdu_object::PduObjectIdSource;
 use crate::types::pdu_version::PduVersionData;
@@ -40,7 +44,7 @@ pub struct Api {
 
     library_file: Option<PduLibraryPath>,
 
-    module_description: Option<PduModuleDescription>,
+    pub(crate) module_description: Option<PduModuleDescription>,
 
     mvci: Option<Mvci>,
 }
@@ -81,7 +85,16 @@ impl Api {
         // SAFETY:
         // The caller must ensure that the requested symbol exists and that its
         // signature matches the D-PDU API specification.
-        Ok(unsafe { self.library.get(name)? })
+        let result = unsafe { self.library.get(name) };
+
+        match result {
+            Ok(v) => Ok(v),
+            Err(err) => {
+                let function = String::from_utf8_lossy(name).into_owned();
+                error!(function, "Unable to take a pointer to the D-PDU API function: {err}");
+                Err(err)?
+            },
+        }
     }
 
     pub fn pdu_construct(&self) -> Result<()> {
@@ -397,6 +410,8 @@ impl Api {
                 let id = self.pdu_get_object_id(PduObjt::ComParam, &v)?;
                 if id == PDU_ID_UNDEF {
                     warn!(com_param = v, "ComParam not supported");
+                    // This is not a critical error.
+                    // Therefore, we will not log it separately.
                     return Err(PduError::ComParamNotSupported)?;
                 }
                 id
@@ -417,7 +432,9 @@ impl Api {
             return match result {
                 PduError::ComParamNotSupported | PduError::InvalidParameters => {
                     // Some drivers return InvalidParameters instead of ComParamNotSupported.
-                    warn!(com_param = %object_id, "Unsupported ComParam");
+                    warn!(com_param = %object_id, "ComParam not supported");
+                    // This is not a critical error.
+                    // Therefore, we will not log it separately.
                     Err(PduError::ComParamNotSupported)?
                 },
                 _ => {
@@ -434,19 +451,27 @@ impl Api {
 
             let item = &*item_ptr;
             let data_ptr = item.p_com_param_data;
-            let short_name = match &object_id {
-                PduObjectIdSource::ShortName(v) => Some(v.clone()),
+            let short_name = OnceCell::new();
+
+            match &object_id {
+                PduObjectIdSource::ShortName(v) => {
+                    let _ = short_name.set(v.clone());
+                },
                 _ => {
-                    self.module_description
+                    let sn_opt = self.module_description
                         .as_ref()
                         .and_then(|mdf_desc| mdf_desc.com_params.get_by_id(id))
-                        .and_then(|mdf_cp| mdf_cp.short_name.clone())
+                        .and_then(|mdf_cp| mdf_cp.short_name.clone());
+
+                    if let Some(sn) = sn_opt {
+                        let _ = short_name.set(sn);
+                    }
                 }
             };
 
             PduComParam {
                 short_name,
-                id: Some(id),
+                id,
                 class: item.com_param_class,
                 variant: match item.com_param_data_type {
                     PduPt::Unum8 => PduCpVariant::Unum8(read(data_ptr as _)),
@@ -504,36 +529,6 @@ impl Api {
         const FUNC: &'static str = "PDUSetComParam";
         self.log_api_call(FUNC);
 
-        let id = match &cp.short_name {
-            Some(v) => {
-                let id = self.pdu_get_object_id(PduObjt::ComParam, &v)?;
-                if id == PDU_ID_UNDEF {
-                    warn!(com_param = v, "Unsupported ComParam");
-                    return Err(PduError::ComParamNotSupported)?;
-                }
-                id
-            },
-            _ => {
-                // Since ComParam only has two constructors — one creating it from an ID and
-                // the other from a short name — panics will never occur.
-                cp.id.expect("ComParam ID")
-            }
-        };
-
-        let cp_debug_name = cp.short_name
-            .as_ref()
-            .map(|v| v.clone())
-            .unwrap_or_else(|| format!("#{id}"));
-
-        trace!(
-            func = FUNC,
-            h_mod,
-            h_cll,
-            com_param = cp_debug_name,
-            com_param_ptr = format!("0x{:x}", cp as *const _ as usize),
-            "D-PDU API Call Args"
-        );
-
         if matches!(cp.class, PduPc::UniqueId) {
             // Chapter 9.4.27.1:
             //
@@ -548,13 +543,24 @@ impl Api {
             return Err(result)?;
         }
 
+        cp.try_init_short_name(self);
+
         let item = ParamItem {
             item_type: PduIt::Param,
-            com_param_id: id,
+            com_param_id: cp.id,
             com_param_data_type: cp.variant.get_pdu_type(),
             com_param_class: cp.class,
             p_com_param_data: cp.variant.get_pdu_ptr().as_ptr() as _,
         };
+
+        trace!(
+            func = FUNC,
+            h_mod,
+            h_cll,
+            com_param = cp.get_debug_name(),
+            com_param_ptr = format!("0x{:x}", &item as *const _ as usize),
+            "D-PDU API Call Args"
+        );
 
         let set_com_param_fn = self.get_pdu_function::<PduSetComParamFn>(FUNC.as_bytes())?;
         let result = set_com_param_fn(h_mod, h_cll, &item as *const _ as _);
@@ -563,7 +569,9 @@ impl Api {
             return match result {
                 PduError::ComParamNotSupported | PduError::InvalidParameters => {
                     // Some drivers return InvalidParameters instead of ComParamNotSupported.
-                    warn!(com_param = cp_debug_name, "Unsupported ComParam");
+                    warn!(com_param = cp.get_debug_name(), "ComParam not supported");
+                    // This is not a critical error.
+                    // Therefore, we will not log it separately.
                     Err(PduError::ComParamNotSupported)?
                 },
                 _ => {
@@ -571,6 +579,107 @@ impl Api {
                     Err(result)?
                 }
             }
+        }
+
+        Ok(())
+    }
+
+    pub fn pdu_set_unique_resp_id_table(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: PduCllHandle,
+        table: &PduComParamTable
+    ) -> Result<()> {
+        const FUNC: &'static str = "PDUSetUniqueRespIdTable";
+        self.log_api_call(FUNC);
+
+        trace!(
+            func = FUNC,
+            h_mod,
+            h_cll,
+            "D-PDU API Call Args"
+        );
+
+        type EphemeralGroupKey = usize;
+
+        let mut temp_com_param_groups: HashMap<EphemeralGroupKey, Vec<ParamItem>> = HashMap::with_capacity(table.len());
+        let mut temp_unique_groups: Vec<EcuUniqueRespData> = Vec::with_capacity(table.len());
+
+        for (key, (unique_resp_identifier, group_set)) in table.iter().enumerate() {
+            let mut com_param_set = Vec::with_capacity(group_set.len());
+
+            trace!(
+                func = FUNC,
+                group = key,
+                unique_resp_identifier,
+                "D-PDU API Call Args"
+            );
+
+            for cp in group_set.iter() {
+                if !matches!(cp.class, PduPc::UniqueId) {
+                    error!(
+                    com_param = cp.get_debug_name(),
+                    class = cp.class.as_ref(),
+                    "Invalid class of the PduComParam stored in PduComParamTable"
+                );
+                    let result = PduError::InvalidParameters;
+                    self.log_failed_api_call(FUNC, result);
+                    return Err(result)?;
+                }
+
+                cp.try_init_short_name(self);
+
+                let item = ParamItem {
+                    item_type: PduIt::Param,
+                    com_param_id: cp.id,
+                    com_param_data_type: cp.variant.get_pdu_type(),
+                    com_param_class: PduPc::UniqueId,
+                    p_com_param_data: cp.variant.get_pdu_ptr().as_ptr() as _,
+                };
+
+                trace!(
+                    func = FUNC,
+                    group = key,
+                    com_param = cp.get_debug_name(),
+                    com_param_ptr = format!("0x{:#X}", &item as *const _ as usize),
+                    "D-PDU API Call Args"
+                );
+
+                com_param_set.push(item);
+            }
+
+            temp_com_param_groups.insert(key, com_param_set);
+
+            let temp_com_param_group = temp_com_param_groups
+                .get(&key)
+                .expect("inserted above");
+
+            temp_unique_groups.push(EcuUniqueRespData {
+                unique_resp_identifier: *unique_resp_identifier,
+                num_param_items: temp_com_param_group.len() as _,
+                p_params: temp_com_param_group.as_ptr() as _,
+            });
+        }
+
+        let table = UniqueRespIdTableItem {
+            item_type: PduIt::UniqueRespIdTable,
+            num_entries: temp_unique_groups.len() as _,
+            p_unique_data: temp_unique_groups.as_ptr() as _,
+        };
+
+        trace!(
+            func = FUNC,
+            table_num_entries = table.num_entries,
+            table_ptr = format!("0x{:#X}", &table as *const _ as usize),
+            "D-PDU API Call Args"
+        );
+
+        let set_unique_resp_id_table_fn = self.get_pdu_function::<PduSetUniqueRespIdTableFn>(FUNC.as_bytes())?;
+        let result = set_unique_resp_id_table_fn(h_mod, h_cll, &table as *const _ as _);
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
         }
 
         Ok(())

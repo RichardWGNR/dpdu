@@ -18,6 +18,7 @@ dpdu-api-types = { version = "0.9.5", path = "../dpdu-api-types" }
 libloading = { version = "0.9.0" }
 rand = { version = "0.10.1" }
 chrono = { version = "0.4.45" }
+murmur3 = { version = "0.5.2" }
 
 serde_json = { version = "1.0.150", optional = true }
 dpdu-wrapper-support = { version = "0.1.0", path = "../dpdu-wrapper-support", optional = true }

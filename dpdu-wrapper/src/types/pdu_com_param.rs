@@ -1,7 +1,10 @@
 use std::cell::OnceCell;
 use std::ffi::c_void;
 use std::fmt::{Debug, Formatter};
-use dpdu_api_types::{ParamByteFieldData, ParamLongFieldData, ParamStructAccessTiming, ParamStructFieldData, ParamStructSessionTiming, PduCpst, PduPc, PduPt};
+use std::hash::{Hash, Hasher};
+use dpdu_api_types::{ParamByteFieldData, ParamLongFieldData, ParamStructAccessTiming, ParamStructFieldData, ParamStructSessionTiming, PduCpst, PduError, PduObjt, PduPc, PduPt, PDU_ID_UNDEF};
+use tracing::warn;
+use crate::api::{Api, Result as ApiResult};
 use crate::types::PduObjectId;
 use crate::utils::{SendSync, VoidPtr};
 
@@ -11,14 +14,28 @@ use crate::utils::{SendSync, VoidPtr};
 /// Thus, a [ComParam] is always identified either by an ID or a short name.
 #[derive(Clone)]
 pub struct PduComParam {
-    pub(crate) short_name: Option<String>,
+    pub(crate) short_name: OnceCell<String>,
 
-    pub(crate) id: Option<PduObjectId>,
+    pub(crate) id: PduObjectId,
 
     pub class: PduPc,
 
     pub variant: PduCpVariant
 }
+
+impl Hash for PduComParam {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+impl PartialEq for PduComParam {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for PduComParam {}
 
 impl PduComParam {
     pub fn from_id(
@@ -27,8 +44,8 @@ impl PduComParam {
         variant: impl Into<PduCpVariant>
     ) -> Self {
         Self {
-            short_name: None,
-            id: Some(id),
+            short_name: OnceCell::new(),
+            id,
             class,
             variant: variant.into()
         }
@@ -36,24 +53,63 @@ impl PduComParam {
 
     /// Recommended way to construct the current structure.
     pub fn from_short_name(
+        api: &Api,
         sn: impl Into<String>,
         class: PduPc,
         variant: impl Into<PduCpVariant>
-    ) -> Self {
-        Self {
-            short_name: Some(sn.into()),
-            id: Default::default(),
+    ) -> ApiResult<PduComParam> {
+        let short_name = sn.into();
+        let id = api.pdu_get_object_id(PduObjt::ComParam, &short_name)?;
+
+        let com_param = Self {
+            short_name: OnceCell::from(short_name),
+            id,
             class,
             variant: variant.into()
+        };
+
+        if id == PDU_ID_UNDEF {
+            warn!(com_param = com_param.get_debug_name(), "ComParam not supported");
+            return Err(PduError::ComParamNotSupported)?;
         }
+
+        Ok(com_param)
     }
 
     pub fn get_short_name(&self) -> Option<&String> {
-        self.short_name.as_ref()
+        self.short_name.get()
     }
 
-    pub fn get_id(&self) -> Option<&PduObjectId> {
-        self.id.as_ref()
+    pub(crate) fn set_short_name(&self, name: impl Into<String>) {
+        let _ = self.short_name.set(name.into());
+    }
+
+    pub(crate) fn try_init_short_name(&self, api: &Api) -> bool {
+        let Some(desc) = api.module_description.as_ref() else {
+            return false;
+        };
+
+        let opt = Some(desc)
+            .and_then(|mdf_desc| mdf_desc.com_params.get_by_id(self.id))
+            .and_then(|mdf_cp| mdf_cp.short_name.clone());
+
+        if let Some(short_name) = opt {
+            self.set_short_name(short_name);
+            return true;
+        }
+
+        false
+    }
+
+    pub fn get_id(&self) -> &PduObjectId {
+        &self.id
+    }
+
+    pub(crate) fn get_debug_name(&self) -> String {
+        self.short_name
+            .get()
+            .map(|v| v.clone())
+            .unwrap_or_else(|| format!("#{}", self.id))
     }
 }
 
