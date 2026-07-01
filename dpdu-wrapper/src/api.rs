@@ -26,9 +26,6 @@ pub enum Error {
 
     #[error("Communication error: {0}")]
     CommError(#[from] PduError),
-
-    #[error("Unsupported ComParam: {0}")]
-    UnsupportedComParamError(PduObjectIdSource),
 }
 
 #[derive(Debug)]
@@ -399,8 +396,8 @@ impl Api {
             PduObjectIdSource::ShortName(v) => {
                 let id = self.pdu_get_object_id(PduObjt::ComParam, &v)?;
                 if id == PDU_ID_UNDEF {
-                    warn!(com_param = v, "Unsupported ComParam");
-                    return Err(Error::UnsupportedComParamError(object_id.clone()))?;
+                    warn!(com_param = v, "ComParam not supported");
+                    return Err(PduError::ComParamNotSupported)?;
                 }
                 id
             }
@@ -421,7 +418,7 @@ impl Api {
                 PduError::ComParamNotSupported | PduError::InvalidParameters => {
                     // Some drivers return InvalidParameters instead of ComParamNotSupported.
                     warn!(com_param = %object_id, "Unsupported ComParam");
-                    Err(Error::UnsupportedComParamError(object_id))
+                    Err(PduError::ComParamNotSupported)?
                 },
                 _ => {
                     self.log_failed_api_call(FUNC, result);
@@ -512,7 +509,7 @@ impl Api {
                 let id = self.pdu_get_object_id(PduObjt::ComParam, &v)?;
                 if id == PDU_ID_UNDEF {
                     warn!(com_param = v, "Unsupported ComParam");
-                    return Err(Error::UnsupportedComParamError(v.clone().into()))?;
+                    return Err(PduError::ComParamNotSupported)?;
                 }
                 id
             },
@@ -567,7 +564,7 @@ impl Api {
                 PduError::ComParamNotSupported | PduError::InvalidParameters => {
                     // Some drivers return InvalidParameters instead of ComParamNotSupported.
                     warn!(com_param = cp_debug_name, "Unsupported ComParam");
-                    Err(Error::UnsupportedComParamError(id.into()))
+                    Err(PduError::ComParamNotSupported)?
                 },
                 _ => {
                     self.log_failed_api_call(FUNC, result);
