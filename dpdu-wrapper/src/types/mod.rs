@@ -1,5 +1,7 @@
 pub mod pdu_event;
 pub mod pdu_version;
+pub mod pdu_object;
+pub mod pdu_com_param;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -15,3 +17,5 @@ pub type PduModuleHandle = u32;
 pub type PduCllHandle = u32;
 
 pub type PduCopHandle = u32;
+
+pub type PduObjectId = u32;

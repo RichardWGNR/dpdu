@@ -47,6 +47,13 @@ pub(crate) struct VoidPtr<'a> {
 }
 
 impl<'a> VoidPtr<'a> {
+    pub fn new(ptr: *const c_void) -> Self {
+        Self {
+            ptr,
+            _marker: PhantomData
+        }
+    }
+    
     /// Returns the pointer as `*const c_void`.
     pub fn as_ptr(&self) -> *const c_void {
         self.ptr
@@ -69,7 +76,7 @@ impl<'a> VoidPtr<'a> {
 /// is sound. Wrapping a non-thread-safe type in `SendSync` can cause
 /// undefined behavior.
 #[derive(Debug, Clone)]
-pub(crate) struct SendSync<T>(T);
+pub(crate) struct SendSync<T>(pub T);
 
 unsafe impl<T> Send for SendSync<T> {}
 unsafe impl<T> Sync for SendSync<T> {}
