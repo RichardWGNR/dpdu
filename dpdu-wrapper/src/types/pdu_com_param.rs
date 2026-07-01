@@ -246,7 +246,7 @@ impl PduCpVariant {
         }
     }
 
-    pub fn get_pdu_ptr(&self) -> VoidPtr<'_> {
+    pub(crate) fn get_pdu_ptr(&self) -> VoidPtr<'_> {
         let ptr: *const c_void = match self {
             Self::Unum8(d) => d as *const u8 as _,
             Self::Snum8(d) => d as *const i8 as _,
