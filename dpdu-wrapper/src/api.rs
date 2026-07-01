@@ -7,13 +7,14 @@ use std::ops::Deref;
 use std::pin::{pin, Pin};
 use std::ptr::NonNull;
 use std::sync::{Arc, Weak};
-use dpdu_api_types::{EcuUniqueRespData, ErrorData, EventItem, InfoData, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConstructFn, PduDestroyItemFn, PduDestructFn, PduError, PduGetComParamFn, PduGetEventItemFn, PduGetObjectIdFn, PduGetVersionFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStatus, ResultData, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
+use dpdu_api_types::{EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, InfoData, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConstructFn, PduDestroyItemFn, PduDestructFn, PduError, PduGetComParamFn, PduGetEventItemFn, PduGetObjectIdFn, PduGetVersionFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStatus, ResultData, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
 use rand::random;
 use tracing::{debug, error, trace, warn};
 use crate::types::{PduCllHandle, PduLibraryPath, PduModuleHandle, PduObjectId, PduOptions, PduUniqueId};
 use crate::types::pdu_com_param::{FieldComParam, PduComParam, PduCpVariant, StructComParam};
 use crate::types::pdu_com_param_table::PduComParamTable;
 use crate::types::pdu_event::{PduErrorEvent, PduEvent, PduEventData, PduInfoEvent, PduResultEvent, PduStatusEvent};
+use crate::types::pdu_event_callback::PduEventCallbackTarget;
 use crate::types::pdu_object::PduObjectIdSource;
 use crate::types::pdu_version::PduVersionData;
 use crate::utils::c_str;
@@ -676,6 +677,82 @@ impl Api {
 
         let set_unique_resp_id_table_fn = self.get_pdu_function::<PduSetUniqueRespIdTableFn>(FUNC.as_bytes())?;
         let result = set_unique_resp_id_table_fn(h_mod, h_cll, &table as *const _ as _);
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn pdu_register_event_callback(
+        &self,
+        target: PduEventCallbackTarget,
+        callback: Option<EventCallbackFn>
+    ) -> Result<()> {
+        const FUNC: &'static str = "PDUSetUniqueRespIdTable";
+        self.log_api_call(FUNC);
+
+        trace!(
+            func = FUNC,
+            target = target.as_ref(),
+            "D-PDU API Call Args"
+        );
+
+        let (h_mod, h_cll) = match target {
+            PduEventCallbackTarget::Module(h_mod) => {
+                if h_mod == PDU_HANDLE_UNDEF {
+                    let result = PduError::InvalidHandle;
+                    error!(
+                        func = FUNC,
+                        "Module handle of the PduEventCallbackTarget cannot be PDU_HANDLE_UNDEF"
+                    );
+                    self.log_failed_api_call(FUNC, result);
+                    return Err(result)?;
+                }
+
+                (h_mod, PDU_HANDLE_UNDEF)
+            },
+            PduEventCallbackTarget::ComLogicalLink(h_mod, h_cll) => {
+                if h_mod == PDU_HANDLE_UNDEF {
+                    let result = PduError::InvalidHandle;
+                    error!(
+                        func = FUNC,
+                        "Module handle of the PduEventCallbackTarget cannot be PDU_HANDLE_UNDEF"
+                    );
+                    self.log_failed_api_call(FUNC, result);
+                    return Err(result)?;
+                } else if h_cll == PDU_HANDLE_UNDEF {
+                    let result = PduError::InvalidHandle;
+                    error!(
+                        func = FUNC,
+                        "ComLogicalLink handle of the PduEventCallbackTarget cannot be PDU_HANDLE_UNDEF"
+                    );
+                    self.log_failed_api_call(FUNC, result);
+                    return Err(result)?;
+                }
+
+                (h_mod, h_cll)
+            },
+            PduEventCallbackTarget::System => (PDU_HANDLE_UNDEF, PDU_HANDLE_UNDEF)
+        };
+
+        trace!(
+            func = FUNC,
+            h_mod,
+            h_cll,
+            "D-PDU API Call Args"
+        );
+
+        let register_event_callback_fn =
+            self.get_pdu_function::<PduRegisterCallbackFn>(FUNC.as_bytes())?;
+
+        let result = register_event_callback_fn(
+            h_mod,
+            h_cll,
+            unsafe { std::mem::transmute(callback) },
+        );
 
         if !result.is_success() {
             self.log_failed_api_call(FUNC, result);

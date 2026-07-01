@@ -3,6 +3,7 @@ pub mod pdu_version;
 pub mod pdu_object;
 pub mod pdu_com_param;
 pub mod pdu_com_param_table;
+pub mod pdu_event_callback;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
