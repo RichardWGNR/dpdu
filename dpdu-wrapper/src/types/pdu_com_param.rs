@@ -5,16 +5,56 @@ use dpdu_api_types::{ParamByteFieldData, ParamLongFieldData, ParamStructAccessTi
 use crate::types::PduObjectId;
 use crate::utils::{SendSync, VoidPtr};
 
-// TODO : impl Debug
+/// With the current design, this structure cannot be created directly. It can only be constructed
+/// via the [`from_*`] ethods. This is done to prevent panics when calling [Api::set_com_param()].
+///
+/// Thus, a [ComParam] is always identified either by an ID or a short name.
 #[derive(Clone)]
 pub struct PduComParam {
-    pub short_name: Option<String>,
+    pub(crate) short_name: Option<String>,
 
-    pub id: PduObjectId,
+    pub(crate) id: Option<PduObjectId>,
 
     pub class: PduPc,
 
     pub variant: PduCpVariant
+}
+
+impl PduComParam {
+    pub fn from_id(
+        id: PduObjectId,
+        class: PduPc,
+        variant: impl Into<PduCpVariant>
+    ) -> Self {
+        Self {
+            short_name: None,
+            id: Some(id),
+            class,
+            variant: variant.into()
+        }
+    }
+
+    /// Recommended way to construct the current structure.
+    pub fn from_short_name(
+        sn: impl Into<String>,
+        class: PduPc,
+        variant: impl Into<PduCpVariant>
+    ) -> Self {
+        Self {
+            short_name: Some(sn.into()),
+            id: Default::default(),
+            class,
+            variant: variant.into()
+        }
+    }
+
+    pub fn get_short_name(&self) -> Option<&String> {
+        self.short_name.as_ref()
+    }
+
+    pub fn get_id(&self) -> Option<&PduObjectId> {
+        self.id.as_ref()
+    }
 }
 
 // TODO : impl Debug

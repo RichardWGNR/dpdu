@@ -417,15 +417,15 @@ impl Api {
         );
 
         if !result.is_success() {
-            match result {
+            return match result {
                 PduError::ComParamNotSupported | PduError::InvalidParameters => {
                     // Some drivers return InvalidParameters instead of ComParamNotSupported.
                     warn!(com_param = %object_id, "Unsupported ComParam");
-                    return Err(Error::UnsupportedComParamError(object_id));
+                    Err(Error::UnsupportedComParamError(object_id))
                 },
                 _ => {
                     self.log_failed_api_call(FUNC, result);
-                    return Err(result)?;
+                    Err(result)?
                 }
             }
         }
@@ -449,7 +449,7 @@ impl Api {
 
             PduComParam {
                 short_name,
-                id,
+                id: Some(id),
                 class: item.com_param_class,
                 variant: match item.com_param_data_type {
                     PduPt::Unum8 => PduCpVariant::Unum8(read(data_ptr as _)),
@@ -507,35 +507,53 @@ impl Api {
         const FUNC: &'static str = "PDUSetComParam";
         self.log_api_call(FUNC);
 
+        let id = match &cp.short_name {
+            Some(v) => {
+                let id = self.pdu_get_object_id(PduObjt::ComParam, &v)?;
+                if id == PDU_ID_UNDEF {
+                    warn!(com_param = v, "Unsupported ComParam");
+                    return Err(Error::UnsupportedComParamError(v.clone().into()))?;
+                }
+                id
+            },
+            _ => {
+                // Since ComParam only has two constructors — one creating it from an ID and
+                // the other from a short name — panics will never occur.
+                cp.id.expect("ComParam ID")
+            }
+        };
+
+        let cp_debug_name = cp.short_name
+            .as_ref()
+            .map(|v| v.clone())
+            .unwrap_or_else(|| format!("#{id}"));
+
         trace!(
             func = FUNC,
             h_mod,
             h_cll,
+            com_param = cp_debug_name,
             com_param_ptr = format!("0x{:x}", cp as *const _ as usize),
             "D-PDU API Call Args"
         );
 
-        let cp_string_id = cp.short_name
-            .as_ref()
-            .map(|v| format!("#{v}"))
-            .unwrap_or_else(|| cp.id.to_string());
-
         if matches!(cp.class, PduPc::UniqueId) {
             // Chapter 9.4.27.1:
             //
-            // NOTE ComParams that are of type PDU_PC_UNIQUE_ID can only be used with the Unique Response ID Table.
+            // NOTE ComParams that are of type PDU_PC_UNIQUE_ID can only be used with
+            // the Unique Response ID Table.
             // They cannot be used in the functions PDUGetComParam() or PDUSetComParam().
-            warn!(
-                com_param = cp_string_id,
-                class = "PduPc::UniqueId",
-                "Invalid ComParam class"
-            );
-            return Ok(());
+            //
+            // Therefore, to reduce the number of calls to the D-PDU API, we proactively
+            // return the PduError::InvalidParameters error on our side.
+            let result = PduError::InvalidParameters;
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
         }
 
         let item = ParamItem {
             item_type: PduIt::Param,
-            com_param_id: cp.id,
+            com_param_id: id,
             com_param_data_type: cp.variant.get_pdu_type(),
             com_param_class: cp.class,
             p_com_param_data: cp.variant.get_pdu_ptr().as_ptr() as _,
@@ -548,8 +566,8 @@ impl Api {
             return match result {
                 PduError::ComParamNotSupported | PduError::InvalidParameters => {
                     // Some drivers return InvalidParameters instead of ComParamNotSupported.
-                    warn!(com_param = cp_string_id, "Unsupported ComParam");
-                    Err(Error::UnsupportedComParamError(cp.id.into()))
+                    warn!(com_param = cp_debug_name, "Unsupported ComParam");
+                    Err(Error::UnsupportedComParamError(id.into()))
                 },
                 _ => {
                     self.log_failed_api_call(FUNC, result);
