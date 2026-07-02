@@ -441,6 +441,8 @@ where
 
 impl FieldComParam<u8, ParamByteFieldData> {
     pub fn get_pdu_data(&self) -> &ParamByteFieldData {
+        // TODO : dangling pointers???
+        // TODO : reset cache of cell after data mofidy
         self.pdu_data.get_or_init(|| {
             SendSync(ParamByteFieldData {
                 param_max_len: self.owned_data.capacity() as _,
@@ -453,6 +455,8 @@ impl FieldComParam<u8, ParamByteFieldData> {
 
 impl FieldComParam<StructComParam, ParamStructFieldData> {
     pub fn get_pdu_data(&self) -> &ParamStructFieldData {
+        // TODO : dangling pointers???
+        // TODO : reset cache of cell after data mofidy
         self.pdu_data.get_or_init(|| {
             SendSync(ParamStructFieldData {
                 com_param_struct_type: self.struct_type.expect("struct type is set"),
@@ -466,6 +470,8 @@ impl FieldComParam<StructComParam, ParamStructFieldData> {
 
 impl FieldComParam<u32, ParamLongFieldData> {
     pub fn get_pdu_data(&self) -> &ParamLongFieldData {
+        // TODO : dangling pointers???
+        // TODO : reset cache of cell after data mofidy
         self.pdu_data.get_or_init(|| {
             SendSync(ParamLongFieldData {
                 param_max_len: self.owned_data.capacity() as _,
