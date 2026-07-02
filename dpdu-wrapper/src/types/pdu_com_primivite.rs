@@ -192,6 +192,7 @@ pub struct ExpectedResponse {
 
 #[repr(u32)]
 #[derive(Debug, Copy, Clone)]
+#[derive(strum::AsRefStr)]
 pub enum ResponseType {
     Positive = 0,
     Negative = 1,
@@ -215,8 +216,8 @@ pub enum ResponseType {
 ///     ответа. Все последующие байты данных в полученном ответе являются «безразличными».
 #[derive(Debug, Clone, Default)]
 pub struct MaskData {
-    mask: Vec<u8>,
-    pattern: Vec<u8>,
+    pub(crate) mask: Vec<u8>,
+    pub(crate) pattern: Vec<u8>,
 }
 
 impl MaskData {
@@ -308,6 +309,7 @@ impl ReceiveCycles {
 /// Temporary ComParam settings for the ComPrimitive.
 #[repr(u32)]
 #[derive(Debug, Copy, Clone)]
+#[derive(strum::AsRefStr)]
 pub enum ComParamBuffer {
     /// Do not use temporary ComParams for this ComPrimitive. The
     /// ComPrimitive shall attach the “Active” ComParam buffer to the

@@ -392,7 +392,15 @@ impl Api {
 
         // SAFETY:
         // PDUGetObjectId guarantees that `object_id` is initialized on success.
-        Ok(unsafe { object_id.assume_init() })
+        let object_id = unsafe { object_id.assume_init() };
+
+        trace!(
+            func = FUNC,
+            object_id,
+            "D-PDU API Call Return"
+        );
+
+        Ok(object_id)
     }
 
     pub fn pdu_get_com_param(
@@ -774,8 +782,20 @@ impl Api {
         const FUNC: &'static str = "PDUStartComPrimitive";
         self.log_api_call(FUNC);
 
-        let mut cop_handle: MaybeUninit<PduCopHandle> = MaybeUninit::uninit();
+        trace!(
+            func = FUNC,
 
+            h_mod,
+            h_cll,
+            cop_type = cop_type.as_ref(),
+
+            data_len = data.len(),
+            data_ptr = format!("0x{:#x}", data.as_ptr() as usize),
+
+            "D-PDU API Call Args"
+        );
+
+        let mut cop_handle: MaybeUninit<PduCopHandle> = MaybeUninit::uninit();
         let start_com_primivite_fn = self.get_pdu_function::<PduStartComPrimitiveFn>(FUNC.as_bytes())?;
 
         let result = match cop_type {
@@ -800,16 +820,55 @@ impl Api {
 
                 let flags = params.tx_flag.get_pdu_flag_data();
 
-                let mut expected_responses = params.expected_responses
+                trace!(
+                    func = FUNC,
+
+                    cop_delay_ms = params.time,
+                    send_cycles = params.send_cycles.to_i32(),
+                    receive_cycles = params.receive_cycles.to_i32(),
+                    buffer = params.temp_param_update.as_ref(),
+
+                    flags_ptr = format!("0x{:#x}", flags.as_ptr() as usize),
+                    flags = ?flags,
+
+                    expected_responses_len = params.expected_responses.len(),
+
+                    "D-PDU API Call Args"
+                );
+
+                let expected_responses = params.expected_responses
                     .iter()
-                    .map(|v| ExpRespData {
-                        response_type: v.response_type as _,
-                        acceptance_id: v.acceptance_id,
-                        num_mask_pattern_bytes: v.mask_data.len() as _,
-                        p_mask_data: v.mask_data.get_mask().as_ptr() as _,
-                        p_pattern_data: v.mask_data.get_pattern().as_ptr() as _,
-                        num_unique_resp_ids: v.unique_response_ids.len() as _,
-                        p_unique_resp_ids: v.unique_response_ids.as_ptr() as _,
+                    .map(|v| {
+                        trace!(
+                            func = FUNC,
+
+                            response_type = v.response_type.as_ref(),
+                            acceptance_id = v.acceptance_id,
+
+                            mask_data_ptr = format!("0x{:#x}", v.mask_data.get_mask().as_ptr() as usize),
+                            mask_data_len = v.mask_data.mask.len(),
+                            mask_data = ?v.mask_data.mask,
+
+                            mask_pattern_ptr = format!("0x{:#x}", v.mask_data.get_pattern().as_ptr() as usize),
+                            mask_pattern_len = v.mask_data.pattern.len(),
+                            mask_pattern = ?v.mask_data.pattern,
+
+                            unique_response_ids_ptr = format!("0x{:#x}", v.unique_response_ids.as_ptr() as usize),
+                            unique_response_ids_len = v.unique_response_ids.len(),
+                            unique_response_ids = ?v.unique_response_ids,
+
+                            "D-PDU API Call Args"
+                        );
+
+                        ExpRespData {
+                            response_type: v.response_type as _,
+                            acceptance_id: v.acceptance_id,
+                            num_mask_pattern_bytes: v.mask_data.len() as _,
+                            p_mask_data: v.mask_data.get_mask().as_ptr() as _,
+                            p_pattern_data: v.mask_data.get_pattern().as_ptr() as _,
+                            num_unique_resp_ids: v.unique_response_ids.len() as _,
+                            p_unique_resp_ids: v.unique_response_ids.as_ptr() as _,
+                        }
                     })
                     .collect::<Vec<_>>();
 
@@ -825,7 +884,7 @@ impl Api {
                     num_possible_expected_responses: expected_responses.len() as _,
                     expected_response_array: expected_responses.as_ptr() as _,
                 };
-                
+
                 start_com_primivite_fn(
                     h_mod,
                     h_cll,
@@ -846,6 +905,14 @@ impl Api {
 
         // SAFETY:
         // PDUStartComPrimitive guarantees that `phCoP` is initialized on success.
-        Ok(unsafe { cop_handle.assume_init() })
+        let cop_handle = unsafe { cop_handle.assume_init() };
+
+        trace!(
+            func = FUNC,
+            cop_handle,
+            "D-PDU API Call Return"
+        );
+
+        Ok(cop_handle)
     }
 }
