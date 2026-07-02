@@ -789,9 +789,6 @@ impl Api {
             h_cll,
             cop_type = cop_type.as_ref(),
 
-            data_len = data.len(),
-            data_ptr = format!("0x{:#x}", data.as_ptr() as usize),
-
             "D-PDU API Call Args"
         );
 
@@ -800,6 +797,32 @@ impl Api {
 
         let result = match cop_type {
             PduCopt::UpdateParam | PduCopt::RestoreParam => {
+                if data.len() != 0 {
+                    warn!(
+                        func = FUNC,
+                        "when PduCopt = UpdateParam or RestoreParam, data is not required"
+                    );
+                }
+                if params.is_some() {
+                    warn!(
+                        func = FUNC,
+                        "when PduCopt = UpdateParam or RestoreParam, PduComPrimitiveParams is not required"
+                    );
+                }
+
+                trace!(
+                    func = FUNC,
+
+                    data_len = 0,
+                    data_ptr = "<nullptr>",
+
+                    cop_ctrl_data_ptr = "<nullptr>",
+                    tag = "<nullptr>",
+                    cop_handle_ptr = format!("0x{:#x}", cop_handle.as_ptr() as usize),
+
+                    "D-PDU API Call Args"
+                );
+
                 start_com_primivite_fn(
                     h_mod,
                     h_cll,
@@ -884,6 +907,16 @@ impl Api {
                     num_possible_expected_responses: expected_responses.len() as _,
                     expected_response_array: expected_responses.as_ptr() as _,
                 };
+
+                trace!(
+                    func = FUNC,
+                    data_len = data.len(),
+                    data_ptr = format!("0x{:#x}", data.as_ptr() as usize),
+                    cop_ctrl_data_ptr = format!("0x{:#x}", &cop_ctrl_data as *const _ as usize),
+                    tag = "<nullptr>",
+                    cop_handle_ptr = format!("0x{:#x}", cop_handle.as_ptr() as usize),
+                    "D-PDU API Call Args"
+                );
 
                 start_com_primivite_fn(
                     h_mod,
