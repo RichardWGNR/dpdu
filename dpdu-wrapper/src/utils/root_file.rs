@@ -101,14 +101,47 @@ impl PduRootFile {
     pub fn guess_and_parse() -> Result<Option<Self>, PduRootFileError> {
         info!("An attempt to guess a path to the D-PDU API root file...");
 
-        let path = Self::lookup_root_file_path_in_windows_registry()
-            .map_err(|_e| PduRootFileError::GuessError)?;
+        let path: Option<PathBuf> = Self::lookup_root_file_path_in_windows_registry()
+            .map(|opt| opt.or_else(Self::lookup_root_file_path_in_typical_places))?;
 
-        if path.is_none() {
+        if let Some(path) = path {
+            info!("D-PDU API root file path has been guessed: {}", path.display());
+            return Self::parse_from_xml_file(path).map(|v| Some(v));
+        } else {
             error!("Unable to guess info about the D-PDU API root file");
         }
 
-        path.map(|p| Self::parse_from_xml_file(p)).transpose()
+        Ok(None)
+    }
+
+    /// Searches for a path to the D-PDU API root file in typical places.
+    pub fn lookup_root_file_path_in_typical_places() -> Option<PathBuf> {
+        info!("Searching for the D-PDU API root file in the typical places...");
+
+        cfg_if! {
+            if #[cfg(target_arch = "x86_64")] {
+                const PATHS: [&'static str; 1] = [
+                    "C:\\Program Files\\D-PDU API\\pdu_api_root_x64.xml"
+                ];
+            } else if #[cfg(target_arch = "x86")] {
+                const PATHS: [&'static str; 1] = [
+                    "C:\\Program Files (x86)\\D-PDU API\\pdu_api_root.xml"
+                ];
+            } else {
+                compile_error!("Unsupported target architecture");
+            }
+        }
+
+        for path in PATHS {
+            let path = PathBuf::from(path);
+            if path.exists() && path.is_file() {
+                info!("Found the D-PDU API root file in a typical place: {}", path.display());
+                return Some(path)
+            }
+        }
+
+        error!("The D-PDU API root file was not found in any typical place");
+        None
     }
 
     /// Searches for a path to the D-PDU API root file via the Windows registry.
