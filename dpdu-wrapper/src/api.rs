@@ -691,7 +691,7 @@ impl Api {
         target: PduEventCallbackTarget,
         callback: Option<EventCallbackFn>
     ) -> Result<()> {
-        const FUNC: &'static str = "PDUSetUniqueRespIdTable";
+        const FUNC: &'static str = "PDURegisterEventCallback";
         self.log_api_call(FUNC);
 
         trace!(
