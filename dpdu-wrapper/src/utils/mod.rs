@@ -38,23 +38,63 @@ pub(crate) fn get_bomless_file_reader(path: &Path) -> Result<BufReader<File>, st
     Ok(reader)
 }
 
+/// A zero-sized marker type that ties a value to a lifetime `'a`
+/// without holding an actual reference.
+///
+/// `PhantomRef` is used to express that `T` is logically bound to
+/// a lifetime, typically for FFI or raw pointer wrappers, while not
+/// storing any real reference.
+///
+/// This does **not** provide any runtime guarantees about validity
+/// of pointers or memory safety. It only enforces constraints at
+/// compile time.
+pub(crate) struct PhantomRef<'a, T> {
+    pub data: T,
+    _marker: PhantomData<&'a ()>
+}
+
+impl<'a, T> PhantomRef<'a, T> {
+    pub fn new(data: T) -> PhantomRef<'a, T> {
+        Self {
+            data,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn as_ptr(&self) -> *const T {
+        &self.data
+    }
+
+    pub fn as_mut_ptr(&mut self) -> *mut T {
+        &mut self.data
+    }
+}
+
+impl<'a, T> Deref for PhantomRef<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
 /// A lifetime-bound opaque pointer (`*const c_void`).
 ///
 /// Does not own the pointed-to value.
 #[derive(Debug)]
-pub(crate) struct VoidPtr<'a> {
+pub(crate) struct PhantomPtr<'a> {
     pub ptr: *const c_void,
     _marker: PhantomData<&'a ()>
 }
 
-impl<'a> VoidPtr<'a> {
+impl<'a> PhantomPtr<'a> {
     pub fn new(ptr: *const c_void) -> Self {
         Self {
             ptr,
             _marker: PhantomData
         }
     }
-    
+
     /// Returns the pointer as `*const c_void`.
     pub fn as_ptr(&self) -> *const c_void {
         self.ptr
@@ -64,7 +104,7 @@ impl<'a> VoidPtr<'a> {
     ///
     /// This only casts the pointer type and does not guarantee mutability
     /// of the underlying data.
-    pub fn as_mut(&self) -> *mut c_void {
+    pub fn as_mut_ptr(&self) -> *mut c_void {
         self.ptr as _
     }
 }

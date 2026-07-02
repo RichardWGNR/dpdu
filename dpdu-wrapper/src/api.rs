@@ -11,7 +11,7 @@ use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn,
 use rand::random;
 use tracing::{debug, error, trace, warn};
 use crate::types::{PduCllHandle, PduCopHandle, PduLibraryPath, PduModuleHandle, PduObjectId, PduOptions, PduUniqueId};
-use crate::types::pdu_com_param::{FieldComParam, PduComParam, PduCpVariant, StructComParam};
+use crate::types::pdu_com_param::{ByteFieldComParam, FieldComParam, LongFieldComParam, PduComParam, PduCpVariant, StructComParam, StructFieldComParam};
 use crate::types::pdu_com_param_table::PduComParamTable;
 use crate::types::pdu_com_primivite::PduComPrimiviteParams;
 use crate::types::pdu_event::{PduErrorEvent, PduEvent, PduEventData, PduInfoEvent, PduResultEvent, PduStatusEvent};
@@ -492,7 +492,7 @@ impl Api {
                     PduPt::Snum32 => PduCpVariant::Snum32(read(data_ptr as _)),
                     PduPt::ByteField => PduCpVariant::ByteField({
                         let data = &*(data_ptr as *const ParamByteFieldData);
-                        FieldComParam::<u8, ParamByteFieldData>::new_byte_field(
+                        ByteFieldComParam::new(
                             slice::from_raw_parts(
                                 data.p_data_array,
                                 data.param_act_len as _,
@@ -502,7 +502,7 @@ impl Api {
                     }),
                     PduPt::StructField => PduCpVariant::StructField({
                         let data = &*(data_ptr as *const ParamStructFieldData);
-                        FieldComParam::<StructComParam, ParamStructFieldData>::new_struct_field(
+                        StructFieldComParam::new(
                             data.com_param_struct_type,
                             slice::from_raw_parts(
                                 data.p_struct_array as *mut StructComParam,
@@ -513,7 +513,7 @@ impl Api {
                     }),
                     PduPt::LongField => PduCpVariant::LongField({
                         let data = &*(data_ptr as *const ParamLongFieldData);
-                        FieldComParam::<u32, ParamLongFieldData>::new_long_field(
+                        LongFieldComParam::new(
                             slice::from_raw_parts(
                                 data.p_data_array,
                                 data.param_act_len as _,

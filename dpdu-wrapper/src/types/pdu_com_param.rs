@@ -2,11 +2,12 @@ use std::cell::OnceCell;
 use std::ffi::c_void;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
+use std::marker::PhantomData;
 use dpdu_api_types::{ParamByteFieldData, ParamLongFieldData, ParamStructAccessTiming, ParamStructFieldData, ParamStructSessionTiming, PduCpst, PduError, PduObjt, PduPc, PduPt, PDU_ID_UNDEF};
 use tracing::warn;
 use crate::api::{Api, Result as ApiResult};
 use crate::types::PduObjectId;
-use crate::utils::{SendSync, VoidPtr};
+use crate::utils::{PhantomRef, SendSync, PhantomPtr};
 
 /// With the current design, this structure cannot be created directly. It can only be constructed
 /// via the [`from_*`] ethods. This is done to prevent panics when calling [Api::set_com_param()].
@@ -113,6 +114,91 @@ impl PduComParam {
     }
 }
 
+pub type ByteFieldComParam = FieldComParam<u8>;
+
+impl ByteFieldComParam {
+    pub fn new(mut data: Vec<u8>, capacity: Option<usize>) -> Self {
+        let len = data.len();
+
+        let capacity = capacity
+            .and_then(|v| if v > len { Some(v) } else { None })
+            .unwrap_or(len);
+
+        data.reserve(capacity - len);
+
+        FieldComParam {
+            capacity,
+            owned_data: data,
+            struct_type: None,
+        }
+    }
+
+    pub(crate) fn get_pdu_data(&self) -> PhantomRef<'_, ParamByteFieldData> {
+        PhantomRef::new(ParamByteFieldData {
+            param_max_len: self.owned_data.capacity() as _,
+            param_act_len: self.owned_data.len() as _,
+            p_data_array: self.owned_data.as_ptr() as _,
+        })
+    }
+}
+
+pub type StructFieldComParam = FieldComParam<StructComParam>;
+
+impl StructFieldComParam {
+    pub fn new(struct_type: PduCpst, mut data: Vec<StructComParam>, capacity: Option<usize>) -> Self {
+        let len = data.len();
+
+        let capacity = capacity
+            .and_then(|v| if v > len { Some(v) } else { None })
+            .unwrap_or(len);
+
+        data.reserve(capacity - len);
+
+        FieldComParam {
+            capacity: data.len(),
+            owned_data: data,
+            struct_type: Some(struct_type),
+        }
+    }
+
+    pub(crate) fn get_pdu_data(&self) -> PhantomRef<'_, ParamStructFieldData> {
+        PhantomRef::new(ParamStructFieldData {
+            com_param_struct_type: self.struct_type.expect("struct type is set"),
+            param_max_entries: self.owned_data.capacity() as _,
+            param_act_entries: self.owned_data.len() as _,
+            p_struct_array: self.owned_data.as_ptr() as _,
+        })
+    }
+}
+
+pub type LongFieldComParam = FieldComParam<u32>;
+
+impl LongFieldComParam {
+    pub fn new(mut data: Vec<u32>, capacity: Option<usize>) -> Self {
+        let len = data.len();
+
+        let capacity = capacity
+            .and_then(|v| if v > len { Some(v) } else { None })
+            .unwrap_or(len);
+
+        data.reserve(capacity - len);
+
+        FieldComParam {
+            capacity: data.len(),
+            owned_data: data,
+            struct_type: None,
+        }
+    }
+
+    pub(crate) fn get_pdu_data(&self) -> PhantomRef<'_, ParamLongFieldData> {
+        PhantomRef::new(ParamLongFieldData {
+            param_max_len: self.owned_data.capacity() as _,
+            param_act_len: self.owned_data.len() as _,
+            p_data_array: self.owned_data.as_ptr() as _,
+        })
+    }
+}
+
 // TODO : impl Debug
 #[derive(Clone)]
 pub enum PduCpVariant {
@@ -122,9 +208,9 @@ pub enum PduCpVariant {
     Snum16(i16),
     Unum32(u32),
     Snum32(i32),
-    ByteField(FieldComParam<u8, ParamByteFieldData>),
-    StructField(FieldComParam<StructComParam, ParamStructFieldData>),
-    LongField(FieldComParam<u32, ParamLongFieldData>),
+    ByteField(ByteFieldComParam),
+    StructField(StructFieldComParam),
+    LongField(LongFieldComParam),
 }
 
 impl From<u8> for PduCpVariant {
@@ -165,18 +251,13 @@ impl From<i32> for PduCpVariant {
 
 impl From<Vec<u8>> for PduCpVariant {
     fn from(value: Vec<u8>) -> Self {
-        Self::ByteField(FieldComParam::<u8, ParamByteFieldData>::new_byte_field(
-            value, None,
-        ))
+        Self::ByteField(ByteFieldComParam::new(value, None))
     }
 }
 
 impl From<(Vec<u8>, usize)> for PduCpVariant {
     fn from(value: (Vec<u8>, usize)) -> Self {
-        Self::ByteField(FieldComParam::<u8, ParamByteFieldData>::new_byte_field(
-            value.0,
-            Some(value.1),
-        ))
+        Self::ByteField(ByteFieldComParam::new(value.0, Some(value.1)))
     }
 }
 
@@ -185,13 +266,8 @@ impl From<Vec<ParamStructAccessTiming>> for PduCpVariant {
         let vec = value.into_iter()
             .map(|v| StructComParam::from(v))
             .collect();
-        Self::StructField(
-            FieldComParam::<StructComParam, ParamStructFieldData>::new_struct_field(
-                PduCpst::AccessTiming,
-                vec,
-                None,
-            ),
-        )
+
+        Self::StructField(StructFieldComParam::new(PduCpst::AccessTiming, vec, None))
     }
 }
 
@@ -202,13 +278,8 @@ impl From<(Vec<ParamStructAccessTiming>, usize)> for PduCpVariant {
             .into_iter()
             .map(|v| StructComParam::from(v))
             .collect();
-        Self::StructField(
-            FieldComParam::<StructComParam, ParamStructFieldData>::new_struct_field(
-                PduCpst::AccessTiming,
-                vec,
-                Some(value.1),
-            ),
-        )
+
+        Self::StructField(StructFieldComParam::new(PduCpst::AccessTiming, vec, Some(value.1)))
     }
 }
 
@@ -217,13 +288,8 @@ impl From<Vec<ParamStructSessionTiming>> for PduCpVariant {
         let vec = value.into_iter()
             .map(|v| StructComParam::from(v))
             .collect();
-        Self::StructField(
-            FieldComParam::<StructComParam, ParamStructFieldData>::new_struct_field(
-                PduCpst::SessionTiming,
-                vec,
-                None,
-            ),
-        )
+
+        Self::StructField(StructFieldComParam::new(PduCpst::SessionTiming, vec, None))
     }
 }
 
@@ -234,30 +300,20 @@ impl From<(Vec<ParamStructSessionTiming>, usize)> for PduCpVariant {
             .into_iter()
             .map(|v| StructComParam::from(v))
             .collect();
-        Self::StructField(
-            FieldComParam::<StructComParam, ParamStructFieldData>::new_struct_field(
-                PduCpst::SessionTiming,
-                vec,
-                Some(value.1),
-            ),
-        )
+
+        Self::StructField(StructFieldComParam::new(PduCpst::SessionTiming, vec, Some(value.1)))
     }
 }
 
 impl From<Vec<u32>> for PduCpVariant {
     fn from(value: Vec<u32>) -> Self {
-        Self::LongField(FieldComParam::<u32, ParamLongFieldData>::new_long_field(
-            value, None,
-        ))
+        Self::LongField(LongFieldComParam::new(value, None))
     }
 }
 
 impl From<(Vec<u32>, usize)> for PduCpVariant {
     fn from(value: (Vec<u32>, usize)) -> Self {
-        Self::LongField(FieldComParam::<u32, ParamLongFieldData>::new_long_field(
-            value.0,
-            Some(value.1),
-        ))
+        Self::LongField(LongFieldComParam::new(value.0, Some(value.1)))
     }
 }
 
@@ -304,21 +360,21 @@ impl PduCpVariant {
         }
     }
 
-    pub fn as_bytefield(&self) -> Option<&FieldComParam<u8, ParamByteFieldData>> {
+    pub fn as_bytefield(&self) -> Option<&ByteFieldComParam> {
         match self {
             Self::ByteField(v) => Some(&v),
             _ => None,
         }
     }
 
-    pub fn as_structfield(&self) -> Option<&FieldComParam<StructComParam, ParamStructFieldData>> {
+    pub fn as_structfield(&self) -> Option<&StructFieldComParam> {
         match self {
             Self::StructField(v) => Some(&v),
             _ => None,
         }
     }
 
-    pub fn as_longfield(&self) -> Option<&FieldComParam<u32, ParamLongFieldData>> {
+    pub fn as_longfield(&self) -> Option<&LongFieldComParam> {
         match self {
             Self::LongField(v) => Some(&v),
             _ => None,
@@ -342,7 +398,7 @@ impl PduCpVariant {
         }
     }
 
-    pub(crate) fn get_pdu_ptr(&self) -> VoidPtr<'_> {
+    pub(crate) fn get_pdu_ptr(&self) -> PhantomPtr<'_> {
         let ptr: *const c_void = match self {
             Self::Unum8(d) => d as *const u8 as _,
             Self::Snum8(d) => d as *const i8 as _,
@@ -353,143 +409,27 @@ impl PduCpVariant {
             Self::Unum32(d) => d as *const u32 as _,
             Self::Snum32(d) => d as *const i32 as _,
 
-            Self::ByteField(d) => d.get_pdu_data() as *const _ as _,
-            Self::StructField(d) => d.get_pdu_data() as *const _ as _,
-            Self::LongField(d) => d.get_pdu_data() as *const _ as _,
+            Self::ByteField(d) => d.get_pdu_data().as_ptr() as _,
+            Self::StructField(d) => d.get_pdu_data().as_ptr() as _,
+            Self::LongField(d) => d.get_pdu_data().as_ptr() as _,
         };
 
-        VoidPtr::new(ptr)
+        PhantomPtr::new(ptr)
     }
 }
 
 #[derive(Clone, Default)]
-pub struct FieldComParam<T, P>
-where
-    P: Debug,
-{
+pub struct FieldComParam<T> {
     pub capacity: usize,
     pub owned_data: Vec<T>,
-    pub pdu_data: OnceCell<SendSync<P>>,
     pub struct_type: Option<PduCpst>,
 }
 
-impl<T, P> FieldComParam<T, P>
-where
-    P: Debug,
-{
-    pub fn new_byte_field(
-        mut data: Vec<u8>,
-        capacity: Option<usize>,
-    ) -> FieldComParam<u8, ParamByteFieldData> {
-        let len = data.len();
-
-        let capacity = capacity
-            .and_then(|v| if v > len { Some(v) } else { None })
-            .unwrap_or(len);
-
-        data.reserve(capacity - len);
-
-        FieldComParam {
-            capacity,
-            owned_data: data,
-            pdu_data: OnceCell::new(),
-            struct_type: None,
-        }
-    }
-
-    pub fn new_long_field(
-        mut data: Vec<u32>,
-        capacity: Option<usize>,
-    ) -> FieldComParam<u32, ParamLongFieldData> {
-        let len = data.len();
-
-        let capacity = capacity
-            .and_then(|v| if v > len { Some(v) } else { None })
-            .unwrap_or(len);
-
-        data.reserve(capacity - len);
-
-        FieldComParam {
-            capacity: data.len(),
-            owned_data: data,
-            pdu_data: OnceCell::new(),
-            struct_type: None,
-        }
-    }
-    
-    pub fn new_struct_field(
-        struct_type: PduCpst,
-        mut data: Vec<StructComParam>,
-        capacity: Option<usize>,
-    ) -> FieldComParam<StructComParam, ParamStructFieldData> {
-        let len = data.len();
-
-        let capacity = capacity
-            .and_then(|v| if v > len { Some(v) } else { None })
-            .unwrap_or(len);
-        
-        data.reserve(capacity - len);
-
-        FieldComParam {
-            capacity: data.len(),
-            owned_data: data,
-            pdu_data: OnceCell::new(),
-            struct_type: Some(struct_type),
-        }
-    }
-}
-
-impl FieldComParam<u8, ParamByteFieldData> {
-    pub fn get_pdu_data(&self) -> &ParamByteFieldData {
-        // TODO : dangling pointers???
-        // TODO : reset cache of cell after data mofidy
-        self.pdu_data.get_or_init(|| {
-            SendSync(ParamByteFieldData {
-                param_max_len: self.owned_data.capacity() as _,
-                param_act_len: self.owned_data.len() as _,
-                p_data_array: self.owned_data.as_ptr() as _,
-            })
-        })
-    }
-}
-
-impl FieldComParam<StructComParam, ParamStructFieldData> {
-    pub fn get_pdu_data(&self) -> &ParamStructFieldData {
-        // TODO : dangling pointers???
-        // TODO : reset cache of cell after data mofidy
-        self.pdu_data.get_or_init(|| {
-            SendSync(ParamStructFieldData {
-                com_param_struct_type: self.struct_type.expect("struct type is set"),
-                param_max_entries: self.owned_data.capacity() as _,
-                param_act_entries: self.owned_data.len() as _,
-                p_struct_array: self.owned_data.as_ptr() as _,
-            })
-        })
-    }
-}
-
-impl FieldComParam<u32, ParamLongFieldData> {
-    pub fn get_pdu_data(&self) -> &ParamLongFieldData {
-        // TODO : dangling pointers???
-        // TODO : reset cache of cell after data mofidy
-        self.pdu_data.get_or_init(|| {
-            SendSync(ParamLongFieldData {
-                param_max_len: self.owned_data.capacity() as _,
-                param_act_len: self.owned_data.len() as _,
-                p_data_array: self.owned_data.as_ptr() as _,
-            })
-        })
-    }
-}
-
-impl<T, P> Debug for FieldComParam<T, P>
-where
-    P: Debug,
-{
+impl<T> Debug for FieldComParam<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut s = f.debug_struct("FieldComParam");
 
-        s.field("pdu_data", &self.pdu_data)
+        s/*.field("pdu_data", &self.pdu_data)*/
             .field("struct_type", &self.struct_type);
 
         s.finish()
