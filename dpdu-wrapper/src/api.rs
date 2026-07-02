@@ -7,12 +7,13 @@ use std::ops::Deref;
 use std::pin::{pin, Pin};
 use std::ptr::NonNull;
 use std::sync::{Arc, Weak};
-use dpdu_api_types::{EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, InfoData, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConstructFn, PduDestroyItemFn, PduDestructFn, PduError, PduGetComParamFn, PduGetEventItemFn, PduGetObjectIdFn, PduGetVersionFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStatus, ResultData, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
+use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConstructFn, PduCopt, PduDestroyItemFn, PduDestructFn, PduError, PduGetComParamFn, PduGetEventItemFn, PduGetObjectIdFn, PduGetVersionFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, ResultData, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
 use rand::random;
 use tracing::{debug, error, trace, warn};
-use crate::types::{PduCllHandle, PduLibraryPath, PduModuleHandle, PduObjectId, PduOptions, PduUniqueId};
+use crate::types::{PduCllHandle, PduCopHandle, PduLibraryPath, PduModuleHandle, PduObjectId, PduOptions, PduUniqueId};
 use crate::types::pdu_com_param::{FieldComParam, PduComParam, PduCpVariant, StructComParam};
 use crate::types::pdu_com_param_table::PduComParamTable;
+use crate::types::pdu_com_primivite::PduComPrimiviteParams;
 use crate::types::pdu_event::{PduErrorEvent, PduEvent, PduEventData, PduInfoEvent, PduResultEvent, PduStatusEvent};
 use crate::types::pdu_event_callback::PduEventCallbackTarget;
 use crate::types::pdu_object::PduObjectIdSource;
@@ -760,5 +761,91 @@ impl Api {
         }
 
         Ok(())
+    }
+
+    pub fn pdu_start_com_primivite(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: PduCllHandle,
+        cop_type: PduCopt,
+        data: &[u8],
+        params: Option<&PduComPrimiviteParams>
+    ) -> Result<PduCopHandle> {
+        const FUNC: &'static str = "PDUStartComPrimitive";
+        self.log_api_call(FUNC);
+
+        let mut cop_handle: MaybeUninit<PduCopHandle> = MaybeUninit::uninit();
+
+        let start_com_primivite_fn = self.get_pdu_function::<PduStartComPrimitiveFn>(FUNC.as_bytes())?;
+
+        let result = match cop_type {
+            PduCopt::UpdateParam | PduCopt::RestoreParam => {
+                start_com_primivite_fn(
+                    h_mod,
+                    h_cll,
+                    cop_type,
+                    0, // data len
+                    ptr::null_mut(), // data ptr
+                    ptr::null_mut(), // cop ctrl data
+                    ptr::null_mut(), // tag
+                    cop_handle.as_mut_ptr()
+                )
+            },
+            _ => {
+                let params = params
+                    .expect(&format!(
+                        "when PduCopt = {}, PduComPrimitiveParams is required",
+                        cop_type.as_ref()
+                    ));
+
+                let flags = params.tx_flag.get_pdu_flag_data();
+
+                let mut expected_responses = params.expected_responses
+                    .iter()
+                    .map(|v| ExpRespData {
+                        response_type: v.response_type as _,
+                        acceptance_id: v.acceptance_id,
+                        num_mask_pattern_bytes: v.mask_data.len() as _,
+                        p_mask_data: v.mask_data.get_mask().as_ptr() as _,
+                        p_pattern_data: v.mask_data.get_pattern().as_ptr() as _,
+                        num_unique_resp_ids: v.unique_response_ids.len() as _,
+                        p_unique_resp_ids: v.unique_response_ids.as_ptr() as _,
+                    })
+                    .collect::<Vec<_>>();
+
+                let cop_ctrl_data = CopCtrlData {
+                    time: params.time,
+                    num_send_cycles: params.send_cycles.to_i32(),
+                    num_receive_cycles: params.receive_cycles.to_i32(),
+                    temp_param_update: params.temp_param_update as _,
+                    tx_flag: FlagData {
+                        num_flag_bytes: flags.len() as _,
+                        p_flag_data: flags.as_ptr() as _,
+                    },
+                    num_possible_expected_responses: expected_responses.len() as _,
+                    expected_response_array: expected_responses.as_ptr() as _,
+                };
+                
+                start_com_primivite_fn(
+                    h_mod,
+                    h_cll,
+                    cop_type,
+                    data.len() as _,
+                    data.as_ptr() as _,
+                    &cop_ctrl_data as *const _ as _,
+                    ptr::null_mut(), // tag
+                    cop_handle.as_mut_ptr()
+                )
+            }
+        };
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        // SAFETY:
+        // PDUStartComPrimitive guarantees that `phCoP` is initialized on success.
+        Ok(unsafe { cop_handle.assume_init() })
     }
 }
