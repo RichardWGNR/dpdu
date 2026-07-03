@@ -408,7 +408,7 @@ impl PduCpVariant {
 
             Self::Unum32(d) => d as *const u32 as _,
             Self::Snum32(d) => d as *const i32 as _,
-
+            
             Self::ByteField(d) => d.get_pdu_data().as_ptr() as _,
             Self::StructField(d) => d.get_pdu_data().as_ptr() as _,
             Self::LongField(d) => d.get_pdu_data().as_ptr() as _,

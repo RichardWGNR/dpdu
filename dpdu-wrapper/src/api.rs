@@ -1,21 +1,20 @@
-use std::ffi::{CString};
+use std::ffi::{c_void, CString};
 use std::{ptr, slice};
 use std::cell::{OnceCell};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::mem::MaybeUninit;
-use std::ops::Deref;
-use std::pin::{pin, Pin};
 use std::ptr::NonNull;
 use std::sync::{Arc, Weak};
-use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConstructFn, PduCopt, PduDestroyItemFn, PduDestructFn, PduError, PduGetComParamFn, PduGetEventItemFn, PduGetObjectIdFn, PduGetVersionFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, ResultData, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
+use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConstructFn, PduCopt, PduDataItem, PduDestroyItemFn, PduDestructFn, PduError, PduGetComParamFn, PduGetEventItemFn, PduGetObjectIdFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, ResultData, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
 use rand::random;
 use tracing::{debug, error, trace, warn};
 use crate::types::{PduCllHandle, PduCopHandle, PduLibraryPath, PduModuleHandle, PduObjectId, PduOptions, PduUniqueId};
-use crate::types::pdu_com_param::{ByteFieldComParam, FieldComParam, LongFieldComParam, PduComParam, PduCpVariant, StructComParam, StructFieldComParam};
+use crate::types::pdu_com_param::{ByteFieldComParam, LongFieldComParam, PduComParam, PduCpVariant, StructComParam, StructFieldComParam};
 use crate::types::pdu_com_param_table::PduComParamTable;
 use crate::types::pdu_com_primivite::PduComPrimiviteParams;
 use crate::types::pdu_event::{PduErrorEvent, PduEvent, PduEventData, PduInfoEvent, PduResultEvent, PduStatusEvent};
 use crate::types::pdu_event_callback::PduEventCallbackTarget;
+use crate::types::pdu_io_ctl::{IoCtlByteArray, PduIoCtlCommand, PduIoCtlData};
 use crate::types::pdu_object::PduObjectIdSource;
 use crate::types::pdu_version::PduVersionData;
 use crate::utils::c_str;
@@ -947,5 +946,150 @@ impl Api {
         );
 
         Ok(cop_handle)
+    }
+
+    pub fn pdu_io_ctl(
+        &self,
+        h_mod: Option<PduModuleHandle>,
+        h_cll: Option<PduCllHandle>,
+        command: PduIoCtlCommand,
+        data: Option<&PduIoCtlData>
+    ) -> Result<Option<PduIoCtlData>> {
+        const FUNC: &'static str = "PDUIoCtl";
+        self.log_api_call(FUNC);
+
+        trace!(
+            func = FUNC,
+            ?h_mod,
+            ?h_cll,
+            %command,
+            "D-PDU API Call Args"
+        );
+
+        data.inspect(|data| {
+            match data {
+                PduIoCtlData::U32(v) => trace!(
+                    func = FUNC,
+                    data_type = data.as_ref(),
+                    data_u32 = v,
+                    "D-PDU API Call Args"
+                ),
+                PduIoCtlData::ProgVoltage(v) => trace!(
+                    func = FUNC,
+                    data_type = data.as_ref(),
+                    data_prog_voltage_mv = v.prog_voltage_mv,
+                    data_pin_on_dlc = v.pin_on_dlc,
+                    "D-PDU API Call Args"
+                ),
+                PduIoCtlData::ByteArray(v) => trace!(
+                    func = FUNC,
+                    data_type = data.as_ref(),
+                    data_len = v.len(),
+                    data_value = ?v,
+                    "D-PDU API Call Args"
+                ),
+                PduIoCtlData::Filter(v) => trace!(
+                    func = FUNC,
+                    data_type = data.as_ref(),
+                    data_filter_type = v.filter_type.as_ref(),
+                    data_filter_number = v.filter_number,
+                    data_filter_compare_size = v.filter_compare_size,
+                    data_filter_mask_msg = ?v.filter_mask_msg,
+                    data_filter_pattern_msg = ?v.filter_pattern_msg,
+                    "D-PDU API Call Args"
+                ),
+                PduIoCtlData::EventQueueProperty(v) => trace!(
+                    func = FUNC,
+                    data_type = data.as_ref(),
+                    data_queue_size = v.queue_size,
+                    data_queue_mode = v.queue_mode.as_ref(),
+                    "D-PDU API Call Args"
+                )
+            }
+        });
+
+        let object_id = match command {
+            PduIoCtlCommand::Id(v) => v,
+            PduIoCtlCommand::Name(v) => self.pdu_get_object_id(PduObjt::IoCtrl, &v)?
+        };
+
+        let input_data_ptr: *const c_void = data.as_ref()
+            .map(|v| v.to_pdu_data_item().p_data as _)
+            .unwrap_or(ptr::null());
+
+        let mut output_data_ptr = ptr::null_mut();
+
+        trace!(
+            func = FUNC,
+            input_data_ptr = format!("0x{:#x}", input_data_ptr as usize),
+            output_data_ptr = format!("0x{:#x}", &output_data_ptr as *const _ as usize),
+            "D-PDU API Call Args"
+        );
+
+        let io_ctl_fn = self.get_pdu_function::<PduIoctlFn>(FUNC.as_bytes())?;
+        let result = io_ctl_fn(
+            h_mod.unwrap_or(PDU_HANDLE_UNDEF),
+            h_cll.unwrap_or(PDU_HANDLE_UNDEF),
+            object_id,
+            input_data_ptr as _,
+            &mut output_data_ptr
+        );
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        if !output_data_ptr.is_null() {
+            let data = unsafe { &*output_data_ptr };
+            let io_ctl_data: Result<Option<PduIoCtlData>> = unsafe {
+                match data.item_type {
+                    PduIt::IoUnum32 => Ok(Some(data.p_data.cast::<u32>().read().into())),
+                    PduIt::IoProgVoltage => {
+                        Ok(Some(data.p_data.cast::<IoProgVoltageData>().read().into()))
+                    },
+                    PduIt::IoByteArray => {
+                        let byte_array = &*data.p_data.cast::<IoByteArrayData>();
+                        if byte_array.p_data.is_null() {
+                            error!(
+                                func = FUNC,
+                                data_type = PduIt::IoByteArray.as_ref(),
+                                "Byte array pointer is null. Emulation of PduError::FctFailed..."
+                            );
+                            Err(PduError::FctFailed.into())
+                        } else {
+                            let len = byte_array.data_size as _;
+                            Ok(Some(
+                                IoCtlByteArray(
+                                    Vec::from_raw_parts(
+                                        byte_array.p_data,
+                                        len,
+                                        len
+                                    )
+                                ).into()
+                            ))
+                        }
+                    },
+                    PduIt::IoFilter => Ok(Some(data.p_data.cast::<IoFilterData>().read().into())),
+                    PduIt::IoEventQueueProperty => {
+                        Ok(Some(data.p_data.cast::<IoEventQueuePropertyData>().read().into()))
+                    },
+                    v => {
+                        error!(
+                            func = FUNC,
+                            data_type = v.as_ref(),
+                            "Unexpected output data type. Emulation of PduError::FctFailed..."
+                        );
+                        Err(PduError::FctFailed.into())
+                    }
+                }
+            };
+
+            self.pdu_destroy_item(output_data_ptr as _)?;
+
+            io_ctl_data
+        } else {
+            Ok(None)
+        }
     }
 }
