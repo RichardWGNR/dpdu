@@ -4,8 +4,6 @@ use crate::api::Api;
 use crate::types::pdu_status::PduStatusData;
 use crate::types::PduModuleHandle;
 
-pub type VciList = Vec<Arc<PduVci>>;
-
 #[derive(Debug, Clone)]
 pub struct PduVci {
     pub(crate) api: Weak<Api>,

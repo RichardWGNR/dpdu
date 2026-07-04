@@ -18,7 +18,6 @@ use crate::types::pdu_io_ctl::{IoCtlByteArray, PduIoCtlCommand, PduIoCtlData};
 use crate::types::pdu_module::{PduModule, PduModuleList};
 use crate::types::pdu_object::PduObjectIdSource;
 use crate::types::pdu_status::PduStatusData;
-use crate::types::pdu_vci::{PduVci, VciList};
 use crate::types::pdu_version::PduVersionData;
 use crate::utils::c_str;
 use crate::utils::module_description::PduModuleDescription;
@@ -38,7 +37,7 @@ pub enum Error {
 
 #[derive(Debug)]
 pub struct Api {
-    me: Weak<Api>,
+    pub(crate) me: Weak<Api>,
 
     pdu_options: PduOptions,
 
@@ -1263,30 +1262,5 @@ impl Api {
             timestamp,
             extra_info,
         })
-    }
-
-    pub fn get_vehicle_communication_interfaces(&self) -> Result<VciList> {
-        const FUNC: &'static str = "get_vehicle_communication_interfaces";
-
-        info!(func = FUNC, "Attempt to retrieve the list of communication modules (VCI)...");
-
-        let modules = self.pdu_get_module_ids().inspect_err(|err| {
-            error!(func = FUNC,"Failed to retrieve the list of communication modules: {err}");
-        })?;
-
-        let mut list = Vec::with_capacity(modules.len());
-
-        for module in modules.into_iter() {
-            list.push(Arc::new(PduVci {
-                api: self.me.clone(),
-                h_mod: module.h_mod,
-                module_name: module.vendor_module_name,
-                additional_info: module.vendor_additional_info,
-                status: self.pdu_get_status(module.h_mod, None, None)?,
-            }));
-        }
-
-        info!(func = FUNC, "Successfully retrieved {} communication modules", list.len());
-        Ok(list)
     }
 }

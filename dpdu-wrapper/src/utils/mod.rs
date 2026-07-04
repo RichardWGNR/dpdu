@@ -1,5 +1,6 @@
 pub mod module_description;
 pub mod root_file;
+pub mod vci_list_resolver;
 
 use std::ffi::{CStr, c_char, c_void};
 use std::fs::{File, OpenOptions};
