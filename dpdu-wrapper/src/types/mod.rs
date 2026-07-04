@@ -9,6 +9,7 @@ pub mod pdu_io_ctl;
 pub mod pdu_module;
 pub mod pdu_status;
 pub mod pdu_vci;
+pub mod pdu_com_logical_link;
 
 use std::collections::HashMap;
 use std::path::PathBuf;

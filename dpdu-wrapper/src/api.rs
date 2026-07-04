@@ -5,10 +5,11 @@ use std::collections::{HashMap};
 use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::sync::{Arc, Weak};
-use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, ModuleItem, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConstructFn, PduCopt, PduDataItem, PduDestroyItemFn, PduDestructFn, PduError, PduGetComParamFn, PduGetEventItemFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, ResultData, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
+use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, ModuleItem, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDataItem, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduError, PduGetComParamFn, PduGetEventItemFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PinData, ResultData, RscData, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
 use rand::random;
 use tracing::{debug, error, info, trace, warn};
 use crate::types::{PduCllHandle, PduCopHandle, PduLibraryPath, PduModuleHandle, PduObjectId, PduOptions, PduUniqueId};
+use crate::types::pdu_com_logical_link::{CllBusType, CllCreateFlags, CllCreateType, CllPinType, CllProtocolType, PduComLogicalLink};
 use crate::types::pdu_com_param::{ByteFieldComParam, LongFieldComParam, PduComParam, PduCpVariant, StructComParam, StructFieldComParam};
 use crate::types::pdu_com_param_table::PduComParamTable;
 use crate::types::pdu_com_primivite::PduComPrimiviteParams;
@@ -1262,5 +1263,144 @@ impl Api {
             timestamp,
             extra_info,
         })
+    }
+
+    pub fn pdu_create_com_logical_link(
+        &self,
+        h_mod: PduModuleHandle,
+        create_type: &CllCreateType,
+        create_flags: &CllCreateFlags,
+    ) -> Result<PduComLogicalLink> {
+        const FUNC: &'static str = "PDUCreateComLogicalLink";
+        self.log_api_call(FUNC);
+
+        trace!(func = FUNC, h_mod, "D-PDU API Call Args");
+
+        let flag_bytes = create_flags.get_pdu_flag_data();
+        let flag_data = FlagData {
+            num_flag_bytes: flag_bytes.len() as _,
+            p_flag_data: flag_bytes.as_ptr() as _,
+        };
+
+        let mut cll_handle: MaybeUninit<PduCllHandle> = MaybeUninit::uninit();
+
+        let create_com_logical_link_fn = self.get_pdu_function::<PduCreateComLogicalLinkFn>(FUNC.as_bytes())?;
+        let result = match &create_type {
+            CllCreateType::ResourceId(v) => {
+                trace!(func = FUNC, resource_id = v, "D-PDU API Call Args");
+                create_com_logical_link_fn(
+                    h_mod,
+                    ptr::null_mut(),
+                    v.clone(),
+                    ptr::null_mut(),
+                    cll_handle.as_mut_ptr(),
+                    &flag_data as *const FlagData as _
+                )
+            }
+            CllCreateType::ResourceData { bus, protocol, pins } => {
+                trace!(func = FUNC, %bus, %protocol, "D-PDU API Call Args");
+
+                let bus_type_id = match bus {
+                    CllBusType::Id(id) => id.clone(),
+                    CllBusType::Name(name) => self.pdu_get_object_id(PduObjt::BusType, name)?
+                };
+
+                let protocol_id = match protocol {
+                    CllProtocolType::Id(id) => id.clone(),
+                    CllProtocolType::Name(name) => self.pdu_get_object_id(PduObjt::Protocol, name)?
+                };
+
+                let pin_data = {
+                    let mut vec = Vec::with_capacity(pins.len());
+
+                    for pin in pins.iter() {
+                        trace!(
+                            func = FUNC,
+                            pin_num = pin.num_on_vci,
+                            pin_type = %pin.pin_type,
+                            "D-PDU API Call Args"
+                        );
+
+                        let pin_id = match &pin.pin_type {
+                            CllPinType::Id(id) => id.clone(),
+                            CllPinType::Name(name) => self.pdu_get_object_id(PduObjt::PinType, name)?
+                        };
+
+                        vec.push(PinData {
+                            dlc_pin_number: pin.num_on_vci,
+                            dlc_pin_type_id: pin_id,
+                        });
+                    }
+
+                    vec
+                };
+
+                let rsc_data = RscData {
+                    bus_type_id,
+                    protocol_id,
+                    num_pin_data: pin_data.len() as _,
+                    p_dlc_pin_data: pin_data.as_ptr() as _,
+                };
+
+                trace!(
+                    func = FUNC,
+                    rsc_data_ptr = format!("0x{:#x}", &rsc_data as *const _ as usize),
+                    bus_type_id,
+                    protocol_id,
+                    pin_len = pin_data.len(),
+                    "D-PDU API Call Args"
+                );
+
+                create_com_logical_link_fn(
+                    h_mod,
+                    &rsc_data as *const RscData as _,
+                    PDU_ID_UNDEF,
+                    ptr::null_mut(),
+                    cll_handle.as_mut_ptr(),
+                    &flag_data as *const FlagData as _
+                )
+            }
+        };
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        let h_cll = unsafe { cll_handle.assume_init() };
+
+        trace!(
+            func = FUNC,
+            h_cll,
+            "D-PDU API Call Return"
+        );
+
+        Ok(PduComLogicalLink {
+            h_mod,
+            h_cll: unsafe { cll_handle.assume_init() },
+            create_type: create_type.clone(),
+            create_flags: create_flags.clone(),
+        })
+    }
+
+    pub fn pdu_destroy_com_logical_link(
+        &self,
+        module_handle: PduModuleHandle,
+        cll_handle: PduCllHandle
+    ) -> Result<()> {
+        const FUNC: &'static str = "PDUDestroyComLogicalLink";
+        self.log_api_call(FUNC);
+
+        let destroy_fn =
+            self.get_pdu_function::<PduDestroyComLogicalLinkFn>(b"PDUDestroyComLogicalLink")?;
+
+        let result = destroy_fn(module_handle, cll_handle);
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        Ok(())
     }
 }
