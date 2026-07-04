@@ -6,9 +6,9 @@ use crate::types::pdu_vci::PduVci;
 pub type VciList = Vec<Arc<PduVci>>;
 
 #[derive(Debug, Clone)]
-pub struct PduVciListResolver;
+pub struct VciListResolver;
 
-impl PduVciListResolver {
+impl VciListResolver {
     pub fn resolve(api: &Api) -> ApiResult<VciList> {
         info!("Attempt to retrieve the list of communication modules (VCI)...");
 
