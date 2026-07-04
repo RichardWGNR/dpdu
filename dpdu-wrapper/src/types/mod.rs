@@ -6,6 +6,9 @@ pub mod pdu_com_param_table;
 pub mod pdu_event_callback;
 pub mod pdu_com_primivite;
 pub mod pdu_io_ctl;
+pub mod pdu_module;
+pub mod pdu_status;
+pub mod pdu_vci;
 
 use std::collections::HashMap;
 use std::path::PathBuf;

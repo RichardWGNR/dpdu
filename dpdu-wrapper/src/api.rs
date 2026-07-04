@@ -5,9 +5,9 @@ use std::collections::{HashMap};
 use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::sync::{Arc, Weak};
-use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConstructFn, PduCopt, PduDataItem, PduDestroyItemFn, PduDestructFn, PduError, PduGetComParamFn, PduGetEventItemFn, PduGetObjectIdFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, ResultData, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
+use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, ModuleItem, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConstructFn, PduCopt, PduDataItem, PduDestroyItemFn, PduDestructFn, PduError, PduGetComParamFn, PduGetEventItemFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, ResultData, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
 use rand::random;
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 use crate::types::{PduCllHandle, PduCopHandle, PduLibraryPath, PduModuleHandle, PduObjectId, PduOptions, PduUniqueId};
 use crate::types::pdu_com_param::{ByteFieldComParam, LongFieldComParam, PduComParam, PduCpVariant, StructComParam, StructFieldComParam};
 use crate::types::pdu_com_param_table::PduComParamTable;
@@ -15,7 +15,10 @@ use crate::types::pdu_com_primivite::PduComPrimiviteParams;
 use crate::types::pdu_event::{PduErrorEvent, PduEvent, PduEventData, PduInfoEvent, PduResultEvent, PduStatusEvent};
 use crate::types::pdu_event_callback::PduEventCallbackTarget;
 use crate::types::pdu_io_ctl::{IoCtlByteArray, PduIoCtlCommand, PduIoCtlData};
+use crate::types::pdu_module::{PduModule, PduModuleList};
 use crate::types::pdu_object::PduObjectIdSource;
+use crate::types::pdu_status::PduStatusData;
+use crate::types::pdu_vci::{PduVci, VciList};
 use crate::types::pdu_version::PduVersionData;
 use crate::utils::c_str;
 use crate::utils::module_description::PduModuleDescription;
@@ -77,7 +80,7 @@ impl Api {
         error!(
             func,
             result_str = result.as_ref(),
-            result_int = format!("{:#X}", result as usize),
+            result_int = format!("0x{:#x}", result as usize),
             "D-PDU API Call failed"
         );
     }
@@ -198,21 +201,23 @@ impl Api {
             "D-PDU API Call Return"
         );
 
-        assert_eq!(item_ptr.is_null(), false, "item_ptr is null");
+        if item_ptr.is_null() {
+            error!(func = FUNC, "Item pointer is null. Emulation of PduError::FctFailed...");
+            Err(PduError::FctFailed)?;
+        }
 
         let item = unsafe { &*item_ptr };
 
-        fn ensure_item_data_ptr_is_not_null(item: &EventItem) {
-            assert_eq!(item.p_data.is_null(), false, "item.p_data ptr is null");
+        if item.p_data.is_null() {
+            error!(func = FUNC, "Item data pointer is null. Emulation of PduError::FctFailed...");
+            Err(PduError::FctFailed)?;
         }
 
         let data: PduEventData = match item.item_type {
             PduIt::Status => {
-                ensure_item_data_ptr_is_not_null(item);
                 PduStatusEvent(unsafe { *(item.p_data as *const PduStatus) }).into()
             },
             PduIt::Result => {
-                ensure_item_data_ptr_is_not_null(item);
                 let data = unsafe { &*(item.p_data as *const ResultData) };
 
                 let mut extra_header = OnceCell::new();
@@ -261,7 +266,6 @@ impl Api {
                 }.into()
             },
             PduIt::Error => {
-                ensure_item_data_ptr_is_not_null(item);
                 let data = unsafe { &*(item.p_data as *const ErrorData) };
                 PduErrorEvent {
                     code: data.error_code_id,
@@ -269,7 +273,6 @@ impl Api {
                 }.into()
             },
             PduIt::Info => {
-                ensure_item_data_ptr_is_not_null(item);
                 let data = unsafe { &*(item.p_data as *const InfoData) };
                 PduInfoEvent {
                     code: data.info_code,
@@ -277,7 +280,13 @@ impl Api {
                 }.into()
             },
             typ => {
-                unreachable!("Unexpected PduEventItem type: {}", typ.as_ref());
+                self.pdu_destroy_item(item_ptr as _)?;
+                error!(
+                    func = FUNC,
+                    "Unexpected PduEventItemType = {}. Emulation of PduError::FctFailed...",
+                    typ.as_ref()
+                );
+                return Err(PduError::FctFailed)?;
             }
         };
 
@@ -453,7 +462,13 @@ impl Api {
             }
         }
 
-        assert_eq!(item_ptr.is_null(), false, "item_ptr is null");
+        if item_ptr.is_null() {
+            error!(
+                func = FUNC,
+                "Item pointer is null. Emulation of PduError::FctFailed..."
+            );
+            Err(PduError::FctFailed)?;
+        }
 
         let cp = unsafe {
             use ptr::read as read;
@@ -1118,5 +1133,160 @@ impl Api {
         } else {
             Ok(None)
         }
+    }
+
+    pub fn pdu_get_module_ids(&self) -> Result<PduModuleList> {
+        const FUNC: &'static str = "PDUGetModuleIds";
+        self.log_api_call(FUNC);
+
+        let mut module_list_item_ptr = ptr::null_mut();
+
+        let get_module_ids_fn = self.get_pdu_function::<PduGetModuleIdsFn>(FUNC.as_bytes())?;
+        let result = get_module_ids_fn(&mut module_list_item_ptr);
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        trace!(
+            func = FUNC,
+            item_ptr = format!("0x{:x}", module_list_item_ptr as usize),
+            item_type = ?NonNull::new(module_list_item_ptr).map(|wptr| unsafe { (&*wptr.as_ptr()).item_type }),
+            "D-PDU API Call Return"
+        );
+
+        if module_list_item_ptr.is_null() {
+            error!(func = FUNC, "Module list pointer is null. Emulation of PduError::FctFailed...");
+            Err(PduError::FctFailed)?;
+        }
+
+        let module_list_item = unsafe { &*module_list_item_ptr };
+
+        let ptr = module_list_item.p_module_data;
+        let len = module_list_item.num_entries as _;
+
+        trace!(
+            func = FUNC,
+            modules_ptr = format!("0x{:#x}", ptr as usize),
+            modules_len = len,
+            "D-PDU API Call Return"
+        );
+
+        let module_list = unsafe { Vec::from_raw_parts(ptr, len, len) }
+            .into_iter()
+            .map(|v| {
+                let vendor_module_name = c_str(v.vendor_module_name as _);
+                let vendor_additional_info = c_str(v.vendor_additional_info as _);
+
+                trace!(
+                    func = FUNC,
+                    module_handle = v.h_mod,
+                    module_type_id = v.module_type_id,
+                    module_name = vendor_module_name,
+                    module_add_info = vendor_additional_info,
+                    "D-PDU API Call Return"
+                );
+
+                PduModule {
+                    h_mod: v.h_mod,
+                    module_type_id: v.module_type_id,
+                    vendor_module_name,
+                    vendor_additional_info,
+                    status: v.status,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        self.pdu_destroy_item(module_list_item_ptr as _)?;
+
+        Ok(module_list)
+    }
+
+    pub fn pdu_get_status(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: Option<PduCllHandle>,
+        h_cop: Option<PduCopHandle>,
+    ) -> Result<PduStatusData> {
+        const FUNC: &'static str = "PDUGetStatus";
+        self.log_api_call(FUNC);
+
+        let mut status_code: MaybeUninit<u32> = MaybeUninit::uninit();
+        let mut timestamp: MaybeUninit<u32> = MaybeUninit::uninit();
+        let mut extra_info: MaybeUninit<u32> = MaybeUninit::uninit();
+
+        let get_status_fn = self.get_pdu_function::<PduGetStatusFn>(FUNC.as_bytes())?;
+        let result = get_status_fn(
+            h_mod,
+            h_cll.unwrap_or(PDU_HANDLE_UNDEF),
+            h_cop.unwrap_or(PDU_HANDLE_UNDEF),
+            status_code.as_mut_ptr() as _,
+            timestamp.as_mut_ptr(),
+            extra_info.as_mut_ptr()
+        );
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        let status_code = unsafe { status_code.assume_init() };
+        let timestamp = unsafe { timestamp.assume_init() };
+        let extra_info = unsafe { extra_info.assume_init() };
+
+        trace!(
+            func = FUNC,
+            status_code,
+            timestamp,
+            extra_info,
+            "D-PDU API Call Return"
+        );
+
+        let status_code = match PduStatus::try_from(status_code) {
+            Ok(v) => v,
+            Err(_) => {
+                error!(
+                    func = FUNC,
+                    "Received out-of-bounds PduStatus value: 0x{:#x}. Emulation of PduError::FctFailed...",
+                    status_code,
+                );
+                return Err(PduError::FctFailed)?;
+            }
+        };
+
+        Ok(PduStatusData {
+            h_mod,
+            h_cll,
+            h_cop,
+            status_code,
+            timestamp,
+            extra_info,
+        })
+    }
+
+    pub fn get_vehicle_communication_interfaces(&self) -> Result<VciList> {
+        const FUNC: &'static str = "get_vehicle_communication_interfaces";
+
+        info!(func = FUNC, "Attempt to retrieve the list of communication modules (VCI)...");
+
+        let modules = self.pdu_get_module_ids().inspect_err(|err| {
+            error!(func = FUNC,"Failed to retrieve the list of communication modules: {err}");
+        })?;
+
+        let mut list = Vec::with_capacity(modules.len());
+
+        for module in modules.into_iter() {
+            list.push(Arc::new(PduVci {
+                api: self.me.clone(),
+                h_mod: module.h_mod,
+                module_name: module.vendor_module_name,
+                additional_info: module.vendor_additional_info,
+                status: self.pdu_get_status(module.h_mod, None, None)?,
+            }));
+        }
+
+        info!(func = FUNC, "Successfully retrieved {} communication modules", list.len());
+        Ok(list)
     }
 }
