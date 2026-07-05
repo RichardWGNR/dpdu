@@ -5,7 +5,7 @@ use std::collections::{HashMap};
 use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::sync::{Arc, Weak};
-use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, ModuleItem, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDataItem, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduError, PduGetComParamFn, PduGetEventItemFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PinData, ResultData, RscData, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
+use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, ExtraInfo, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, ModuleItem, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDataItem, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
 use rand::random;
 use tracing::{debug, error, info, trace, warn};
 use crate::types::{PduCllHandle, PduCopHandle, PduLibraryPath, PduModuleHandle, PduObjectId, PduOptions, PduUniqueId};
@@ -13,11 +13,13 @@ use crate::types::pdu_com_logical_link::{CllBusType, CllCreateFlags, CllCreateTy
 use crate::types::pdu_com_param::{ByteFieldComParam, LongFieldComParam, PduComParam, PduCpVariant, StructComParam, StructFieldComParam};
 use crate::types::pdu_com_param_table::PduComParamTable;
 use crate::types::pdu_com_primivite::PduComPrimiviteParams;
+use crate::types::pdu_error_data::PduErrorData;
 use crate::types::pdu_event::{PduErrorEvent, PduEvent, PduEventData, PduInfoEvent, PduResultEvent, PduStatusEvent};
 use crate::types::pdu_event_callback::PduEventCallbackTarget;
 use crate::types::pdu_io_ctl::{IoCtlByteArray, PduIoCtlCommand, PduIoCtlData};
 use crate::types::pdu_module::{PduModule, PduModuleList};
 use crate::types::pdu_object::PduObjectIdSource;
+use crate::types::pdu_resource::{PduResource, ResourceStatus};
 use crate::types::pdu_status::PduStatusData;
 use crate::types::pdu_version::PduVersionData;
 use crate::utils::c_str;
@@ -1402,5 +1404,119 @@ impl Api {
         }
 
         Ok(())
+    }
+
+    pub fn pdu_get_last_error(
+        &self,
+        h_mod: Option<PduModuleHandle>,
+        h_cll: Option<PduCllHandle>,
+    ) -> Result<PduErrorData> {
+        const FUNC: &'static str = "PDUGetLastError";
+        self.log_api_call(FUNC);
+
+        let mut error_code: MaybeUninit<u32> = MaybeUninit::uninit(); // will transform to PduErrorEvt
+        let mut h_cop: MaybeUninit<PduCopHandle> = MaybeUninit::uninit(); // maybe undef
+        let mut timestamp: MaybeUninit<u32> = MaybeUninit::uninit();
+        let mut extra_info_code: MaybeUninit<u32> = MaybeUninit::uninit(); // maybe ID_UNDEF?
+
+        let get_last_error_fn = self.get_pdu_function::<PduGetLastErrorFn>(FUNC.as_bytes())?;
+        let result = get_last_error_fn(
+            h_mod.unwrap_or(PDU_HANDLE_UNDEF),
+            h_cll.unwrap_or(PDU_HANDLE_UNDEF),
+            error_code.as_mut_ptr() as _,
+            h_cop.as_mut_ptr(),
+            timestamp.as_mut_ptr(),
+            extra_info_code.as_mut_ptr()
+        );
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        let error_code = unsafe { error_code.assume_init() };
+        let h_cop = unsafe { h_cop.assume_init() };
+        let timestamp = unsafe { timestamp.assume_init() };
+        let extra_info_code = unsafe { extra_info_code.assume_init() };
+
+        let error_event = match PduErrorEvt::try_from(error_code) {
+            Ok(v) => v,
+            Err(_) => {
+                error!(
+                    func = FUNC,
+                    "Received out-of-bounds PduErrorEvt value: 0x{:#x}. Emulation of PduError::FctFailed...",
+                    error_code,
+                );
+                return Err(PduError::FctFailed)?;
+            }
+        };
+
+        Ok(PduErrorData {
+            error_event,
+            h_cop: (h_cop != PDU_HANDLE_UNDEF).then(|| h_cop),
+            timestamp,
+            extra_info_code: (extra_info_code != PDU_ID_UNDEF).then(|| extra_info_code),
+        })
+    }
+
+    pub fn pdu_get_resource_status(&self, resources: Vec<PduResource>) -> Result<HashMap<PduResource, ResourceStatus>> {
+        const FUNC: &'static str = "PDUGetResourceStatus";
+        self.log_api_call(FUNC);
+
+        let mut map = HashMap::new();
+
+        if resources.len() == 0 {
+            warn!(func = FUNC, "Resources is empty");
+            return Ok(map);
+        }
+
+        let mut raw_resources = resources.iter()
+            .map(|v| RscStatusData {
+                h_mod: v.h_mod,
+                resource_id: v.resource_id,
+                resource_status: 0,
+            })
+            .collect::<Vec<_>>();
+
+        let mut item = RscStatusItem {
+            item_type: PduIt::RscStatus,
+            num_entries: resources.len() as _,
+            p_resource_status_data: raw_resources.as_mut_ptr(),
+        };
+
+        let get_resource_status_fn = self.get_pdu_function::<PduGetResourceStatusFn>(FUNC.as_bytes())?;
+        let result = get_resource_status_fn(&mut item);
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        for resource in resources {
+            'il: for raw in raw_resources.iter() {
+                if resource.h_mod != raw.h_mod || resource.resource_id != raw.resource_id {
+                    continue 'il;
+                }
+
+                let status = raw.resource_status;
+
+                let busy = ((status >> 0) & 1).try_into().unwrap(); // SAFE
+                let available = ((status >> 1) & 1).try_into().unwrap(); // SAFE
+                let transmit_queue_lock = ((status >> 2) & 1).try_into().unwrap(); // SAFE
+                let physical_com_param_lock = ((status >> 3) & 1).try_into().unwrap(); // SAFE
+
+                map.insert(resource, ResourceStatus {
+                    raw_status: status,
+                    busy,
+                    available,
+                    transmit_queue_lock,
+                    physical_com_param_lock,
+                });
+
+                break 'il;
+            }
+        }
+
+        Ok(map)
     }
 }
