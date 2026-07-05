@@ -1,4 +1,4 @@
-use crate::types::{PduCllHandle, PduCopHandle, PduModuleHandle};
+use crate::types::{PduCllHandle, PduModuleHandle};
 use dpdu_api_types::{PduErrorEvt, PduInfo, PduStatus};
 use std::fmt::{Display, Formatter};
 use std::ops::{Deref, DerefMut};

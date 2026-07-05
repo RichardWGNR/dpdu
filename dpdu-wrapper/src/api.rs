@@ -28,11 +28,9 @@ use crate::utils::c_str;
 use crate::utils::module_description::PduModuleDescription;
 use crate::utils::root_file::Mvci;
 use dpdu_api_types::{
-    CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, ExtraInfo,
-    FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData,
-    ModuleItem, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData,
-    ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn,
-    PduDataItem, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn,
+    CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData,
+    FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData,
+    ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn,
     PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn,
     PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn,
     PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn,

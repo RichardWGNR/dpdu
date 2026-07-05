@@ -2,7 +2,7 @@ use crate::api::Api;
 use crate::types::PduModuleHandle;
 use crate::types::pdu_status::PduStatusData;
 use dpdu_api_types::PduStatus;
-use std::sync::{Arc, Weak};
+use std::sync::Weak;
 
 #[derive(Debug, Clone)]
 pub struct PduVci {

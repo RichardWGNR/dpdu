@@ -1,6 +1,6 @@
 use crate::api::{Api, Result as ApiResult};
 use crate::types::PduObjectId;
-use crate::utils::{PhantomPtr, PhantomRef, SendSync};
+use crate::utils::{PhantomPtr, PhantomRef};
 use dpdu_api_types::{
     PDU_ID_UNDEF, ParamByteFieldData, ParamLongFieldData, ParamStructAccessTiming,
     ParamStructFieldData, ParamStructSessionTiming, PduCpst, PduError, PduObjt, PduPc, PduPt,
@@ -9,7 +9,6 @@ use std::cell::OnceCell;
 use std::ffi::c_void;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
-use std::marker::PhantomData;
 use tracing::warn;
 
 /// With the current design, this structure cannot be created directly. It can only be constructed
