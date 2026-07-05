@@ -151,7 +151,7 @@ pub struct RscStatusItem {
     /// Number of entries
     pub num_entries: u32,
     /// Pointer to array of entries
-    pub p_resource_status_data: *mut RscStatusItem,
+    pub p_resource_status_data: *mut RscStatusData,
 }
 
 #[repr(C)]
