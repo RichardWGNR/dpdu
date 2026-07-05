@@ -5,14 +5,7 @@ use crate::types::{PduCllHandle, PduCopHandle, PduModuleHandle};
 
 #[derive(Debug, Clone)]
 pub struct PduEvent {
-    /// Если [h_mod] = [PDU_HANDLE_UNDEF], то должно быть [`None`].
-    pub h_mod: Option<PduModuleHandle>,
-
-    /// Если [h_cll] = [PDU_HANDLE_UNDEF], то должно быть [`None`].
-    pub h_cll: Option<PduCllHandle>,
-
-    /// Если [h_cop] = [PDU_HANDLE_UNDEF], то должно быть [`None`].
-    pub h_cop: Option<PduCopHandle>,
+    pub target: PduEventTarget,
 
     pub timestamp: u32,
 
@@ -20,44 +13,40 @@ pub struct PduEvent {
     pub data: PduEventData
 }
 
-impl PduEvent {
-    pub fn is_com_primitive_event(&self) -> bool {
-        self.h_mod.is_some()
-            && self.h_cll.is_some()
-            && self.h_cop.is_some()
-    }
-
-    pub fn is_com_logical_link_event(&self) -> bool {
-        self.h_mod.is_some()
-            && self.h_cll.is_some()
-            && self.h_cop.is_none()
-    }
-
-    pub fn is_module_event(&self) -> bool {
-        self.h_mod.is_some()
-            && self.h_cll.is_none()
-            && self.h_cop.is_none()
-    }
-
-    pub fn get_source(&self) -> PduEventSource {
-        if self.is_com_primitive_event() {
-            PduEventSource::ComPrimitive
-        } else if self.is_com_logical_link_event() {
-            PduEventSource::ComLogicalLink
-        } else if self.is_module_event() {
-            PduEventSource::Module
-        } else {
-            PduEventSource::System
-        }
-    }
+#[derive(Debug, Copy, Clone)]
+pub enum PduEventTarget {
+    System,
+    Module(PduModuleHandle),
+    ComLogicalLink(PduModuleHandle, PduCllHandle),
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum PduEventSource {
-    System,
-    Module,
-    ComLogicalLink,
-    ComPrimitive
+impl PduEventTarget {
+    pub fn is_system(&self) -> bool {
+        matches!(self, PduEventTarget::System)
+    }
+
+    pub fn is_module(&self) -> bool {
+        matches!(self, PduEventTarget::Module(..))
+    }
+
+    pub fn is_com_logical_link(&self) -> bool {
+        matches!(self, PduEventTarget::ComLogicalLink(..))
+    }
+
+    pub fn get_module_handle(&self) -> Option<PduModuleHandle> {
+        match self {
+            PduEventTarget::Module(h_mod) => Some(h_mod.clone()),
+            PduEventTarget::ComLogicalLink(h_mod, ..) => Some(h_mod.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn get_cll_handle(&self) -> Option<PduCllHandle> {
+        match self {
+            PduEventTarget::ComLogicalLink(_, h_cll) => Some(h_cll.clone()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -1,8 +1,7 @@
-use std::ffi::c_void;
 use std::fmt::{Display, Formatter};
 use std::ops::{Deref, DerefMut};
 use dpdu_api_types::{IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PduDataItem, PduIt};
-use crate::types::PduObjectId;
+use crate::types::{PduCllHandle, PduModuleHandle, PduObjectId};
 use crate::utils::PhantomRef;
 
 #[derive(Debug, Clone)]
@@ -131,5 +130,41 @@ impl Deref for IoCtlByteArray {
 impl DerefMut for IoCtlByteArray {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum PduIoCtlTarget {
+    System,
+    Module(PduModuleHandle),
+    ComLogicalLink(PduModuleHandle, PduCllHandle)
+}
+
+impl PduIoCtlTarget {
+    pub fn is_system(&self) -> bool {
+        matches!(self, PduIoCtlTarget::System)
+    }
+
+    pub fn is_module(&self) -> bool {
+        matches!(self, PduIoCtlTarget::Module(..))
+    }
+
+    pub fn is_com_logical_link(&self) -> bool {
+        matches!(self, PduIoCtlTarget::ComLogicalLink(..))
+    }
+
+    pub fn get_module_handle(&self) -> Option<PduModuleHandle> {
+        match self {
+            PduIoCtlTarget::Module(h_mod) => Some(h_mod.clone()),
+            PduIoCtlTarget::ComLogicalLink(h_mod, ..) => Some(h_mod.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn get_cll_handle(&self) -> Option<PduCllHandle> {
+        match self {
+            PduIoCtlTarget::ComLogicalLink(_ , h_cll) => Some(h_cll.clone()),
+            _ => None,
+        }
     }
 }

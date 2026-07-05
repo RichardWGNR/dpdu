@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use tracing::{error, info};
 use crate::api::{Api, Result as ApiResult};
+use crate::types::pdu_status::PduStatusTarget;
 use crate::types::pdu_vci::PduVci;
 
 pub type VciList = Vec<Arc<PduVci>>;
@@ -24,7 +25,7 @@ impl VciListResolver {
                 h_mod: module.h_mod,
                 module_name: module.vendor_module_name,
                 additional_info: module.vendor_additional_info,
-                status: api.pdu_get_status(module.h_mod, None, None)?,
+                status: api.pdu_get_status(PduStatusTarget::Module(module.h_mod))?,
             }));
         }
 
