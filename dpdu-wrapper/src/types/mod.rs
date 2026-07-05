@@ -12,6 +12,7 @@ pub mod pdu_vci;
 pub mod pdu_com_logical_link;
 pub mod pdu_error;
 pub mod pdu_resource;
+pub mod pdu_lock_resource;
 
 use std::collections::HashMap;
 use std::path::PathBuf;

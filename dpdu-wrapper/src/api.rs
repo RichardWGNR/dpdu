@@ -5,7 +5,7 @@ use std::collections::{HashMap};
 use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::sync::{Arc, Weak};
-use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, ExtraInfo, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, ModuleItem, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDataItem, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
+use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, ExtraInfo, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, ModuleItem, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDataItem, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
 use rand::random;
 use tracing::{debug, error, trace, warn};
 use crate::types::{PduCllHandle, PduCopHandle, PduLibraryPath, PduModuleHandle, PduObjectId, PduOptions, PduUniqueId};
@@ -17,6 +17,7 @@ use crate::types::pdu_error::{PduErrorData, PduLastErrorTarget};
 use crate::types::pdu_event::{PduErrorEvent, PduEvent, PduEventData, PduEventTarget, PduInfoEvent, PduResultEvent, PduStatusEvent};
 use crate::types::pdu_event_callback::PduEventCallbackTarget;
 use crate::types::pdu_io_ctl::{IoCtlByteArray, PduIoCtlCommand, PduIoCtlData, PduIoCtlTarget};
+use crate::types::pdu_lock_resource::PduLockResourceMask;
 use crate::types::pdu_module::{PduModule, PduModuleList};
 use crate::types::pdu_object::PduObjectIdSource;
 use crate::types::pdu_resource::{PduResource, ResourceStatus};
@@ -1628,6 +1629,38 @@ impl Api {
 
         let connect_fn = self.get_pdu_function::<PduDisconnectFn>(FUNC.as_bytes())?;
         let result = connect_fn(h_mod, h_cll);
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn pdu_lock_resource(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: PduCllHandle,
+        mask: PduLockResourceMask
+    ) -> Result<()> {
+        const FUNC: &'static str = "PDULockResource";
+        self.log_api_call(FUNC);
+
+        let mask_data = mask.get_pdu_data();
+
+        trace!(
+            func = FUNC,
+            h_mod,
+            h_cll,
+            mask = format!("0x{mask_data:#x}"),
+            lock_physical_com_params = mask.lock_physical_com_params,
+            lock_physical_transmit_queue = mask.lock_physical_transmit_queue,
+            "D-PDU API Call Args"
+        );
+
+        let lock_resource_fn = self.get_pdu_function::<PduLockResourceFn>(FUNC.as_bytes())?;
+        let result = lock_resource_fn(h_mod, h_cll, mask_data);
 
         if !result.is_success() {
             self.log_failed_api_call(FUNC, result);
