@@ -134,24 +134,24 @@ pub struct EthSwitchState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Resource status data
 pub struct RscStatusData {
-    /// Item type
-    pub item_type: PduIt,
-    /// Number of entries
-    pub num_entries: u32,
-    /// Pointer to array of entries
-    pub p_resource_status_data: *mut RscStatusItem,
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-/// Resource status item
-pub struct RscStatusItem {
     /// MVCI handle ID
     pub h_mod: u32,
     /// Resource ID
     pub resource_id: u32,
     /// Resource information status
     pub resource_status: u32,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// Resource status item
+pub struct RscStatusItem {
+    /// Item type
+    pub item_type: PduIt,
+    /// Number of entries
+    pub num_entries: u32,
+    /// Pointer to array of entries
+    pub p_resource_status_data: *mut RscStatusItem,
 }
 
 #[repr(C)]
