@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use crate::types::{PduCllHandle, PduModuleHandle, PduObjectId};
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]
 pub struct PduComLogicalLink {
@@ -46,8 +46,8 @@ pub enum CllCreateType {
     ResourceData {
         bus: CllBusType,
         protocol: CllProtocolType,
-        pins: Vec<CllPin>
-    }
+        pins: Vec<CllPin>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -64,7 +64,7 @@ pub enum CllBusType {
     /// Recommended.
     ///
     /// It will be taken from the module description file or by calling the PDUGetObjectId function.
-    Name(String)
+    Name(String),
 }
 
 impl From<PduObjectId> for CllBusType {
@@ -89,7 +89,7 @@ impl Display for CllBusType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             CllBusType::Id(v) => write!(f, "#{v}"),
-            CllBusType::Name(v) => write!(f, "{v}")
+            CllBusType::Name(v) => write!(f, "{v}"),
         }
     }
 }
@@ -108,7 +108,7 @@ pub enum CllProtocolType {
     /// Recommended.
     ///
     /// It will be taken from the module description file or by calling the PDUGetObjectId function.
-    Name(String)
+    Name(String),
 }
 
 impl From<PduObjectId> for CllProtocolType {
@@ -133,7 +133,7 @@ impl Display for CllProtocolType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             CllProtocolType::Id(v) => write!(f, "#{v}"),
-            CllProtocolType::Name(v) => write!(f, "{v}")
+            CllProtocolType::Name(v) => write!(f, "{v}"),
         }
     }
 }
@@ -142,7 +142,7 @@ impl Display for CllProtocolType {
 pub struct CllPin {
     pub num_on_vci: u32,
 
-    pub pin_type: CllPinType
+    pub pin_type: CllPinType,
 }
 
 #[derive(Debug, Clone)]
@@ -184,7 +184,7 @@ impl Display for CllPinType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             CllPinType::Id(v) => write!(f, "#{v}"),
-            CllPinType::Name(v) => write!(f, "{v}")
+            CllPinType::Name(v) => write!(f, "{v}"),
         }
     }
 }

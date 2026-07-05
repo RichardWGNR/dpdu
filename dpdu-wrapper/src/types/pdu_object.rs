@@ -1,10 +1,10 @@
-use std::fmt::{Display, Formatter};
 use crate::types::PduObjectId;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]
 pub enum PduObjectIdSource {
     Id(PduObjectId),
-    ShortName(String)
+    ShortName(String),
 }
 
 impl From<&str> for PduObjectIdSource {
@@ -23,7 +23,7 @@ impl Display for PduObjectIdSource {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             PduObjectIdSource::Id(v) => write!(f, "#{v}"),
-            PduObjectIdSource::ShortName(v) => write!(f, "{v}")
+            PduObjectIdSource::ShortName(v) => write!(f, "{v}"),
         }
     }
 }

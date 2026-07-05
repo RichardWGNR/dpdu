@@ -1,6 +1,6 @@
-use std::fmt::{Display, Formatter};
 use chrono::NaiveDate;
 use semver::Version;
+use std::fmt::{Display, Formatter};
 use tracing::warn;
 
 #[derive(Debug, Clone)]
@@ -31,7 +31,7 @@ pub struct PduVersionData {
 
     pub pdu_api_sw_version: PduVersion,
 
-    pub pdu_api_sw_date: PduDate
+    pub pdu_api_sw_date: PduDate,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -43,7 +43,7 @@ pub struct PduVersion {
     pub minor: u8,
 
     /// Patch.
-    pub revision: u8
+    pub revision: u8,
 }
 
 impl PduVersion {
@@ -68,7 +68,7 @@ impl From<u32> for PduVersion {
         Self {
             major,
             minor,
-            revision: patch
+            revision: patch,
         }
     }
 }
@@ -97,7 +97,12 @@ impl PduDate {
         match NaiveDate::from_ymd_opt(self.normalize_year() as _, self.month as _, self.day as _) {
             Some(v) => Some(v),
             None => {
-                warn!(y = self.normalize_year(), m = self.month, d = self.day, "Invalid PduDate");
+                warn!(
+                    y = self.normalize_year(),
+                    m = self.month,
+                    d = self.day,
+                    "Invalid PduDate"
+                );
                 None
             }
         }
@@ -108,7 +113,7 @@ impl Display for PduDate {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let str = match self.to_naive_date() {
             Some(date) => date.format("%Y-%m-%d").to_string(),
-            None => format!("{}-{}-{}", self.normalize_year(), self.month, self.day)
+            None => format!("{}-{}-{}", self.normalize_year(), self.month, self.day),
         };
         write!(f, "{str}")
     }
@@ -126,7 +131,7 @@ impl From<u32> for PduDate {
             year,
             month,
             day,
-            week
+            week,
         }
     }
 }

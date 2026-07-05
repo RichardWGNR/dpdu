@@ -105,7 +105,10 @@ impl PduRootFile {
             .map(|opt| opt.or_else(Self::lookup_root_file_path_in_typical_places))?;
 
         if let Some(path) = path {
-            info!("D-PDU API root file path has been guessed: {}", path.display());
+            info!(
+                "D-PDU API root file path has been guessed: {}",
+                path.display()
+            );
             return Self::parse_from_xml_file(path).map(|v| Some(v));
         } else {
             error!("Unable to guess info about the D-PDU API root file");
@@ -135,8 +138,11 @@ impl PduRootFile {
         for path in PATHS {
             let path = PathBuf::from(path);
             if path.exists() && path.is_file() {
-                info!("Found the D-PDU API root file in a typical place: {}", path.display());
-                return Some(path)
+                info!(
+                    "Found the D-PDU API root file in a typical place: {}",
+                    path.display()
+                );
+                return Some(path);
             }
         }
 

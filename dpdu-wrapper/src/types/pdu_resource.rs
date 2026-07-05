@@ -8,10 +8,7 @@ pub struct PduResource {
 
 impl PduResource {
     pub fn new(h_mod: PduModuleHandle, resource_id: PduObjectId) -> Self {
-        PduResource {
-            h_mod,
-            resource_id
-        }
+        PduResource { h_mod, resource_id }
     }
 
     pub fn get_module_handle(&self) -> PduModuleHandle {

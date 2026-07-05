@@ -1,8 +1,8 @@
-use std::sync::{Arc, Weak};
-use dpdu_api_types::PduStatus;
 use crate::api::Api;
-use crate::types::pdu_status::PduStatusData;
 use crate::types::PduModuleHandle;
+use crate::types::pdu_status::PduStatusData;
+use dpdu_api_types::PduStatus;
+use std::sync::{Arc, Weak};
 
 #[derive(Debug, Clone)]
 pub struct PduVci {
@@ -33,7 +33,7 @@ impl PduVci {
     pub fn is_available_for_connection(&self) -> bool {
         match self.status.status_code {
             PduStatus::ModstReady | PduStatus::ModstAvail => true,
-            _ => false
+            _ => false,
         }
     }
 }

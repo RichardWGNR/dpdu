@@ -1,7 +1,7 @@
+use crate::types::PduUniqueRespIdentifier;
+use crate::types::pdu_com_param::PduComParam;
 use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
-use crate::types::pdu_com_param::PduComParam;
-use crate::types::PduUniqueRespIdentifier;
 
 #[derive(Clone, Default)]
 pub struct PduComParamTable(pub HashMap<PduUniqueRespIdentifier, HashSet<PduComParam>>);
@@ -25,10 +25,11 @@ impl PduComParamTable {
         Self::default()
     }
 
-    pub fn add(&mut self, id: PduUniqueRespIdentifier, com_param: PduComParam) -> Option<PduComParam> {
-        self
-            .entry(id)
-            .or_default()
-            .replace(com_param)
+    pub fn add(
+        &mut self,
+        id: PduUniqueRespIdentifier,
+        com_param: PduComParam,
+    ) -> Option<PduComParam> {
+        self.entry(id).or_default().replace(com_param)
     }
 }

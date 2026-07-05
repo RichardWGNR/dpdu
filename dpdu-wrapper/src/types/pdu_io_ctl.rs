@@ -1,20 +1,22 @@
-use std::fmt::{Display, Formatter};
-use std::ops::{Deref, DerefMut};
-use dpdu_api_types::{IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PduDataItem, PduIt};
 use crate::types::{PduCllHandle, PduModuleHandle, PduObjectId};
 use crate::utils::PhantomRef;
+use dpdu_api_types::{
+    IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PduDataItem, PduIt,
+};
+use std::fmt::{Display, Formatter};
+use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone)]
 pub enum PduIoCtlCommand {
     Id(PduObjectId),
-    Name(String)
+    Name(String),
 }
 
 impl Display for PduIoCtlCommand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             PduIoCtlCommand::Id(v) => write!(f, "#{v}"),
-            PduIoCtlCommand::Name(v) => write!(f, "{v}")
+            PduIoCtlCommand::Name(v) => write!(f, "{v}"),
         }
     }
 }
@@ -45,14 +47,13 @@ impl From<&str> for PduIoCtlCommand {
     }
 }
 
-#[derive(Debug, Clone)]
-#[derive(strum::AsRefStr)]
+#[derive(Debug, Clone, strum::AsRefStr)]
 pub enum PduIoCtlData {
     U32(u32),
     ProgVoltage(IoProgVoltageData),
     ByteArray(IoCtlByteArray),
     Filter(IoFilterData),
-    EventQueueProperty(IoEventQueuePropertyData)
+    EventQueueProperty(IoEventQueuePropertyData),
 }
 
 macro_rules! impl_pdu_it_ctl_data_from_int {
@@ -100,13 +101,12 @@ impl PduIoCtlData {
             PduIoCtlData::ProgVoltage(v) => (PduIt::IoProgVoltage, v as *const _ as _),
             PduIoCtlData::ByteArray(v) => (PduIt::IoByteArray, v.as_ptr() as _),
             PduIoCtlData::Filter(v) => (PduIt::IoFilter, v as *const _ as _),
-            PduIoCtlData::EventQueueProperty(v) => (PduIt::IoEventQueueProperty, v as *const _ as _)
+            PduIoCtlData::EventQueueProperty(v) => {
+                (PduIt::IoEventQueueProperty, v as *const _ as _)
+            }
         };
 
-        PhantomRef::new(PduDataItem {
-            item_type,
-            p_data
-        })
+        PhantomRef::new(PduDataItem { item_type, p_data })
     }
 }
 
@@ -137,7 +137,7 @@ impl DerefMut for IoCtlByteArray {
 pub enum PduIoCtlTarget {
     System,
     Module(PduModuleHandle),
-    ComLogicalLink(PduModuleHandle, PduCllHandle)
+    ComLogicalLink(PduModuleHandle, PduCllHandle),
 }
 
 impl PduIoCtlTarget {
@@ -163,7 +163,7 @@ impl PduIoCtlTarget {
 
     pub fn get_cll_handle(&self) -> Option<PduCllHandle> {
         match self {
-            PduIoCtlTarget::ComLogicalLink(_ , h_cll) => Some(h_cll.clone()),
+            PduIoCtlTarget::ComLogicalLink(_, h_cll) => Some(h_cll.clone()),
             _ => None,
         }
     }

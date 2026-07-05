@@ -1,13 +1,16 @@
+use crate::api::{Api, Result as ApiResult};
+use crate::types::PduObjectId;
+use crate::utils::{PhantomPtr, PhantomRef, SendSync};
+use dpdu_api_types::{
+    PDU_ID_UNDEF, ParamByteFieldData, ParamLongFieldData, ParamStructAccessTiming,
+    ParamStructFieldData, ParamStructSessionTiming, PduCpst, PduError, PduObjt, PduPc, PduPt,
+};
 use std::cell::OnceCell;
 use std::ffi::c_void;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
-use dpdu_api_types::{ParamByteFieldData, ParamLongFieldData, ParamStructAccessTiming, ParamStructFieldData, ParamStructSessionTiming, PduCpst, PduError, PduObjt, PduPc, PduPt, PDU_ID_UNDEF};
 use tracing::warn;
-use crate::api::{Api, Result as ApiResult};
-use crate::types::PduObjectId;
-use crate::utils::{PhantomRef, SendSync, PhantomPtr};
 
 /// With the current design, this structure cannot be created directly. It can only be constructed
 /// via the [`from_*`] ethods. This is done to prevent panics when calling [Api::set_com_param()].
@@ -21,7 +24,7 @@ pub struct PduComParam {
 
     pub class: PduPc,
 
-    pub variant: PduCpVariant
+    pub variant: PduCpVariant,
 }
 
 impl Hash for PduComParam {
@@ -39,16 +42,12 @@ impl PartialEq for PduComParam {
 impl Eq for PduComParam {}
 
 impl PduComParam {
-    pub fn from_id(
-        id: PduObjectId,
-        class: PduPc,
-        variant: impl Into<PduCpVariant>
-    ) -> Self {
+    pub fn from_id(id: PduObjectId, class: PduPc, variant: impl Into<PduCpVariant>) -> Self {
         Self {
             short_name: OnceCell::new(),
             id,
             class,
-            variant: variant.into()
+            variant: variant.into(),
         }
     }
 
@@ -57,7 +56,7 @@ impl PduComParam {
         api: &Api,
         sn: impl Into<String>,
         class: PduPc,
-        variant: impl Into<PduCpVariant>
+        variant: impl Into<PduCpVariant>,
     ) -> ApiResult<PduComParam> {
         let short_name = sn.into();
         let id = api.pdu_get_object_id(PduObjt::ComParam, &short_name)?;
@@ -66,11 +65,14 @@ impl PduComParam {
             short_name: OnceCell::from(short_name),
             id,
             class,
-            variant: variant.into()
+            variant: variant.into(),
         };
 
         if id == PDU_ID_UNDEF {
-            warn!(com_param = com_param.get_debug_name(), "ComParam not supported");
+            warn!(
+                com_param = com_param.get_debug_name(),
+                "ComParam not supported"
+            );
             return Err(PduError::ComParamNotSupported)?;
         }
 
@@ -145,7 +147,11 @@ impl ByteFieldComParam {
 pub type StructFieldComParam = FieldComParam<StructComParam>;
 
 impl StructFieldComParam {
-    pub fn new(struct_type: PduCpst, mut data: Vec<StructComParam>, capacity: Option<usize>) -> Self {
+    pub fn new(
+        struct_type: PduCpst,
+        mut data: Vec<StructComParam>,
+        capacity: Option<usize>,
+    ) -> Self {
         let len = data.len();
 
         let capacity = capacity
@@ -263,9 +269,7 @@ impl From<(Vec<u8>, usize)> for PduCpVariant {
 
 impl From<Vec<ParamStructAccessTiming>> for PduCpVariant {
     fn from(value: Vec<ParamStructAccessTiming>) -> Self {
-        let vec = value.into_iter()
-            .map(|v| StructComParam::from(v))
-            .collect();
+        let vec = value.into_iter().map(|v| StructComParam::from(v)).collect();
 
         Self::StructField(StructFieldComParam::new(PduCpst::AccessTiming, vec, None))
     }
@@ -279,15 +283,17 @@ impl From<(Vec<ParamStructAccessTiming>, usize)> for PduCpVariant {
             .map(|v| StructComParam::from(v))
             .collect();
 
-        Self::StructField(StructFieldComParam::new(PduCpst::AccessTiming, vec, Some(value.1)))
+        Self::StructField(StructFieldComParam::new(
+            PduCpst::AccessTiming,
+            vec,
+            Some(value.1),
+        ))
     }
 }
 
 impl From<Vec<ParamStructSessionTiming>> for PduCpVariant {
     fn from(value: Vec<ParamStructSessionTiming>) -> Self {
-        let vec = value.into_iter()
-            .map(|v| StructComParam::from(v))
-            .collect();
+        let vec = value.into_iter().map(|v| StructComParam::from(v)).collect();
 
         Self::StructField(StructFieldComParam::new(PduCpst::SessionTiming, vec, None))
     }
@@ -301,7 +307,11 @@ impl From<(Vec<ParamStructSessionTiming>, usize)> for PduCpVariant {
             .map(|v| StructComParam::from(v))
             .collect();
 
-        Self::StructField(StructFieldComParam::new(PduCpst::SessionTiming, vec, Some(value.1)))
+        Self::StructField(StructFieldComParam::new(
+            PduCpst::SessionTiming,
+            vec,
+            Some(value.1),
+        ))
     }
 }
 
@@ -408,7 +418,7 @@ impl PduCpVariant {
 
             Self::Unum32(d) => d as *const u32 as _,
             Self::Snum32(d) => d as *const i32 as _,
-            
+
             Self::ByteField(d) => d.get_pdu_data().as_ptr() as _,
             Self::StructField(d) => d.get_pdu_data().as_ptr() as _,
             Self::LongField(d) => d.get_pdu_data().as_ptr() as _,
@@ -429,7 +439,7 @@ impl<T> Debug for FieldComParam<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut s = f.debug_struct("FieldComParam");
 
-        s/*.field("pdu_data", &self.pdu_data)*/
+        s /*.field("pdu_data", &self.pdu_data)*/
             .field("struct_type", &self.struct_type);
 
         s.finish()

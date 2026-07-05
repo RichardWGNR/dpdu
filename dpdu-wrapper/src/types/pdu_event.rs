@@ -1,7 +1,7 @@
+use crate::types::{PduCllHandle, PduCopHandle, PduModuleHandle};
+use dpdu_api_types::{PduErrorEvt, PduInfo, PduStatus};
 use std::fmt::{Display, Formatter};
 use std::ops::{Deref, DerefMut};
-use dpdu_api_types::{PduErrorEvt, PduInfo, PduStatus};
-use crate::types::{PduCllHandle, PduCopHandle, PduModuleHandle};
 
 #[derive(Debug, Clone)]
 pub struct PduEvent {
@@ -10,7 +10,7 @@ pub struct PduEvent {
     pub timestamp: u32,
 
     /// Желательно создавать через типаж [`Into<PduEventData>`].
-    pub data: PduEventData
+    pub data: PduEventData,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -57,7 +57,7 @@ pub enum PduEventData {
 
     Error(PduErrorEvent),
 
-    Info(PduInfoEvent)
+    Info(PduInfoEvent),
 }
 
 impl From<PduStatusEvent> for PduEventData {
@@ -88,28 +88,28 @@ impl PduEventData {
     pub fn as_status(&self) -> Option<&PduStatusEvent> {
         match self {
             PduEventData::Status(v) => Some(v),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn as_result(&self) -> Option<&PduResultEvent> {
         match self {
             PduEventData::Result(v) => Some(v),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn as_error(&self) -> Option<&PduErrorEvent> {
         match self {
             PduEventData::Error(v) => Some(v),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn as_info(&self) -> Option<&PduInfoEvent> {
         match self {
             PduEventData::Info(v) => Some(v),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -154,7 +154,7 @@ pub struct PduResultEvent {
 
     pub extra_info_header: Option<Vec<u8>>,
 
-    pub extra_info_footer: Option<Vec<u8>>
+    pub extra_info_footer: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone)]
@@ -348,7 +348,7 @@ impl Display for PduErrorEvent {
 #[derive(Debug, Clone)]
 pub struct PduInfoEvent {
     pub code: PduInfo,
-    pub extra_code: u32
+    pub extra_code: u32,
 }
 
 impl Display for PduInfoEvent {

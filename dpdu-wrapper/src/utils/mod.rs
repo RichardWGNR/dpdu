@@ -2,6 +2,7 @@ pub mod module_description;
 pub mod root_file;
 pub mod vci_list_resolver;
 
+use crate::types::PduUniqueRespIdentifier;
 use std::ffi::{CStr, c_char, c_void};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Cursor, Read, Seek};
@@ -9,7 +10,6 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::ptr::NonNull;
-use crate::types::PduUniqueRespIdentifier;
 
 /// Converts a nullable C string to `Option<String>`.
 ///
@@ -51,7 +51,7 @@ pub(crate) fn get_bomless_file_reader(path: &Path) -> Result<BufReader<File>, st
 /// compile time.
 pub(crate) struct PhantomRef<'a, T> {
     pub data: T,
-    _marker: PhantomData<&'a ()>
+    _marker: PhantomData<&'a ()>,
 }
 
 impl<'a, T> PhantomRef<'a, T> {
@@ -85,14 +85,14 @@ impl<'a, T> Deref for PhantomRef<'a, T> {
 #[derive(Debug)]
 pub(crate) struct PhantomPtr<'a> {
     pub ptr: *const c_void,
-    _marker: PhantomData<&'a ()>
+    _marker: PhantomData<&'a ()>,
 }
 
 impl<'a> PhantomPtr<'a> {
     pub fn new(ptr: *const c_void) -> Self {
         Self {
             ptr,
-            _marker: PhantomData
+            _marker: PhantomData,
         }
     }
 

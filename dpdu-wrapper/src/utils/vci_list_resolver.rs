@@ -1,8 +1,8 @@
-use std::sync::Arc;
-use tracing::{error, info};
 use crate::api::{Api, Result as ApiResult};
 use crate::types::pdu_status::PduStatusTarget;
 use crate::types::pdu_vci::PduVci;
+use std::sync::Arc;
+use tracing::{error, info};
 
 pub type VciList = Vec<Arc<PduVci>>;
 
@@ -29,7 +29,10 @@ impl VciListResolver {
             }));
         }
 
-        info!("Successfully retrieved {} communication modules", list.len());
+        info!(
+            "Successfully retrieved {} communication modules",
+            list.len()
+        );
         Ok(list)
     }
 }

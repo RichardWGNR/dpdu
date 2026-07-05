@@ -1,20 +1,17 @@
-use std::ffi::{c_void, CString};
-use std::{ptr, slice};
-use std::cell::{OnceCell};
-use std::collections::{HashMap};
-use std::mem::MaybeUninit;
-use std::ptr::NonNull;
-use std::sync::{Arc, Weak};
-use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, ExtraInfo, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, ModuleItem, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDataItem, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF};
-use rand::random;
-use tracing::{debug, error, trace, warn};
-use crate::types::{PduCllHandle, PduCopHandle, PduLibraryPath, PduModuleHandle, PduObjectId, PduOptions, PduUniqueId};
-use crate::types::pdu_com_logical_link::{CllBusType, CllCreateFlags, CllCreateType, CllPinType, CllProtocolType, PduComLogicalLink};
-use crate::types::pdu_com_param::{ByteFieldComParam, LongFieldComParam, PduComParam, PduCpVariant, StructComParam, StructFieldComParam};
+use crate::types::pdu_com_logical_link::{
+    CllBusType, CllCreateFlags, CllCreateType, CllPinType, CllProtocolType, PduComLogicalLink,
+};
+use crate::types::pdu_com_param::{
+    ByteFieldComParam, LongFieldComParam, PduComParam, PduCpVariant, StructComParam,
+    StructFieldComParam,
+};
 use crate::types::pdu_com_param_table::PduComParamTable;
 use crate::types::pdu_com_primivite::PduComPrimiviteParams;
 use crate::types::pdu_error::{PduErrorData, PduLastErrorTarget};
-use crate::types::pdu_event::{PduErrorEvent, PduEvent, PduEventData, PduEventTarget, PduInfoEvent, PduResultEvent, PduStatusEvent};
+use crate::types::pdu_event::{
+    PduErrorEvent, PduEvent, PduEventData, PduEventTarget, PduInfoEvent, PduResultEvent,
+    PduStatusEvent,
+};
 use crate::types::pdu_event_callback::PduEventCallbackTarget;
 use crate::types::pdu_io_ctl::{IoCtlByteArray, PduIoCtlCommand, PduIoCtlData, PduIoCtlTarget};
 use crate::types::pdu_lock_resource::PduLockResourceMask;
@@ -23,14 +20,39 @@ use crate::types::pdu_object::PduObjectIdSource;
 use crate::types::pdu_resource::{PduResource, ResourceStatus};
 use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
 use crate::types::pdu_version::PduVersionData;
+use crate::types::{
+    PduCllHandle, PduCopHandle, PduLibraryPath, PduModuleHandle, PduObjectId, PduOptions,
+    PduUniqueId,
+};
 use crate::utils::c_str;
 use crate::utils::module_description::PduModuleDescription;
 use crate::utils::root_file::Mvci;
+use dpdu_api_types::{
+    CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, ExtraInfo,
+    FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData,
+    ModuleItem, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData,
+    ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn,
+    PduDataItem, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn,
+    PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn,
+    PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn,
+    PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn,
+    PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus,
+    PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem,
+    UniqueRespIdTableItem, VersionData,
+};
+use rand::random;
+use std::cell::OnceCell;
+use std::collections::HashMap;
+use std::ffi::{CString, c_void};
+use std::mem::MaybeUninit;
+use std::ptr::NonNull;
+use std::sync::{Arc, Weak};
+use std::{ptr, slice};
+use tracing::{debug, error, trace, warn};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug)]
-#[derive(thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("FFI error: {0}")]
     FfiError(#[from] libloading::Error),
@@ -62,7 +84,7 @@ impl Api {
         library: libloading::Library,
         library_file: Option<PduLibraryPath>,
         module_description: Option<PduModuleDescription>,
-        mvci: Option<Mvci>
+        mvci: Option<Mvci>,
     ) -> Arc<Self> {
         Arc::new_cyclic(|me| Self {
             me: me.clone(),
@@ -98,9 +120,12 @@ impl Api {
             Ok(v) => Ok(v),
             Err(err) => {
                 let function = String::from_utf8_lossy(name).into_owned();
-                error!(function, "Unable to take a pointer to the D-PDU API function: {err}");
+                error!(
+                    function,
+                    "Unable to take a pointer to the D-PDU API function: {err}"
+                );
                 Err(err)?
-            },
+            }
         }
     }
 
@@ -131,7 +156,7 @@ impl Api {
         let construct_fn = self.get_pdu_function::<PduConstructFn>(FUNC.as_bytes())?;
         let result = construct_fn(
             options_str.as_ptr() as _,
-            self.pdu_unique_id as *const PduUniqueId as _
+            self.pdu_unique_id as *const PduUniqueId as _,
         );
 
         if !result.is_success() {
@@ -161,7 +186,11 @@ impl Api {
         const FUNC: &'static str = "PDUDestroyItem";
         self.log_api_call(FUNC);
 
-        trace!(func = FUNC, p_item = format!("0x{:x}", item_ptr as usize), "D-PDU API Call Args");
+        trace!(
+            func = FUNC,
+            p_item = format!("0x{:x}", item_ptr as usize),
+            "D-PDU API Call Args"
+        );
 
         if item_ptr.is_null() {
             return Ok(());
@@ -178,10 +207,7 @@ impl Api {
         Ok(())
     }
 
-    pub fn pdu_get_event_item(
-        &self,
-        target: PduEventTarget,
-    ) -> Result<Option<PduEvent>> {
+    pub fn pdu_get_event_item(&self, target: PduEventTarget) -> Result<Option<PduEvent>> {
         const FUNC: &'static str = "PDUGetEventItem";
         self.log_api_call(FUNC);
 
@@ -196,7 +222,7 @@ impl Api {
         let result = get_event_item_fn(h_mod, h_cll, &mut item_ptr);
 
         match result {
-            PduError::StatusNoError | PduError::EventQueueEmpty => {},
+            PduError::StatusNoError | PduError::EventQueueEmpty => {}
             v => {
                 self.log_failed_api_call(FUNC, result);
                 return Err(v)?;
@@ -211,21 +237,25 @@ impl Api {
         );
 
         if item_ptr.is_null() {
-            error!(func = FUNC, "Item pointer is null. Emulation of PduError::FctFailed...");
+            error!(
+                func = FUNC,
+                "Item pointer is null. Emulation of PduError::FctFailed..."
+            );
             Err(PduError::FctFailed)?;
         }
 
         let item = unsafe { &*item_ptr };
 
         if item.p_data.is_null() {
-            error!(func = FUNC, "Item data pointer is null. Emulation of PduError::FctFailed...");
+            error!(
+                func = FUNC,
+                "Item data pointer is null. Emulation of PduError::FctFailed..."
+            );
             Err(PduError::FctFailed)?;
         }
 
         let data: PduEventData = match item.item_type {
-            PduIt::Status => {
-                PduStatusEvent(unsafe { *(item.p_data as *const PduStatus) }).into()
-            },
+            PduIt::Status => PduStatusEvent(unsafe { *(item.p_data as *const PduStatus) }).into(),
             PduIt::Result => {
                 let data = unsafe { &*(item.p_data as *const ResultData) };
 
@@ -272,22 +302,25 @@ impl Api {
                     },
                     extra_info_header: extra_header.take(),
                     extra_info_footer: extra_footer.take(),
-                }.into()
-            },
+                }
+                .into()
+            }
             PduIt::Error => {
                 let data = unsafe { &*(item.p_data as *const ErrorData) };
                 PduErrorEvent {
                     code: data.error_code_id,
                     extra_code: data.extra_error_info_id,
-                }.into()
-            },
+                }
+                .into()
+            }
             PduIt::Info => {
                 let data = unsafe { &*(item.p_data as *const InfoData) };
                 PduInfoEvent {
                     code: data.info_code,
                     extra_code: data.extra_info_data,
-                }.into()
-            },
+                }
+                .into()
+            }
             typ => {
                 self.pdu_destroy_item(item_ptr as _)?;
                 error!(
@@ -350,39 +383,28 @@ impl Api {
         Ok(version_data)
     }
 
-    pub fn pdu_get_object_id(
-        &self,
-        object: PduObjt,
-        short_name: &str,
-    ) -> Result<PduObjectId> {
+    pub fn pdu_get_object_id(&self, object: PduObjt, short_name: &str) -> Result<PduObjectId> {
         const FUNC: &'static str = "PDUGetObjectId";
         self.log_api_call(FUNC);
 
-        trace!(func = FUNC, object = object.as_ref(), short_name, "D-PDU API Call Args");
+        trace!(
+            func = FUNC,
+            object = object.as_ref(),
+            short_name,
+            "D-PDU API Call Args"
+        );
 
         if let Some(desc) = &self.module_description {
             // First, we will try to obtain the required object ID from the module description
             // file supplied with the D-PDU API driver in order to reduce
             // the number of D-PDU API calls.
             let object_id = match object {
-                PduObjt::IoCtrl => desc.io_controls
-                    .get_by_short_name(short_name)
-                    .map(|v| v.id),
-                PduObjt::Resource => desc.resources
-                    .get_by_short_name(short_name)
-                    .map(|v| v.id),
-                PduObjt::Protocol => desc.protocols
-                    .get_by_short_name(short_name)
-                    .map(|v| v.id),
-                PduObjt::BusType => desc.bus_types
-                    .get_by_short_name(short_name)
-                    .map(|v| v.id),
-                PduObjt::PinType => desc.pin_types
-                    .get_by_short_name(short_name)
-                    .map(|v| v.id),
-                PduObjt::ComParam => desc.com_params
-                    .get_by_short_name(short_name)
-                    .map(|v| v.id),
+                PduObjt::IoCtrl => desc.io_controls.get_by_short_name(short_name).map(|v| v.id),
+                PduObjt::Resource => desc.resources.get_by_short_name(short_name).map(|v| v.id),
+                PduObjt::Protocol => desc.protocols.get_by_short_name(short_name).map(|v| v.id),
+                PduObjt::BusType => desc.bus_types.get_by_short_name(short_name).map(|v| v.id),
+                PduObjt::PinType => desc.pin_types.get_by_short_name(short_name).map(|v| v.id),
+                PduObjt::ComParam => desc.com_params.get_by_short_name(short_name).map(|v| v.id),
             };
 
             if let Some(id) = object_id {
@@ -394,11 +416,7 @@ impl Api {
         let mut object_id: MaybeUninit<u32> = MaybeUninit::uninit();
 
         let get_object_id_fn = self.get_pdu_function::<PduGetObjectIdFn>(FUNC.as_bytes())?;
-        let result = get_object_id_fn(
-            object,
-            short_name.as_ptr() as _,
-            object_id.as_mut_ptr()
-        );
+        let result = get_object_id_fn(object, short_name.as_ptr() as _, object_id.as_mut_ptr());
 
         if !result.is_success() {
             self.log_failed_api_call(FUNC, result);
@@ -409,11 +427,7 @@ impl Api {
         // PDUGetObjectId guarantees that `object_id` is initialized on success.
         let object_id = unsafe { object_id.assume_init() };
 
-        trace!(
-            func = FUNC,
-            object_id,
-            "D-PDU API Call Return"
-        );
+        trace!(func = FUNC, object_id, "D-PDU API Call Return");
 
         Ok(object_id)
     }
@@ -422,7 +436,7 @@ impl Api {
         &self,
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
-        object_id: PduObjectIdSource
+        object_id: PduObjectIdSource,
     ) -> Result<PduComParam> {
         const FUNC: &'static str = "PDUGetComParam";
         self.log_api_call(FUNC);
@@ -461,12 +475,12 @@ impl Api {
                     // This is not a critical error.
                     // Therefore, we will not log it separately.
                     Err(PduError::ComParamNotSupported)?
-                },
+                }
                 _ => {
                     self.log_failed_api_call(FUNC, result);
                     Err(result)?
                 }
-            }
+            };
         }
 
         if item_ptr.is_null() {
@@ -478,7 +492,7 @@ impl Api {
         }
 
         let cp = unsafe {
-            use ptr::read as read;
+            use ptr::read;
 
             let item = &*item_ptr;
             let data_ptr = item.p_com_param_data;
@@ -487,9 +501,10 @@ impl Api {
             match &object_id {
                 PduObjectIdSource::ShortName(v) => {
                     let _ = short_name.set(v.clone());
-                },
+                }
                 _ => {
-                    let sn_opt = self.module_description
+                    let sn_opt = self
+                        .module_description
                         .as_ref()
                         .and_then(|mdf_desc| mdf_desc.com_params.get_by_id(id))
                         .and_then(|mdf_cp| mdf_cp.short_name.clone());
@@ -514,10 +529,8 @@ impl Api {
                     PduPt::ByteField => PduCpVariant::ByteField({
                         let data = &*(data_ptr as *const ParamByteFieldData);
                         ByteFieldComParam::new(
-                            slice::from_raw_parts(
-                                data.p_data_array,
-                                data.param_act_len as _,
-                            ).to_vec(),
+                            slice::from_raw_parts(data.p_data_array, data.param_act_len as _)
+                                .to_vec(),
                             Some(data.param_max_len as _),
                         )
                     }),
@@ -528,17 +541,16 @@ impl Api {
                             slice::from_raw_parts(
                                 data.p_struct_array as *mut StructComParam,
                                 data.param_act_entries as _,
-                            ).to_vec(),
+                            )
+                            .to_vec(),
                             Some(data.param_max_entries as _),
                         )
                     }),
                     PduPt::LongField => PduCpVariant::LongField({
                         let data = &*(data_ptr as *const ParamLongFieldData);
                         LongFieldComParam::new(
-                            slice::from_raw_parts(
-                                data.p_data_array,
-                                data.param_act_len as _,
-                            ).to_vec(),
+                            slice::from_raw_parts(data.p_data_array, data.param_act_len as _)
+                                .to_vec(),
                             Some(data.param_max_len as _),
                         )
                     }),
@@ -604,12 +616,12 @@ impl Api {
                     // This is not a critical error.
                     // Therefore, we will not log it separately.
                     Err(PduError::ComParamNotSupported)?
-                },
+                }
                 _ => {
                     self.log_failed_api_call(FUNC, result);
                     Err(result)?
                 }
-            }
+            };
         }
 
         Ok(())
@@ -619,21 +631,17 @@ impl Api {
         &self,
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
-        table: &PduComParamTable
+        table: &PduComParamTable,
     ) -> Result<()> {
         const FUNC: &'static str = "PDUSetUniqueRespIdTable";
         self.log_api_call(FUNC);
 
-        trace!(
-            func = FUNC,
-            h_mod,
-            h_cll,
-            "D-PDU API Call Args"
-        );
+        trace!(func = FUNC, h_mod, h_cll, "D-PDU API Call Args");
 
         type EphemeralGroupKey = usize;
 
-        let mut temp_com_param_groups: HashMap<EphemeralGroupKey, Vec<ParamItem>> = HashMap::with_capacity(table.len());
+        let mut temp_com_param_groups: HashMap<EphemeralGroupKey, Vec<ParamItem>> =
+            HashMap::with_capacity(table.len());
         let mut temp_unique_groups: Vec<EcuUniqueRespData> = Vec::with_capacity(table.len());
 
         for (key, (unique_resp_identifier, group_set)) in table.iter().enumerate() {
@@ -649,10 +657,10 @@ impl Api {
             for cp in group_set.iter() {
                 if !matches!(cp.class, PduPc::UniqueId) {
                     error!(
-                    com_param = cp.get_debug_name(),
-                    class = cp.class.as_ref(),
-                    "Invalid class of the PduComParam stored in PduComParamTable"
-                );
+                        com_param = cp.get_debug_name(),
+                        class = cp.class.as_ref(),
+                        "Invalid class of the PduComParam stored in PduComParamTable"
+                    );
                     let result = PduError::InvalidParameters;
                     self.log_failed_api_call(FUNC, result);
                     return Err(result)?;
@@ -681,9 +689,7 @@ impl Api {
 
             temp_com_param_groups.insert(key, com_param_set);
 
-            let temp_com_param_group = temp_com_param_groups
-                .get(&key)
-                .expect("inserted above");
+            let temp_com_param_group = temp_com_param_groups.get(&key).expect("inserted above");
 
             temp_unique_groups.push(EcuUniqueRespData {
                 unique_resp_identifier: *unique_resp_identifier,
@@ -705,7 +711,8 @@ impl Api {
             "D-PDU API Call Args"
         );
 
-        let set_unique_resp_id_table_fn = self.get_pdu_function::<PduSetUniqueRespIdTableFn>(FUNC.as_bytes())?;
+        let set_unique_resp_id_table_fn =
+            self.get_pdu_function::<PduSetUniqueRespIdTableFn>(FUNC.as_bytes())?;
         let result = set_unique_resp_id_table_fn(h_mod, h_cll, &table as *const _ as _);
 
         if !result.is_success() {
@@ -719,16 +726,12 @@ impl Api {
     pub fn pdu_register_event_callback(
         &self,
         target: PduEventCallbackTarget,
-        callback: Option<EventCallbackFn>
+        callback: Option<EventCallbackFn>,
     ) -> Result<()> {
         const FUNC: &'static str = "PDURegisterEventCallback";
         self.log_api_call(FUNC);
 
-        trace!(
-            func = FUNC,
-            target = target.as_ref(),
-            "D-PDU API Call Args"
-        );
+        trace!(func = FUNC, target = target.as_ref(), "D-PDU API Call Args");
 
         let (h_mod, h_cll) = match target {
             PduEventCallbackTarget::Module(h_mod) => {
@@ -743,7 +746,7 @@ impl Api {
                 }
 
                 (h_mod, PDU_HANDLE_UNDEF)
-            },
+            }
             PduEventCallbackTarget::ComLogicalLink(h_mod, h_cll) => {
                 if h_mod == PDU_HANDLE_UNDEF {
                     let result = PduError::InvalidHandle;
@@ -764,25 +767,17 @@ impl Api {
                 }
 
                 (h_mod, h_cll)
-            },
-            PduEventCallbackTarget::System => (PDU_HANDLE_UNDEF, PDU_HANDLE_UNDEF)
+            }
+            PduEventCallbackTarget::System => (PDU_HANDLE_UNDEF, PDU_HANDLE_UNDEF),
         };
 
-        trace!(
-            func = FUNC,
-            h_mod,
-            h_cll,
-            "D-PDU API Call Args"
-        );
+        trace!(func = FUNC, h_mod, h_cll, "D-PDU API Call Args");
 
         let register_event_callback_fn =
             self.get_pdu_function::<PduRegisterCallbackFn>(FUNC.as_bytes())?;
 
-        let result = register_event_callback_fn(
-            h_mod,
-            h_cll,
-            unsafe { std::mem::transmute(callback) },
-        );
+        let result =
+            register_event_callback_fn(h_mod, h_cll, unsafe { std::mem::transmute(callback) });
 
         if !result.is_success() {
             self.log_failed_api_call(FUNC, result);
@@ -798,23 +793,22 @@ impl Api {
         h_cll: PduCllHandle,
         cop_type: PduCopt,
         data: &[u8],
-        params: Option<&PduComPrimiviteParams>
+        params: Option<&PduComPrimiviteParams>,
     ) -> Result<PduCopHandle> {
         const FUNC: &'static str = "PDUStartComPrimitive";
         self.log_api_call(FUNC);
 
         trace!(
             func = FUNC,
-
             h_mod,
             h_cll,
             cop_type = cop_type.as_ref(),
-
             "D-PDU API Call Args"
         );
 
         let mut cop_handle: MaybeUninit<PduCopHandle> = MaybeUninit::uninit();
-        let start_com_primivite_fn = self.get_pdu_function::<PduStartComPrimitiveFn>(FUNC.as_bytes())?;
+        let start_com_primivite_fn =
+            self.get_pdu_function::<PduStartComPrimitiveFn>(FUNC.as_bytes())?;
 
         let result = match cop_type {
             PduCopt::UpdateParam | PduCopt::RestoreParam => {
@@ -833,14 +827,11 @@ impl Api {
 
                 trace!(
                     func = FUNC,
-
                     data_len = 0,
                     data_ptr = "<nullptr>",
-
                     cop_ctrl_data_ptr = "<nullptr>",
                     tag = "<nullptr>",
                     cop_handle_ptr = format!("0x{:#x}", cop_handle.as_ptr() as usize),
-
                     "D-PDU API Call Args"
                 );
 
@@ -848,19 +839,18 @@ impl Api {
                     h_mod,
                     h_cll,
                     cop_type,
-                    0, // data len
+                    0,               // data len
                     ptr::null_mut(), // data ptr
                     ptr::null_mut(), // cop ctrl data
                     ptr::null_mut(), // tag
-                    cop_handle.as_mut_ptr()
+                    cop_handle.as_mut_ptr(),
                 )
-            },
+            }
             _ => {
-                let params = params
-                    .expect(&format!(
-                        "when PduCopt = {}, PduComPrimitiveParams is required",
-                        cop_type.as_ref()
-                    ));
+                let params = params.expect(&format!(
+                    "when PduCopt = {}, PduComPrimitiveParams is required",
+                    cop_type.as_ref()
+                ));
 
                 let flags = params.tx_flag.get_pdu_flag_data();
 
@@ -947,7 +937,7 @@ impl Api {
                     data.as_ptr() as _,
                     &cop_ctrl_data as *const _ as _,
                     ptr::null_mut(), // tag
-                    cop_handle.as_mut_ptr()
+                    cop_handle.as_mut_ptr(),
                 )
             }
         };
@@ -961,11 +951,7 @@ impl Api {
         // PDUStartComPrimitive guarantees that `phCoP` is initialized on success.
         let cop_handle = unsafe { cop_handle.assume_init() };
 
-        trace!(
-            func = FUNC,
-            cop_handle,
-            "D-PDU API Call Return"
-        );
+        trace!(func = FUNC, cop_handle, "D-PDU API Call Return");
 
         Ok(cop_handle)
     }
@@ -1001,7 +987,7 @@ impl Api {
         &self,
         target: PduIoCtlTarget,
         command: PduIoCtlCommand,
-        data: Option<&PduIoCtlData>
+        data: Option<&PduIoCtlData>,
     ) -> Result<Option<PduIoCtlData>> {
         const FUNC: &'static str = "PDUIoCtl";
         self.log_api_call(FUNC);
@@ -1017,54 +1003,53 @@ impl Api {
             "D-PDU API Call Args"
         );
 
-        data.inspect(|data| {
-            match data {
-                PduIoCtlData::U32(v) => trace!(
-                    func = FUNC,
-                    data_type = data.as_ref(),
-                    data_u32 = v,
-                    "D-PDU API Call Args"
-                ),
-                PduIoCtlData::ProgVoltage(v) => trace!(
-                    func = FUNC,
-                    data_type = data.as_ref(),
-                    data_prog_voltage_mv = v.prog_voltage_mv,
-                    data_pin_on_dlc = v.pin_on_dlc,
-                    "D-PDU API Call Args"
-                ),
-                PduIoCtlData::ByteArray(v) => trace!(
-                    func = FUNC,
-                    data_type = data.as_ref(),
-                    data_len = v.len(),
-                    data_value = ?v,
-                    "D-PDU API Call Args"
-                ),
-                PduIoCtlData::Filter(v) => trace!(
-                    func = FUNC,
-                    data_type = data.as_ref(),
-                    data_filter_type = v.filter_type.as_ref(),
-                    data_filter_number = v.filter_number,
-                    data_filter_compare_size = v.filter_compare_size,
-                    data_filter_mask_msg = ?v.filter_mask_msg,
-                    data_filter_pattern_msg = ?v.filter_pattern_msg,
-                    "D-PDU API Call Args"
-                ),
-                PduIoCtlData::EventQueueProperty(v) => trace!(
-                    func = FUNC,
-                    data_type = data.as_ref(),
-                    data_queue_size = v.queue_size,
-                    data_queue_mode = v.queue_mode.as_ref(),
-                    "D-PDU API Call Args"
-                )
-            }
+        data.inspect(|data| match data {
+            PduIoCtlData::U32(v) => trace!(
+                func = FUNC,
+                data_type = data.as_ref(),
+                data_u32 = v,
+                "D-PDU API Call Args"
+            ),
+            PduIoCtlData::ProgVoltage(v) => trace!(
+                func = FUNC,
+                data_type = data.as_ref(),
+                data_prog_voltage_mv = v.prog_voltage_mv,
+                data_pin_on_dlc = v.pin_on_dlc,
+                "D-PDU API Call Args"
+            ),
+            PduIoCtlData::ByteArray(v) => trace!(
+                func = FUNC,
+                data_type = data.as_ref(),
+                data_len = v.len(),
+                data_value = ?v,
+                "D-PDU API Call Args"
+            ),
+            PduIoCtlData::Filter(v) => trace!(
+                func = FUNC,
+                data_type = data.as_ref(),
+                data_filter_type = v.filter_type.as_ref(),
+                data_filter_number = v.filter_number,
+                data_filter_compare_size = v.filter_compare_size,
+                data_filter_mask_msg = ?v.filter_mask_msg,
+                data_filter_pattern_msg = ?v.filter_pattern_msg,
+                "D-PDU API Call Args"
+            ),
+            PduIoCtlData::EventQueueProperty(v) => trace!(
+                func = FUNC,
+                data_type = data.as_ref(),
+                data_queue_size = v.queue_size,
+                data_queue_mode = v.queue_mode.as_ref(),
+                "D-PDU API Call Args"
+            ),
         });
 
         let object_id = match command {
             PduIoCtlCommand::Id(v) => v,
-            PduIoCtlCommand::Name(v) => self.pdu_get_object_id(PduObjt::IoCtrl, &v)?
+            PduIoCtlCommand::Name(v) => self.pdu_get_object_id(PduObjt::IoCtrl, &v)?,
         };
 
-        let input_data_ptr: *const c_void = data.as_ref()
+        let input_data_ptr: *const c_void = data
+            .as_ref()
             .map(|v| v.to_pdu_data_item().p_data as _)
             .unwrap_or(ptr::null());
 
@@ -1083,7 +1068,7 @@ impl Api {
             h_cll,
             object_id,
             input_data_ptr as _,
-            &mut output_data_ptr
+            &mut output_data_ptr,
         );
 
         if !result.is_success() {
@@ -1098,7 +1083,7 @@ impl Api {
                     PduIt::IoUnum32 => Ok(Some(data.p_data.cast::<u32>().read().into())),
                     PduIt::IoProgVoltage => {
                         Ok(Some(data.p_data.cast::<IoProgVoltageData>().read().into()))
-                    },
+                    }
                     PduIt::IoByteArray => {
                         let byte_array = &*data.p_data.cast::<IoByteArrayData>();
                         if byte_array.p_data.is_null() {
@@ -1111,20 +1096,15 @@ impl Api {
                         } else {
                             let len = byte_array.data_size as _;
                             Ok(Some(
-                                IoCtlByteArray(
-                                    Vec::from_raw_parts(
-                                        byte_array.p_data,
-                                        len,
-                                        len
-                                    )
-                                ).into()
+                                IoCtlByteArray(Vec::from_raw_parts(byte_array.p_data, len, len))
+                                    .into(),
                             ))
                         }
-                    },
+                    }
                     PduIt::IoFilter => Ok(Some(data.p_data.cast::<IoFilterData>().read().into())),
-                    PduIt::IoEventQueueProperty => {
-                        Ok(Some(data.p_data.cast::<IoEventQueuePropertyData>().read().into()))
-                    },
+                    PduIt::IoEventQueueProperty => Ok(Some(
+                        data.p_data.cast::<IoEventQueuePropertyData>().read().into(),
+                    )),
                     v => {
                         error!(
                             func = FUNC,
@@ -1166,7 +1146,10 @@ impl Api {
         );
 
         if module_list_item_ptr.is_null() {
-            error!(func = FUNC, "Module list pointer is null. Emulation of PduError::FctFailed...");
+            error!(
+                func = FUNC,
+                "Module list pointer is null. Emulation of PduError::FctFailed..."
+            );
             Err(PduError::FctFailed)?;
         }
 
@@ -1212,10 +1195,7 @@ impl Api {
         Ok(module_list)
     }
 
-    pub fn pdu_get_status(
-        &self,
-        target: PduStatusTarget,
-    ) -> Result<PduStatusData> {
+    pub fn pdu_get_status(&self, target: PduStatusTarget) -> Result<PduStatusData> {
         const FUNC: &'static str = "PDUGetStatus";
         self.log_api_call(FUNC);
 
@@ -1223,13 +1203,7 @@ impl Api {
         let h_cll = target.get_cll_handle().unwrap_or(PDU_HANDLE_UNDEF);
         let h_cop = target.get_cop_handle().unwrap_or(PDU_HANDLE_UNDEF);
 
-        trace!(
-            func = FUNC,
-            h_mod,
-            h_cll,
-            h_cop,
-            "D-PDU API Call Args"
-        );
+        trace!(func = FUNC, h_mod, h_cll, h_cop, "D-PDU API Call Args");
 
         let mut status_code: MaybeUninit<u32> = MaybeUninit::uninit();
         let mut timestamp: MaybeUninit<u32> = MaybeUninit::uninit();
@@ -1242,7 +1216,7 @@ impl Api {
             h_cop,
             status_code.as_mut_ptr() as _,
             timestamp.as_mut_ptr(),
-            extra_info.as_mut_ptr()
+            extra_info.as_mut_ptr(),
         );
 
         if !result.is_success() {
@@ -1256,10 +1230,7 @@ impl Api {
 
         trace!(
             func = FUNC,
-            status_code,
-            timestamp,
-            extra_info,
-            "D-PDU API Call Return"
+            status_code, timestamp, extra_info, "D-PDU API Call Return"
         );
 
         let status_code = match PduStatus::try_from(status_code) {
@@ -1301,7 +1272,8 @@ impl Api {
 
         let mut cll_handle: MaybeUninit<PduCllHandle> = MaybeUninit::uninit();
 
-        let create_com_logical_link_fn = self.get_pdu_function::<PduCreateComLogicalLinkFn>(FUNC.as_bytes())?;
+        let create_com_logical_link_fn =
+            self.get_pdu_function::<PduCreateComLogicalLinkFn>(FUNC.as_bytes())?;
         let result = match &create_type {
             CllCreateType::ResourceId(v) => {
                 trace!(func = FUNC, resource_id = v, "D-PDU API Call Args");
@@ -1311,20 +1283,26 @@ impl Api {
                     v.clone(),
                     ptr::null_mut(),
                     cll_handle.as_mut_ptr(),
-                    &flag_data as *const FlagData as _
+                    &flag_data as *const FlagData as _,
                 )
             }
-            CllCreateType::ResourceData { bus, protocol, pins } => {
+            CllCreateType::ResourceData {
+                bus,
+                protocol,
+                pins,
+            } => {
                 trace!(func = FUNC, %bus, %protocol, "D-PDU API Call Args");
 
                 let bus_type_id = match bus {
                     CllBusType::Id(id) => id.clone(),
-                    CllBusType::Name(name) => self.pdu_get_object_id(PduObjt::BusType, name)?
+                    CllBusType::Name(name) => self.pdu_get_object_id(PduObjt::BusType, name)?,
                 };
 
                 let protocol_id = match protocol {
                     CllProtocolType::Id(id) => id.clone(),
-                    CllProtocolType::Name(name) => self.pdu_get_object_id(PduObjt::Protocol, name)?
+                    CllProtocolType::Name(name) => {
+                        self.pdu_get_object_id(PduObjt::Protocol, name)?
+                    }
                 };
 
                 let pin_data = {
@@ -1340,7 +1318,9 @@ impl Api {
 
                         let pin_id = match &pin.pin_type {
                             CllPinType::Id(id) => id.clone(),
-                            CllPinType::Name(name) => self.pdu_get_object_id(PduObjt::PinType, name)?
+                            CllPinType::Name(name) => {
+                                self.pdu_get_object_id(PduObjt::PinType, name)?
+                            }
                         };
 
                         vec.push(PinData {
@@ -1374,7 +1354,7 @@ impl Api {
                     PDU_ID_UNDEF,
                     ptr::null_mut(),
                     cll_handle.as_mut_ptr(),
-                    &flag_data as *const FlagData as _
+                    &flag_data as *const FlagData as _,
                 )
             }
         };
@@ -1386,11 +1366,7 @@ impl Api {
 
         let h_cll = unsafe { cll_handle.assume_init() };
 
-        trace!(
-            func = FUNC,
-            h_cll,
-            "D-PDU API Call Return"
-        );
+        trace!(func = FUNC, h_cll, "D-PDU API Call Return");
 
         Ok(PduComLogicalLink {
             h_mod,
@@ -1403,17 +1379,12 @@ impl Api {
     pub fn pdu_destroy_com_logical_link(
         &self,
         h_mod: PduModuleHandle,
-        h_cll: PduCllHandle
+        h_cll: PduCllHandle,
     ) -> Result<()> {
         const FUNC: &'static str = "PDUDestroyComLogicalLink";
         self.log_api_call(FUNC);
 
-        trace!(
-            func = FUNC,
-            h_mod,
-            h_cll,
-            "D-PDU API Call Args"
-        );
+        trace!(func = FUNC, h_mod, h_cll, "D-PDU API Call Args");
 
         let destroy_fn =
             self.get_pdu_function::<PduDestroyComLogicalLinkFn>(b"PDUDestroyComLogicalLink")?;
@@ -1428,10 +1399,7 @@ impl Api {
         Ok(())
     }
 
-    pub fn pdu_get_last_error(
-        &self,
-        target: PduLastErrorTarget,
-    ) -> Result<PduErrorData> {
+    pub fn pdu_get_last_error(&self, target: PduLastErrorTarget) -> Result<PduErrorData> {
         const FUNC: &'static str = "PDUGetLastError";
         self.log_api_call(FUNC);
 
@@ -1461,7 +1429,7 @@ impl Api {
             error_code.as_mut_ptr() as _,
             h_cop.as_mut_ptr(),
             timestamp.as_mut_ptr(),
-            extra_info_code.as_mut_ptr()
+            extra_info_code.as_mut_ptr(),
         );
 
         if !result.is_success() {
@@ -1476,11 +1444,7 @@ impl Api {
 
         trace!(
             func = FUNC,
-            error_code,
-            h_cop,
-            timestamp,
-            extra_info_code,
-            "D-PDU API Call Return"
+            error_code, h_cop, timestamp, extra_info_code, "D-PDU API Call Return"
         );
 
         let error_event = match PduErrorEvt::try_from(error_code) {
@@ -1504,7 +1468,10 @@ impl Api {
         })
     }
 
-    pub fn pdu_get_resource_status(&self, resources: Vec<PduResource>) -> Result<HashMap<PduResource, ResourceStatus>> {
+    pub fn pdu_get_resource_status(
+        &self,
+        resources: Vec<PduResource>,
+    ) -> Result<HashMap<PduResource, ResourceStatus>> {
         const FUNC: &'static str = "PDUGetResourceStatus";
         self.log_api_call(FUNC);
 
@@ -1515,7 +1482,8 @@ impl Api {
             return Ok(map);
         }
 
-        let mut raw_resources = resources.iter()
+        let mut raw_resources = resources
+            .iter()
             .map(|v| {
                 trace!(
                     func = FUNC,
@@ -1546,7 +1514,8 @@ impl Api {
             "D-PDU API Call Args"
         );
 
-        let get_resource_status_fn = self.get_pdu_function::<PduGetResourceStatusFn>(FUNC.as_bytes())?;
+        let get_resource_status_fn =
+            self.get_pdu_function::<PduGetResourceStatusFn>(FUNC.as_bytes())?;
         let result = get_resource_status_fn(&mut item);
 
         if !result.is_success() {
@@ -1579,13 +1548,16 @@ impl Api {
                     "D-PDU API Call Args"
                 );
 
-                map.insert(resource, ResourceStatus {
-                    raw_status: status,
-                    busy,
-                    available,
-                    transmit_queue_lock,
-                    physical_com_param_lock,
-                });
+                map.insert(
+                    resource,
+                    ResourceStatus {
+                        raw_status: status,
+                        busy,
+                        available,
+                        transmit_queue_lock,
+                        physical_com_param_lock,
+                    },
+                );
 
                 break 'il;
             }
@@ -1598,12 +1570,7 @@ impl Api {
         const FUNC: &'static str = "PDUConnect";
         self.log_api_call(FUNC);
 
-        trace!(
-            func = FUNC,
-            h_mod,
-            h_cll,
-            "D-PDU API Call Args"
-        );
+        trace!(func = FUNC, h_mod, h_cll, "D-PDU API Call Args");
 
         let connect_fn = self.get_pdu_function::<PduConnectFn>(FUNC.as_bytes())?;
         let result = connect_fn(h_mod, h_cll);
@@ -1620,12 +1587,7 @@ impl Api {
         const FUNC: &'static str = "PDUDisconnect";
         self.log_api_call(FUNC);
 
-        trace!(
-            func = FUNC,
-            h_mod,
-            h_cll,
-            "D-PDU API Call Args"
-        );
+        trace!(func = FUNC, h_mod, h_cll, "D-PDU API Call Args");
 
         let connect_fn = self.get_pdu_function::<PduDisconnectFn>(FUNC.as_bytes())?;
         let result = connect_fn(h_mod, h_cll);
@@ -1642,7 +1604,7 @@ impl Api {
         &self,
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
-        mask: PduLockResourceMask
+        mask: PduLockResourceMask,
     ) -> Result<()> {
         const FUNC: &'static str = "PDULockResource";
         self.log_api_call(FUNC);
@@ -1674,7 +1636,7 @@ impl Api {
         &self,
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
-        mask: PduLockResourceMask
+        mask: PduLockResourceMask,
     ) -> Result<()> {
         const FUNC: &'static str = "PDUUnlockResource";
         self.log_api_call(FUNC);

@@ -12,7 +12,7 @@ pub struct PduLockResourceMask {
     /// physical resource may transmit any ComPrimitives on the physical
     /// resource. Only monitoring of the vehicle bus may be done by other
     /// ComLogicalLinks (receive only ComPrimitives).
-    pub lock_physical_transmit_queue: bool
+    pub lock_physical_transmit_queue: bool,
 }
 
 impl PduLockResourceMask {

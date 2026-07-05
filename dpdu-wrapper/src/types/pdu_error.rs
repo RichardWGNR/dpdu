@@ -1,5 +1,5 @@
-use dpdu_api_types::PduErrorEvt;
 use crate::types::{PduCllHandle, PduCopHandle, PduModuleHandle};
+use dpdu_api_types::PduErrorEvt;
 
 #[derive(Debug, Clone)]
 pub struct PduErrorData {
@@ -18,7 +18,7 @@ pub struct PduErrorData {
 pub enum PduLastErrorTarget {
     System,
     Module(PduModuleHandle),
-    ComLogicalLink(PduModuleHandle, PduCllHandle)
+    ComLogicalLink(PduModuleHandle, PduCllHandle),
 }
 
 impl PduLastErrorTarget {
@@ -44,7 +44,7 @@ impl PduLastErrorTarget {
 
     pub fn get_cll_handle(&self) -> Option<PduCllHandle> {
         match self {
-            PduLastErrorTarget::ComLogicalLink(_ , h_cll) => Some(h_cll.clone()),
+            PduLastErrorTarget::ComLogicalLink(_, h_cll) => Some(h_cll.clone()),
             _ => None,
         }
     }

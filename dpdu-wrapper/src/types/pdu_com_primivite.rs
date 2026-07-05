@@ -158,12 +158,7 @@ impl TransmitFlags {
     }
 
     pub(crate) fn get_pdu_flag_data(&self) -> [u8; 4] {
-        [
-            self.zero_byte(),
-            0,
-            self.second_byte(),
-            self.third_byte(),
-        ]
+        [self.zero_byte(), 0, self.second_byte(), self.third_byte()]
     }
 }
 
@@ -191,8 +186,7 @@ pub struct ExpectedResponse {
 }
 
 #[repr(u32)]
-#[derive(Debug, Copy, Clone)]
-#[derive(strum::AsRefStr)]
+#[derive(Debug, Copy, Clone, strum::AsRefStr)]
 pub enum ResponseType {
     Positive = 0,
     Negative = 1,
@@ -251,7 +245,7 @@ impl MaskData {
 #[derive(Debug, Clone)]
 pub enum SendCycles {
     Normal(u32),
-    Infinite
+    Infinite,
 }
 
 impl Default for SendCycles {
@@ -265,8 +259,8 @@ impl SendCycles {
         match self {
             SendCycles::Normal(v) => {
                 i32::try_from(*v).expect("SendCycles value is too large for i32: {v}")
-            },
-            SendCycles::Infinite => -1
+            }
+            SendCycles::Infinite => -1,
         }
     }
 }
@@ -299,7 +293,7 @@ impl ReceiveCycles {
         match self {
             ReceiveCycles::Normal(v) => {
                 i32::try_from(*v).expect("ReceiveCycles value is too large for i32: {v}")
-            },
+            }
             ReceiveCycles::Infinite => -1,
             ReceiveCycles::Multiple => -2,
         }
@@ -308,8 +302,7 @@ impl ReceiveCycles {
 
 /// Temporary ComParam settings for the ComPrimitive.
 #[repr(u32)]
-#[derive(Debug, Copy, Clone)]
-#[derive(strum::AsRefStr)]
+#[derive(Debug, Copy, Clone, strum::AsRefStr)]
 pub enum ComParamBuffer {
     /// Do not use temporary ComParams for this ComPrimitive. The
     /// ComPrimitive shall attach the “Active” ComParam buffer to the
