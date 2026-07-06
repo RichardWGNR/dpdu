@@ -27,17 +27,7 @@ use crate::types::{
 use crate::utils::c_str;
 use crate::utils::module_description::{PduModuleDescription, PduModuleDescriptionError};
 use crate::utils::root_file::Mvci;
-use dpdu_api_types::{
-    CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData,
-    FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData,
-    ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn,
-    PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn,
-    PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn,
-    PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn,
-    PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus,
-    PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem,
-    UniqueRespIdTableItem, VersionData,
-};
+use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PduModuleConnectFn, PduModuleDisconnectFn};
 use rand::random;
 use std::cell::OnceCell;
 use std::collections::HashMap;
@@ -1703,6 +1693,40 @@ impl Api {
 
         let lock_resource_fn = self.get_pdu_function::<PduUnlockResourceFn>(FUNC.as_bytes())?;
         let result = lock_resource_fn(h_mod, h_cll, mask_data);
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn pdu_module_connect(&self, h_mod: PduModuleHandle) -> Result<()> {
+        const FUNC: &'static str = "PDUModuleConnect";
+        self.log_api_call(FUNC);
+
+        trace!(func = FUNC, h_mod, "D-PDU API Call Args");
+
+        let module_connect_fn = self.get_pdu_function::<PduModuleConnectFn>(FUNC.as_bytes())?;
+        let result = module_connect_fn(h_mod);
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn pdu_module_disconnect(&self, h_mod: PduModuleHandle) -> Result<()> {
+        const FUNC: &'static str = "PDUModuleDisconnect";
+        self.log_api_call(FUNC);
+
+        trace!(func = FUNC, h_mod, "D-PDU API Call Args");
+
+        let module_disconnect_fn = self.get_pdu_function::<PduModuleDisconnectFn>(FUNC.as_bytes())?;
+        let result = module_disconnect_fn(h_mod);
 
         if !result.is_success() {
             self.log_failed_api_call(FUNC, result);
