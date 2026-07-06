@@ -1144,7 +1144,7 @@ impl Api {
                         } else {
                             let len = byte_array.data_size as _;
                             Ok(Some(
-                                IoCtlByteArray(Vec::from_raw_parts(byte_array.p_data, len, len))
+                                IoCtlByteArray(slice::from_raw_parts(byte_array.p_data, len).to_vec())
                                     .into(),
                             ))
                         }
@@ -1213,7 +1213,7 @@ impl Api {
             "D-PDU API Call Return"
         );
 
-        let module_list = unsafe { Vec::from_raw_parts(ptr, len, len) }
+        let module_list = unsafe { slice::from_raw_parts(ptr, len) }
             .into_iter()
             .map(|v| {
                 let vendor_module_name = c_str(v.vendor_module_name as _);
