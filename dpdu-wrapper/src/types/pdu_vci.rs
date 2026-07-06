@@ -2,7 +2,8 @@ use crate::api::Api;
 use crate::types::PduModuleHandle;
 use crate::types::pdu_status::PduStatusData;
 use dpdu_api_types::PduStatus;
-use std::sync::Weak;
+use std::sync::{LazyLock, Weak};
+use regex::Regex;
 
 #[derive(Debug, Clone)]
 pub struct PduVci {
@@ -35,5 +36,26 @@ impl PduVci {
             PduStatus::ModstReady | PduStatus::ModstAvail => true,
             _ => false,
         }
+    }
+
+    pub fn get_normalized_name(&self) -> Option<String> {
+        static EDIC_RGX: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r#"(?U)ModuleName='(?<name>.+)'"#).unwrap());
+        static ACTIA_RGX: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r#"(?U)MVCIFriendlyName='(?<name>.+)'"#).unwrap());
+
+        let Some(module_name) = &self.module_name else {
+            return None;
+        };
+
+        if let Some(caps) = EDIC_RGX.captures(module_name) {
+            return Some(caps.name("name").expect("vci name from regex").as_str().to_owned());
+        }
+
+        if let Some(caps) = ACTIA_RGX.captures(module_name) {
+            return Some(caps.name("name").expect("vci name from regex").as_str().to_owned());
+        }
+
+        None
     }
 }
