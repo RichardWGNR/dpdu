@@ -1,4 +1,4 @@
-use crate::api::{Api, Result as ApiResult};
+use crate::api::{PduApi, Result as ApiResult};
 use crate::types::pdu_status::PduStatusTarget;
 use crate::types::pdu_vci::PduVci;
 use std::sync::Arc;
@@ -10,7 +10,7 @@ pub type VciList = Vec<Arc<PduVci>>;
 pub struct VciListResolver;
 
 impl VciListResolver {
-    pub fn resolve(api: &Api) -> ApiResult<VciList> {
+    pub fn resolve(api: &PduApi) -> ApiResult<VciList> {
         info!("Attempt to retrieve the list of communication modules (VCI)...");
 
         let modules = api.pdu_get_module_ids().inspect_err(|err| {

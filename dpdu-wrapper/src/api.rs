@@ -53,8 +53,8 @@ pub enum Error {
 }
 
 #[derive(Debug)]
-pub struct Api {
-    pub(crate) me: Weak<Api>,
+pub struct PduApi {
+    pub(crate) me: Weak<PduApi>,
 
     pdu_options: PduOptions,
 
@@ -69,7 +69,7 @@ pub struct Api {
     mvci: Option<Mvci>,
 }
 
-impl Api {
+impl PduApi {
     pub fn new(
         options: PduOptions,
         library: libloading::Library,
@@ -95,7 +95,7 @@ impl Api {
             .map(|v| PduModuleDescription::parse_from_xml_file(v))
             .transpose()?;
 
-        Ok(Api::new(
+        Ok(PduApi::new(
             options,
             library,
             Some(mvci.library_file.clone()),
@@ -112,7 +112,7 @@ impl Api {
         let library_file = library_file.into();
         let library = unsafe { libloading::Library::new(&library_file)? };
 
-        Ok(Api::new(
+        Ok(PduApi::new(
             options,
             library,
             Some(library_file),
@@ -126,7 +126,7 @@ impl Api {
         options: PduOptions,
         module_description: Option<PduModuleDescription>,
     ) -> Result<Arc<Self>> {
-        Ok(Api::new(
+        Ok(PduApi::new(
             options,
             library,
             None,

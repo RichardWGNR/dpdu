@@ -1,4 +1,4 @@
-use crate::api::{Api, Result as ApiResult};
+use crate::api::{PduApi, Result as ApiResult};
 use crate::types::PduObjectId;
 use crate::utils::{PhantomPtr, PhantomRef};
 use dpdu_api_types::{
@@ -12,7 +12,7 @@ use std::hash::{Hash, Hasher};
 use tracing::warn;
 
 /// With the current design, this structure cannot be created directly. It can only be constructed
-/// via the [`from_*`] ethods. This is done to prevent panics when calling [Api::set_com_param()].
+/// via the [`from_*`] ethods. This is done to prevent panics when calling [PduApi::set_com_param()].
 ///
 /// Thus, a [ComParam] is always identified either by an ID or a short name.
 #[derive(Clone)]
@@ -52,7 +52,7 @@ impl PduComParam {
 
     /// Recommended way to construct the current structure.
     pub fn from_short_name(
-        api: &Api,
+        api: &PduApi,
         sn: impl Into<String>,
         class: PduPc,
         variant: impl Into<PduCpVariant>,
@@ -86,7 +86,7 @@ impl PduComParam {
         let _ = self.short_name.set(name.into());
     }
 
-    pub(crate) fn try_init_short_name(&self, api: &Api) -> bool {
+    pub(crate) fn try_init_short_name(&self, api: &PduApi) -> bool {
         let Some(desc) = api.module_description.as_ref() else {
             return false;
         };

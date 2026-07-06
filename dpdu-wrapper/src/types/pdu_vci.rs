@@ -1,4 +1,4 @@
-use crate::api::Api;
+use crate::api::PduApi;
 use crate::types::PduModuleHandle;
 use crate::types::pdu_status::PduStatusData;
 use dpdu_api_types::PduStatus;
@@ -7,7 +7,7 @@ use regex::Regex;
 
 #[derive(Debug, Clone)]
 pub struct PduVci {
-    pub(crate) api: Weak<Api>,
+    pub(crate) api: Weak<PduApi>,
 
     pub(crate) h_mod: PduModuleHandle,
 
