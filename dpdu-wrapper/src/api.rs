@@ -25,7 +25,7 @@ use crate::types::{
     PduUniqueId,
 };
 use crate::utils::c_str;
-use crate::utils::module_description::PduModuleDescription;
+use crate::utils::module_description::{PduModuleDescription, PduModuleDescriptionError};
 use crate::utils::root_file::Mvci;
 use dpdu_api_types::{
     CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData,
@@ -57,6 +57,9 @@ pub enum Error {
 
     #[error("Communication error: {0}")]
     CommError(#[from] PduError),
+
+    #[error("Module description error: {0}")]
+    MdfError(#[from] PduModuleDescriptionError),
 }
 
 #[derive(Debug)]
@@ -93,6 +96,53 @@ impl Api {
             module_description,
             mvci,
         })
+    }
+
+    pub fn from_mvci(mvci: &Mvci, options: PduOptions) -> Result<Arc<Self>> {
+        let library= unsafe { libloading::Library::new(&mvci.library_file)? };
+        let mdf = mvci.module_description_file
+            .as_ref()
+            .map(|v| PduModuleDescription::parse_from_xml_file(v))
+            .transpose()?;
+
+        Ok(Api::new(
+            options,
+            library,
+            Some(mvci.library_file.clone()),
+            mdf,
+            Some(mvci.clone())
+        ))
+    }
+
+    pub fn from_library_path(
+        library_file: impl Into<PduLibraryPath>,
+        options: PduOptions,
+        module_description: Option<PduModuleDescription>,
+    ) -> Result<Arc<Self>> {
+        let library_file = library_file.into();
+        let library = unsafe { libloading::Library::new(&library_file)? };
+
+        Ok(Api::new(
+            options,
+            library,
+            Some(library_file),
+            module_description,
+            None
+        ))
+    }
+    
+    pub fn from_library(
+        library: libloading::Library,
+        options: PduOptions,
+        module_description: Option<PduModuleDescription>,
+    ) -> Result<Arc<Self>> {
+        Ok(Api::new(
+            options,
+            library,
+            None,
+            module_description,
+            None
+        ))
     }
 
     fn log_api_call(&self, func: &str) {
