@@ -130,7 +130,7 @@ impl Api {
             None
         ))
     }
-    
+
     pub fn from_library(
         library: libloading::Library,
         options: PduOptions,
@@ -153,7 +153,7 @@ impl Api {
         error!(
             func,
             result_str = result.as_ref(),
-            result_int = format!("0x{:#x}", result as usize),
+            result_int = format!("{:#x}", result as usize),
             "D-PDU API Call failed"
         );
     }
@@ -728,7 +728,7 @@ impl Api {
                     func = FUNC,
                     group = key,
                     com_param = cp.get_debug_name(),
-                    com_param_ptr = format!("0x{:#X}", &item as *const _ as usize),
+                    com_param_ptr = format!("{:#x}", &item as *const _ as usize),
                     "D-PDU API Call Args"
                 );
 
@@ -755,7 +755,7 @@ impl Api {
         trace!(
             func = FUNC,
             table_num_entries = table.num_entries,
-            table_ptr = format!("0x{:#X}", &table as *const _ as usize),
+            table_ptr = format!("{:#x}", &table as *const _ as usize),
             "D-PDU API Call Args"
         );
 
@@ -879,7 +879,7 @@ impl Api {
                     data_ptr = "<nullptr>",
                     cop_ctrl_data_ptr = "<nullptr>",
                     tag = "<nullptr>",
-                    cop_handle_ptr = format!("0x{:#x}", cop_handle.as_ptr() as usize),
+                    cop_handle_ptr = format!("{:#x}", cop_handle.as_ptr() as usize),
                     "D-PDU API Call Args"
                 );
 
@@ -910,7 +910,7 @@ impl Api {
                     receive_cycles = params.receive_cycles.to_i32(),
                     buffer = params.temp_param_update.as_ref(),
 
-                    flags_ptr = format!("0x{:#x}", flags.as_ptr() as usize),
+                    flags_ptr = format!("{:#x}", flags.as_ptr() as usize),
                     flags = ?flags,
 
                     expected_responses_len = params.expected_responses.len(),
@@ -927,15 +927,15 @@ impl Api {
                             response_type = v.response_type.as_ref(),
                             acceptance_id = v.acceptance_id,
 
-                            mask_data_ptr = format!("0x{:#x}", v.mask_data.get_mask().as_ptr() as usize),
+                            mask_data_ptr = format!("{:#x}", v.mask_data.get_mask().as_ptr() as usize),
                             mask_data_len = v.mask_data.mask.len(),
                             mask_data = ?v.mask_data.mask,
 
-                            mask_pattern_ptr = format!("0x{:#x}", v.mask_data.get_pattern().as_ptr() as usize),
+                            mask_pattern_ptr = format!("{:#x}", v.mask_data.get_pattern().as_ptr() as usize),
                             mask_pattern_len = v.mask_data.pattern.len(),
                             mask_pattern = ?v.mask_data.pattern,
 
-                            unique_response_ids_ptr = format!("0x{:#x}", v.unique_response_ids.as_ptr() as usize),
+                            unique_response_ids_ptr = format!("{:#x}", v.unique_response_ids.as_ptr() as usize),
                             unique_response_ids_len = v.unique_response_ids.len(),
                             unique_response_ids = ?v.unique_response_ids,
 
@@ -970,10 +970,10 @@ impl Api {
                 trace!(
                     func = FUNC,
                     data_len = data.len(),
-                    data_ptr = format!("0x{:#x}", data.as_ptr() as usize),
-                    cop_ctrl_data_ptr = format!("0x{:#x}", &cop_ctrl_data as *const _ as usize),
+                    data_ptr = format!("{:#x}", data.as_ptr() as usize),
+                    cop_ctrl_data_ptr = format!("{:#x}", &cop_ctrl_data as *const _ as usize),
                     tag = "<nullptr>",
-                    cop_handle_ptr = format!("0x{:#x}", cop_handle.as_ptr() as usize),
+                    cop_handle_ptr = format!("{:#x}", cop_handle.as_ptr() as usize),
                     "D-PDU API Call Args"
                 );
 
@@ -1105,8 +1105,8 @@ impl Api {
 
         trace!(
             func = FUNC,
-            input_data_ptr = format!("0x{:#x}", input_data_ptr as usize),
-            output_data_ptr = format!("0x{:#x}", &output_data_ptr as *const _ as usize),
+            input_data_ptr = format!("{:#x}", input_data_ptr as usize),
+            output_data_ptr = format!("{:#x}", &output_data_ptr as *const _ as usize),
             "D-PDU API Call Args"
         );
 
@@ -1208,7 +1208,7 @@ impl Api {
 
         trace!(
             func = FUNC,
-            modules_ptr = format!("0x{:#x}", ptr as usize),
+            modules_ptr = format!("{:#x}", ptr as usize),
             modules_len = len,
             "D-PDU API Call Return"
         );
@@ -1286,7 +1286,7 @@ impl Api {
             Err(_) => {
                 error!(
                     func = FUNC,
-                    "Received out-of-bounds PduStatus value: 0x{:#x}. Emulation of PduError::FctFailed...",
+                    "Received out-of-bounds PduStatus value: {:#x}. Emulation of PduError::FctFailed...",
                     status_code,
                 );
                 return Err(PduError::FctFailed)?;
@@ -1389,7 +1389,7 @@ impl Api {
 
                 trace!(
                     func = FUNC,
-                    rsc_data_ptr = format!("0x{:#x}", &rsc_data as *const _ as usize),
+                    rsc_data_ptr = format!("{:#x}", &rsc_data as *const _ as usize),
                     bus_type_id,
                     protocol_id,
                     pin_len = pin_data.len(),
@@ -1463,10 +1463,10 @@ impl Api {
             func = FUNC,
             h_mod,
             h_cll,
-            error_code_ptr = format!("0x{:#x}", error_code.as_ptr() as usize),
-            h_cop_ptr = format!("0x{:#x}", h_cop.as_ptr() as usize),
-            timestamp_ptr = format!("0x{:#x}", timestamp.as_ptr() as usize),
-            extra_info_code_ptr = format!("0x{:#x}", extra_info_code.as_ptr() as usize),
+            error_code_ptr = format!("{:#x}", error_code.as_ptr() as usize),
+            h_cop_ptr = format!("{:#x}", h_cop.as_ptr() as usize),
+            timestamp_ptr = format!("{:#x}", timestamp.as_ptr() as usize),
+            extra_info_code_ptr = format!("{:#x}", extra_info_code.as_ptr() as usize),
             "D-PDU API Call Args"
         );
 
@@ -1500,7 +1500,7 @@ impl Api {
             Err(_) => {
                 error!(
                     func = FUNC,
-                    "Received out-of-bounds PduErrorEvt value: 0x{:#x}. Emulation of PduError::FctFailed...",
+                    "Received out-of-bounds PduErrorEvt value: {:#x}. Emulation of PduError::FctFailed...",
                     error_code,
                 );
                 return Err(PduError::FctFailed)?;
@@ -1556,9 +1556,9 @@ impl Api {
 
         trace!(
             func = FUNC,
-            item_ptr = format!("0x{:#x}", &item as *const _ as usize),
+            item_ptr = format!("{:#x}", &item as *const _ as usize),
             item_len = resources.len(),
-            resources_ptr = format!("0x{:#x}", raw_resources.as_ptr() as usize),
+            resources_ptr = format!("{:#x}", raw_resources.as_ptr() as usize),
             "D-PDU API Call Args"
         );
 
