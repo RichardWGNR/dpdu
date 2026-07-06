@@ -44,18 +44,22 @@ impl PduVci {
         static ACTIA_RGX: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r#"(?U)MVCIFriendlyName='(?<name>.+)'"#).unwrap());
 
-        let Some(module_name) = &self.module_name else {
-            return None;
+        let module_name = self.module_name.as_ref()?;
+
+        let normalize = |name: &str| {
+            if !name.is_empty() && name.chars().all(|c| c.is_ascii_digit()) {
+                format!("VCI S/N: {name}")
+            } else {
+                name.to_owned()
+            }
         };
 
-        if let Some(caps) = EDIC_RGX.captures(module_name) {
-            return Some(caps.name("name").expect("vci name from regex").as_str().to_owned());
+        for regex in [&*EDIC_RGX, &*ACTIA_RGX] {
+            if let Some(caps) = regex.captures(module_name) {
+                return Some(normalize(caps.name("name").unwrap().as_str()));
+            }
         }
 
-        if let Some(caps) = ACTIA_RGX.captures(module_name) {
-            return Some(caps.name("name").expect("vci name from regex").as_str().to_owned());
-        }
-
-        self.module_name.clone()
+        Some(normalize(module_name))
     }
 }
