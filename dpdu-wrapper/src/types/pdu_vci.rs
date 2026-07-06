@@ -56,6 +56,6 @@ impl PduVci {
             return Some(caps.name("name").expect("vci name from regex").as_str().to_owned());
         }
 
-        None
+        self.module_name.clone()
     }
 }
