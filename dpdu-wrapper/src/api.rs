@@ -15,7 +15,7 @@ use crate::types::pdu_event::{
 use crate::types::pdu_event_callback::PduEventCallbackTarget;
 use crate::types::pdu_io_ctl::{IoCtlByteArray, PduIoCtlCommand, PduIoCtlData, PduIoCtlTarget};
 use crate::types::pdu_lock_resource::PduLockResourceMask;
-use crate::types::pdu_module::{PduModule, PduModuleList};
+use crate::types::pdu_module::{PduConflictingModule, PduModule, PduModuleList};
 use crate::types::pdu_object::PduObjectIdSource;
 use crate::types::pdu_resource::{PduResource, PduResourceStatus, ResourceStatus};
 use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
@@ -27,11 +27,11 @@ use crate::types::{
 use crate::utils::c_str;
 use crate::utils::module_description::{PduModuleDescription, PduModuleDescriptionError};
 use crate::utils::root_file::Mvci;
-use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PduModuleConnectFn, PduModuleDisconnectFn, PduCancelComPrimitiveFn};
+use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PduModuleConnectFn, PduModuleDisconnectFn, PduCancelComPrimitiveFn, PduGetConflictingResourcesFn, ModuleItem, ModuleData};
 use rand::random;
 use std::cell::OnceCell;
-use std::collections::HashMap;
-use std::ffi::{CString, c_void};
+use std::collections::{HashMap};
+use std::ffi::{CString, c_void, CStr};
 use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::sync::{Arc, Weak};
@@ -279,7 +279,7 @@ impl PduApi {
                 func = FUNC,
                 "Item pointer is null. Emulation of PduError::FctFailed..."
             );
-            Err(PduError::FctFailed)?;
+            return Err(PduError::FctFailed)?;
         }
 
         let item = unsafe { &*item_ptr };
@@ -289,7 +289,7 @@ impl PduApi {
                 func = FUNC,
                 "Item data pointer is null. Emulation of PduError::FctFailed..."
             );
-            Err(PduError::FctFailed)?;
+            return Err(PduError::FctFailed)?;
         }
 
         let data: PduEventData = match item.item_type {
@@ -526,7 +526,7 @@ impl PduApi {
                 func = FUNC,
                 "Item pointer is null. Emulation of PduError::FctFailed..."
             );
-            Err(PduError::FctFailed)?;
+            return Err(PduError::FctFailed)?;
         }
 
         let cp = unsafe {
@@ -1130,7 +1130,7 @@ impl PduApi {
                                 data_type = PduIt::IoByteArray.as_ref(),
                                 "Byte array pointer is null. Emulation of PduError::FctFailed..."
                             );
-                            Err(PduError::FctFailed.into())
+                            return Err(PduError::FctFailed)?;
                         } else {
                             let len = byte_array.data_size as _;
                             Ok(Some(
@@ -1149,7 +1149,7 @@ impl PduApi {
                             data_type = v.as_ref(),
                             "Unexpected output data type. Emulation of PduError::FctFailed..."
                         );
-                        Err(PduError::FctFailed.into())
+                        return Err(PduError::FctFailed)?;
                     }
                 }
             };
@@ -1188,7 +1188,7 @@ impl PduApi {
                 func = FUNC,
                 "Module list pointer is null. Emulation of PduError::FctFailed..."
             );
-            Err(PduError::FctFailed)?;
+            return Err(PduError::FctFailed)?;
         }
 
         let module_list_item = unsafe { &*module_list_item_ptr };
@@ -1756,5 +1756,133 @@ impl PduApi {
         }
 
         Ok(())
+    }
+
+    pub fn pdu_get_conflicting_resources(
+        &self,
+        resource_id: PduObjectId,
+        modules: Vec<PduModule>,
+    ) -> Result<Vec<PduConflictingModule>> {
+        const FUNC: &'static str = "PDUGetConflictingResources";
+        self.log_api_call(FUNC);
+
+        trace!(func = FUNC, resource_id, "D-PDU API Call Args");
+
+        let mut module_names: Vec<CString> = vec![];
+        let mut module_infos: Vec<CString> = vec![];
+
+        let module_items = modules
+            .iter()
+            .map(|m| {
+                trace!(
+                    func = FUNC,
+                    h_mod = m.h_mod,
+                    module_type_id = m.module_type_id,
+                    "D-PDU API Call Args"
+                );
+
+                let module_name_idx = module_names.len();
+                let module_info_idx = module_infos.len();
+
+                module_names.push(
+                    CString::new(m.vendor_module_name.clone().unwrap_or_else(String::new))
+                        .expect("CString::new()") // infallible
+                );
+
+                module_infos.push(
+                    CString::new(m.vendor_additional_info.clone().unwrap_or_else(String::new))
+                        .expect("CString::new()") // infallible
+                );
+
+                ModuleData {
+                    module_type_id: m.module_type_id,
+                    h_mod: m.h_mod,
+                    vendor_module_name: module_names[module_name_idx].as_ptr() as _,
+                    vendor_additional_info: module_infos[module_info_idx].as_ptr() as _,
+                    status: m.status,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let module_data = ModuleItem {
+            item_type: PduIt::ModuleId,
+            num_entries: modules.len() as _,
+            p_module_data: module_items.as_ptr() as _,
+        };
+
+        let mut conflict_data_ptr = ptr::null_mut();
+
+        trace!(
+            func = FUNC,
+            input_module_list_ptr = format!("{:#x}", &module_data as *const _ as usize),
+            output_conflict_list_ptr = format!("{:#x}", &conflict_data_ptr as *const _ as usize),
+            "D-PDU API Call Args"
+        );
+
+        let get_conflicting_resources_fn = self.get_pdu_function::<PduGetConflictingResourcesFn>(FUNC.as_bytes())?;
+        let result = get_conflicting_resources_fn(
+            resource_id,
+            &module_data as *const _ as _,
+            &mut conflict_data_ptr
+        );
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        trace!(
+            func = FUNC,
+            output_conflict_list_ptr = format!("{:#x}", conflict_data_ptr as usize),
+            "D-PDU API Call Return"
+        );
+
+        if conflict_data_ptr.is_null() {
+            error!(
+                func = FUNC,
+                "Item data pointer is null. Emulation of PduError::FctFailed..."
+            );
+            return Err(PduError::FctFailed)?;
+        }
+
+        let conflict_data = unsafe { &*conflict_data_ptr };
+
+        if !matches!(conflict_data.item_type, PduIt::RscConflict) {
+            error!(
+                func = FUNC,
+                "Invalid item type received: PduIt::{}. Emulation of PduError::FctFailed...",
+                conflict_data.item_type.as_ref(),
+            );
+
+            self.pdu_destroy_item(conflict_data_ptr as _)?;
+            return Err(PduError::FctFailed)?;
+        }
+
+        let conflict_items = unsafe {
+            slice::from_raw_parts(
+                conflict_data.p_rsc_conflict_data,
+                conflict_data.num_entries as _
+            )
+        };
+
+        let owned = conflict_items
+            .iter()
+            .map(|i| {
+                trace!(
+                    func = FUNC,
+                    conflicting_resource_id = i.resource_id,
+                    conflicting_h_mod = i.h_mod,
+                    "D-PDU API Call Return"
+                );
+                PduConflictingModule {
+                    h_mod: i.h_mod,
+                    resource_id: i.resource_id,
+                }
+            })
+            .collect();
+
+        self.pdu_destroy_item(conflict_data_ptr as _)?;
+
+        Ok(owned)
     }
 }
