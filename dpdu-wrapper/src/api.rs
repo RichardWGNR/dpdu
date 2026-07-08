@@ -17,7 +17,7 @@ use crate::types::pdu_io_ctl::{IoCtlByteArray, PduIoCtlCommand, PduIoCtlData, Pd
 use crate::types::pdu_lock_resource::PduLockResourceMask;
 use crate::types::pdu_module::{PduModule, PduModuleList};
 use crate::types::pdu_object::PduObjectIdSource;
-use crate::types::pdu_resource::{PduResource, ResourceStatus};
+use crate::types::pdu_resource::{PduResource, PduResourceStatus, ResourceStatus};
 use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
 use crate::types::pdu_version::PduVersionData;
 use crate::types::{
@@ -27,7 +27,7 @@ use crate::types::{
 use crate::utils::c_str;
 use crate::utils::module_description::{PduModuleDescription, PduModuleDescriptionError};
 use crate::utils::root_file::Mvci;
-use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PduModuleConnectFn, PduModuleDisconnectFn};
+use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PduModuleConnectFn, PduModuleDisconnectFn, PduCancelComPrimitiveFn};
 use rand::random;
 use std::cell::OnceCell;
 use std::collections::HashMap;
@@ -42,13 +42,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("FFI error: {0}")]
+    #[error("ffi error: {0}")]
     FfiError(#[from] libloading::Error),
 
-    #[error("Communication error: {0}")]
+    #[error("communication error: {0}")]
     CommError(#[from] PduError),
-
-    #[error("Module description error: {0}")]
+    
+    #[error("module description error: {0}")]
     MdfError(#[from] PduModuleDescriptionError),
 }
 
@@ -825,7 +825,7 @@ impl PduApi {
         Ok(())
     }
 
-    pub fn pdu_start_com_primivite(
+    pub fn pdu_start_com_primitive(
         &self,
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
@@ -1509,7 +1509,7 @@ impl PduApi {
     pub fn pdu_get_resource_status(
         &self,
         resources: Vec<PduResource>,
-    ) -> Result<HashMap<PduResource, ResourceStatus>> {
+    ) -> Result<PduResourceStatus> {
         const FUNC: &'static str = "PDUGetResourceStatus";
         self.log_api_call(FUNC);
 
@@ -1727,6 +1727,28 @@ impl PduApi {
 
         let module_disconnect_fn = self.get_pdu_function::<PduModuleDisconnectFn>(FUNC.as_bytes())?;
         let result = module_disconnect_fn(h_mod);
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn pdu_cancel_com_primitive(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: PduCllHandle,
+        h_cop: PduCopHandle
+    ) -> Result<()> {
+        const FUNC: &'static str = "PDUCancelComPrimitive";
+        self.log_api_call(FUNC);
+
+        trace!(func = FUNC, h_mod, h_cll, h_cop, "D-PDU API Call Args");
+
+        let cancel_com_primitive_fn = self.get_pdu_function::<PduCancelComPrimitiveFn>(FUNC.as_bytes())?;
+        let result = cancel_com_primitive_fn(h_mod, h_cll, h_cop);
 
         if !result.is_success() {
             self.log_failed_api_call(FUNC, result);
