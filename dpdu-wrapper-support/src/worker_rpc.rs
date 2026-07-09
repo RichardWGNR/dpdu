@@ -1,9 +1,9 @@
 use proc_macro::TokenStream;
-use proc_macro2::{Ident};
+use proc_macro2::Ident;
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
-use syn::{parse_macro_input, GenericArgument, PathArguments, Token, Type};
-use syn::token::{Paren};
+use syn::token::Paren;
+use syn::{GenericArgument, PathArguments, Token, Type, parse_macro_input};
 
 pub fn declare_worker_rpc(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as RpcDefinition);
@@ -15,7 +15,7 @@ pub fn declare_worker_rpc(input: TokenStream) -> TokenStream {
         } else {
             let types = rpc.args.iter().map(|arg| match arg {
                 Arg::Normal { ty, .. } => ty,
-                Arg::Into { ty, ..} => ty,
+                Arg::Into { ty, .. } => ty,
             });
 
             quote! {
@@ -84,11 +84,12 @@ pub fn declare_worker_rpc(input: TokenStream) -> TokenStream {
         }
 
         #(#funcs)*
-    }.into()
+    }
+    .into()
 }
 
 struct RpcDefinition {
-    pub items: Vec<Rpc>
+    pub items: Vec<Rpc>,
 }
 
 impl Parse for RpcDefinition {
@@ -96,23 +97,23 @@ impl Parse for RpcDefinition {
         let mut items = Vec::new();
 
         while !input.is_empty() {
-            let variant: Ident = input.parse()
-                .map_err(|_| syn::Error::new(
+            let variant: Ident = input.parse().map_err(|_| {
+                syn::Error::new(
                     input.span(),
-                    "expected RPC variant name, e.g. PduGetEventItem"
-                ))?;
+                    "expected RPC variant name, e.g. PduGetEventItem",
+                )
+            })?;
 
-            input.parse::<Token![=>]>()
-                .map_err(|_| syn::Error::new(
-                    input.span(),
-                    "expected RPC variant name delimiter"
-                ))?;
+            input.parse::<Token![=>]>().map_err(|_| {
+                syn::Error::new(input.span(), "expected RPC variant name delimiter")
+            })?;
 
-            let method: Ident = input.parse()
-                .map_err(|_| syn::Error::new(
+            let method: Ident = input.parse().map_err(|_| {
+                syn::Error::new(
                     input.span(),
-                    "expected RPC function name, e.g. pdu_get_event_item"
-                ))?;
+                    "expected RPC function name, e.g. pdu_get_event_item",
+                )
+            })?;
 
             let args_content; // args
 
@@ -128,33 +129,30 @@ impl Parse for RpcDefinition {
             let mut args = Vec::new();
 
             while !args_content.is_empty() {
-                let name: Ident = args_content.parse()
-                    .map_err(|_| syn::Error::new(
+                let name: Ident = args_content.parse().map_err(|_| {
+                    syn::Error::new(
                         args_content.span(),
-                        "expected a name of RPC function argument"
-                    ))?;
+                        "expected a name of RPC function argument",
+                    )
+                })?;
 
-                args_content.parse::<Token![:]>()
-                    .map_err(|_| syn::Error::new(
+                args_content.parse::<Token![:]>().map_err(|_| {
+                    syn::Error::new(
                         args_content.span(),
-                        "expected semicolon after RPC function name"
-                    ))?;
+                        "expected semicolon after RPC function name",
+                    )
+                })?;
 
-                let ty: Type = args_content.parse()
-                    .map_err(|_| syn::Error::new(
+                let ty: Type = args_content.parse().map_err(|_| {
+                    syn::Error::new(
                         args_content.span(),
-                        "expected a type of RPC function argument"
-                    ))?;
+                        "expected a type of RPC function argument",
+                    )
+                })?;
 
                 args.push(match parse_into_type(&ty) {
-                    Some(ty) => Arg::Into {
-                        name,
-                        ty,
-                    },
-                    None => Arg::Normal {
-                        name,
-                        ty,
-                    }
+                    Some(ty) => Arg::Into { name, ty },
+                    None => Arg::Normal { name, ty },
                 });
 
                 if args_content.peek(Token![,]) {
@@ -162,17 +160,13 @@ impl Parse for RpcDefinition {
                 }
             }
 
-            input.parse::<Token![->]>()
-                .map_err(|_| syn::Error::new(
-                    input.span(),
-                    "expected `->` followed by RPC return type"
-                ))?;
+            input.parse::<Token![->]>().map_err(|_| {
+                syn::Error::new(input.span(), "expected `->` followed by RPC return type")
+            })?;
 
-            let ret: Type = input.parse()
-                .map_err(|_| syn::Error::new(
-                    input.span(),
-                    "expected a type of RPC function return"
-                ))?;
+            let ret: Type = input.parse().map_err(|_| {
+                syn::Error::new(input.span(), "expected a type of RPC function return")
+            })?;
 
             if input.peek(Token![,]) {
                 input.parse::<Token![,]>()?;
@@ -194,19 +188,13 @@ struct Rpc {
     variant: Ident,
     method: Ident,
     args: Vec<Arg>,
-    ret: Type
+    ret: Type,
 }
 
 enum Arg {
-    Normal {
-        name: Ident,
-        ty: Type,
-    },
+    Normal { name: Ident, ty: Type },
 
-    Into {
-        name: Ident,
-        ty: Type
-    }
+    Into { name: Ident, ty: Type },
 }
 
 impl Arg {
@@ -245,6 +233,6 @@ fn parse_into_type(ty: &Type) -> Option<Type> {
 
     match type_generic.args.first()? {
         GenericArgument::Type(inner) => Some(inner.clone()),
-        _ => None
+        _ => None,
     }
 }
