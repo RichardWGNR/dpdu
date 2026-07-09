@@ -7,6 +7,8 @@ pub type PduModuleList = Vec<PduModule>;
 
 pub type PduModulesResourcesIds = HashMap<PduModuleHandle, Vec<PduObjectId>>;
 
+pub type PduConflictingModules = HashMap<PduModuleHandle, PduObjectId>;
+
 #[derive(Debug, Clone)]
 pub struct PduModule {
     pub h_mod: PduModuleHandle,
@@ -18,11 +20,4 @@ pub struct PduModule {
     pub vendor_additional_info: Option<String>,
 
     pub status: PduStatus,
-}
-
-#[derive(Debug, Clone)]
-pub struct PduConflictingModule {
-    pub h_mod: PduModuleHandle,
-
-    pub resource_id: PduObjectId,
 }

@@ -15,7 +15,7 @@ use crate::types::pdu_event::{
 use crate::types::pdu_event_callback::PduEventCallbackTarget;
 use crate::types::pdu_io_ctl::{IoCtlByteArray, PduIoCtlCommand, PduIoCtlData, PduIoCtlTarget};
 use crate::types::pdu_lock_resource::PduLockResourceMask;
-use crate::types::pdu_module::{PduConflictingModule, PduModule, PduModuleList, PduModulesResourcesIds};
+use crate::types::pdu_module::{PduConflictingModules, PduModule, PduModuleList, PduModulesResourcesIds};
 use crate::types::pdu_object::PduObjectIdSource;
 use crate::types::pdu_resource::{BusSource, PduResource, PduResourceStatus, PinSource, ProtocolSource, ResourceStatus, TargetPin};
 use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
@@ -363,7 +363,8 @@ impl PduApi {
                 self.pdu_destroy_item(item_ptr as _)?;
                 error!(
                     func = FUNC,
-                    "Unexpected PduEventItemType = {typ}. Emulation of PduError::FctFailed..."
+                    "Unexpected PduEventItemType = {}. Emulation of PduError::FctFailed...",
+                    typ.as_str()
                 );
                 return Err(PduError::FctFailed)?;
             }
@@ -426,7 +427,7 @@ impl PduApi {
 
         trace!(
             func = FUNC,
-            %object,
+            object = object.as_str(),
             short_name,
             "D-PDU API Call Args"
         );
@@ -696,7 +697,7 @@ impl PduApi {
                 if !matches!(cp.class, PduPc::UniqueId) {
                     error!(
                         com_param = cp.get_debug_name(),
-                        class = %cp.class,
+                        class = cp.class.as_str(),
                         "Invalid class of the PduComParam stored in PduComParamTable"
                     );
                     let result = PduError::InvalidParameters;
@@ -840,7 +841,7 @@ impl PduApi {
             func = FUNC,
             h_mod,
             h_cll,
-            %cop_type,
+            cop_type = cop_type.as_str(),
             "D-PDU API Call Args"
         );
 
@@ -886,7 +887,8 @@ impl PduApi {
             }
             _ => {
                 let params = params.expect(&format!(
-                    "when PduCopt = {cop_type}, PduComPrimitiveParams is required"
+                    "when PduCopt = {}, PduComPrimitiveParams is required",
+                    cop_type.as_str()
                 ));
 
                 let flags = params.tx_flag.get_pdu_flag_data();
@@ -897,7 +899,7 @@ impl PduApi {
                     cop_delay_ms = params.time,
                     send_cycles = params.send_cycles.to_i32(),
                     receive_cycles = params.receive_cycles.to_i32(),
-                    buffer = %params.temp_param_update,
+                    buffer = params.temp_param_update.as_str(),
 
                     flags_ptr = format!("{:#x}", flags.as_ptr() as usize),
                     flags = ?flags,
@@ -913,7 +915,7 @@ impl PduApi {
                         trace!(
                             func = FUNC,
 
-                            response_type = %v.response_type,
+                            response_type = v.response_type.as_str(),
                             acceptance_id = v.acceptance_id,
 
                             mask_data_ptr = format!("{:#x}", v.mask_data.get_mask().as_ptr() as usize),
@@ -1043,28 +1045,28 @@ impl PduApi {
         data.inspect(|data| match data {
             PduIoCtlData::U32(v) => trace!(
                 func = FUNC,
-                data_type = %data,
+                data_type = data.as_str(),
                 data_u32 = v,
                 "D-PDU API Call Args"
             ),
             PduIoCtlData::ProgVoltage(v) => trace!(
                 func = FUNC,
-                data_type = %data,
+                data_type = data.as_str(),
                 data_prog_voltage_mv = v.prog_voltage_mv,
                 data_pin_on_dlc = v.pin_on_dlc,
                 "D-PDU API Call Args"
             ),
             PduIoCtlData::ByteArray(v) => trace!(
                 func = FUNC,
-                data_type = %data,
+                data_type = data.as_str(),
                 data_len = v.len(),
                 data_value = ?v,
                 "D-PDU API Call Args"
             ),
             PduIoCtlData::Filter(v) => trace!(
                 func = FUNC,
-                data_type = %data,
-                data_filter_type = %v.filter_type,
+                data_type = data.as_str(),
+                data_filter_type = v.filter_type.as_str(),
                 data_filter_number = v.filter_number,
                 data_filter_compare_size = v.filter_compare_size,
                 data_filter_mask_msg = ?v.filter_mask_msg,
@@ -1073,9 +1075,9 @@ impl PduApi {
             ),
             PduIoCtlData::EventQueueProperty(v) => trace!(
                 func = FUNC,
-                data_type = %data,
+                data_type = data.as_str(),
                 data_queue_size = v.queue_size,
-                data_queue_mode = %v.queue_mode,
+                data_queue_mode = v.queue_mode.as_str(),
                 "D-PDU API Call Args"
             ),
         });
@@ -1126,7 +1128,7 @@ impl PduApi {
                         if byte_array.p_data.is_null() {
                             error!(
                                 func = FUNC,
-                                data_type = %PduIt::IoByteArray,
+                                data_type = PduIt::IoByteArray.as_str(),
                                 "Byte array pointer is null. Emulation of PduError::FctFailed..."
                             );
                             return Err(PduError::FctFailed)?;
@@ -1145,7 +1147,7 @@ impl PduApi {
                     v => {
                         error!(
                             func = FUNC,
-                            data_type = %v,
+                            data_type = v.as_str(),
                             "Unexpected output data type. Emulation of PduError::FctFailed..."
                         );
                         return Err(PduError::FctFailed)?;
@@ -1727,7 +1729,7 @@ impl PduApi {
         &self,
         resource_id: PduObjectId,
         modules: Vec<PduModule>,
-    ) -> Result<Vec<PduConflictingModule>> {
+    ) -> Result<PduConflictingModules> {
         const FUNC: &'static str = "PDUGetConflictingResources";
         self.log_api_call(FUNC);
 
@@ -1817,7 +1819,7 @@ impl PduApi {
             error!(
                 func = FUNC,
                 "Invalid item type received: PduIt::{}. Emulation of PduError::FctFailed...",
-                conflict_data.item_type,
+                conflict_data.item_type.as_str(),
             );
 
             self.pdu_destroy_item(conflict_data_ptr as _)?;
@@ -1831,7 +1833,7 @@ impl PduApi {
             )
         };
 
-        let owned = conflict_items
+        let map = conflict_items
             .iter()
             .map(|i| {
                 trace!(
@@ -1840,16 +1842,13 @@ impl PduApi {
                     conflicting_resource_id = i.resource_id,
                     "D-PDU API Call Return"
                 );
-                PduConflictingModule {
-                    h_mod: i.h_mod,
-                    resource_id: i.resource_id,
-                }
+                (i.h_mod, i.resource_id)
             })
             .collect();
 
         self.pdu_destroy_item(conflict_data_ptr as _)?;
 
-        Ok(owned)
+        Ok(map)
     }
 
     pub fn pdu_get_resource_ids(
@@ -1918,7 +1917,7 @@ impl PduApi {
             error!(
                 func = FUNC,
                 "Invalid item type received: PduIt::{}. Emulation of PduError::FctFailed...",
-                %rsc_data.item_type,
+                rsc_data.item_type.as_str(),
             );
 
             self.pdu_destroy_item(rsc_data_ptr as _)?;
@@ -2028,7 +2027,7 @@ impl PduApi {
             error!(
                 func = FUNC,
                 "Invalid item type received: PduIt::{}. Emulation of PduError::FctFailed...",
-                table_item.item_type,
+                table_item.item_type.as_str(),
             );
 
             self.pdu_destroy_item(table_item_ptr as _)?;
@@ -2065,18 +2064,18 @@ impl PduApi {
                     error!(
                         func = FUNC,
                         "Invalid ComParam type received: PduIt::{}. Emulation of PduError::FctFailed...",
-                        cp.item_type,
+                        cp.item_type.as_str(),
                     );
 
                     self.pdu_destroy_item(table_item_ptr as _)?;
                     return Err(PduError::FctFailed)?;
                 }
-
+                
                 trace!(
                     func = FUNC,
                     table_item_cp_id = cp.com_param_id,
-                    table_item_cp_type = %cp.com_param_data_type,
-                    table_item_cp_class = %cp.com_param_class,
+                    table_item_cp_type = cp.com_param_data_type.as_str(),
+                    table_item_cp_class = cp.com_param_class.as_str(),
                     "D-PDU API Call Return"
                 );
 

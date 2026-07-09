@@ -56,6 +56,12 @@ pub enum PduIoCtlData {
     EventQueueProperty(IoEventQueuePropertyData),
 }
 
+impl PduIoCtlData {
+    pub fn as_str(&self) -> &str {
+        self.as_ref()
+    }
+}
+
 macro_rules! impl_pdu_it_ctl_data_from_int {
     ($($t:ty),* $(,)?) => {
         $(
