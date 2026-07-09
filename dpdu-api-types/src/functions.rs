@@ -127,7 +127,8 @@ pub type PduDisconnectFn = extern "system-unwind" fn(h_mod: u32, h_cll: u32) -> 
 /// * h_mod - Handle of the MVCI module
 /// * h_cll - Handle of the ComLogicalLink to be granted exclusive access
 /// * lock_mask - Bit encoded mask to request for locking
-pub type PduLockResourceFn = extern "system-unwind" fn(h_mod: u32, h_cll: u32, lock_mask: u32) -> PduError;
+pub type PduLockResourceFn =
+    extern "system-unwind" fn(h_mod: u32, h_cll: u32, lock_mask: u32) -> PduError;
 
 /// Unlocks a physical resource from a ComLogicalLink that has exclusive access to it
 ///
@@ -197,8 +198,11 @@ pub type PduCancelComPrimitiveFn =
 /// * h_mod - Handle of the MVCI module
 /// * h_cll - Handle of the ComLogicalLink
 /// * p_event_item - Pointer to store the event item
-pub type PduGetEventItemFn =
-    extern "system-unwind" fn(h_mod: u32, h_cll: u32, p_event_item: *mut *mut EventItem) -> PduError;
+pub type PduGetEventItemFn = extern "system-unwind" fn(
+    h_mod: u32,
+    h_cll: u32,
+    p_event_item: *mut *mut EventItem,
+) -> PduError;
 
 /// Destroys a given item
 ///
@@ -231,7 +235,8 @@ pub type PduGetObjectIdFn = extern "system-unwind" fn(
 ///
 /// ## Parameters
 /// * p_module_id_list - Pointer for storing the pointer of the module information list
-pub type PduGetModuleIdsFn = extern "system-unwind" fn(p_module_id_list: *mut *mut ModuleItem) -> PduError;
+pub type PduGetModuleIdsFn =
+    extern "system-unwind" fn(p_module_id_list: *mut *mut ModuleItem) -> PduError;
 
 /// Get a list of resource IDs
 ///
@@ -297,4 +302,5 @@ pub type PduModuleDisconnectFn = extern "system-unwind" fn(h_mod: u32) -> PduErr
 ///
 /// ## Parameters
 /// * p_timestamp - Pointer to store timestamp in microseconds
-pub type PduGetTimestampFn = extern "system-unwind" fn(h_mod: u32, p_timestamp: *mut u32) -> PduError;
+pub type PduGetTimestampFn =
+    extern "system-unwind" fn(h_mod: u32, p_timestamp: *mut u32) -> PduError;

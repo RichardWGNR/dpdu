@@ -10,9 +10,9 @@ macro_rules! impl_as_str {
 }
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// Item type values
 pub enum PduIt {
     /// IOCTL UNUM32
@@ -58,9 +58,9 @@ pub enum PduIt {
 impl_as_str!(PduIt);
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// Communication primitive (ComParam) type
 pub enum PduCopt {
     /// Start communication with an ECU
@@ -81,9 +81,9 @@ pub enum PduCopt {
 impl_as_str!(PduCopt);
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// Object type
 pub enum PduObjt {
     /// Protocol object
@@ -103,9 +103,9 @@ pub enum PduObjt {
 impl_as_str!(PduObjt);
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// Status codes
 pub enum PduStatus {
     /// Communication parameter has not been acted upon yet
@@ -137,9 +137,9 @@ pub enum PduStatus {
 impl_as_str!(PduStatus);
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// Information events
 pub enum PduInfo {
     /// New vehicle communication list is available
@@ -153,9 +153,9 @@ pub enum PduInfo {
 impl_as_str!(PduInfo);
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// Event callback
 pub enum PduEvtData {
     /// There is event data available to read by the application
@@ -167,9 +167,9 @@ pub enum PduEvtData {
 impl_as_str!(PduEvtData);
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// Filter type
 pub enum PduFilter {
     /// Matched messages go into the receive queue
@@ -185,9 +185,9 @@ pub enum PduFilter {
 impl_as_str!(PduFilter);
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// IOCTL queue mode
 pub enum PduQueueMode {
     /// Attempt to allocate memory for every event coming in to the receive queue. This queue size can keep
@@ -204,10 +204,18 @@ pub enum PduQueueMode {
 impl_as_str!(PduQueueMode);
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(thiserror::Error)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    strum::AsRefStr,
+    thiserror::Error,
+    num_enum::TryFromPrimitive,
+)]
 /// Function return values
 pub enum PduError {
     /// No Error (Function call OK)
@@ -275,7 +283,9 @@ pub enum PduError {
     ComParamNotSupported = 0x00000063,
 
     /// Physical communication parameter cannot be changed as it is locked by another LogicalLink
-    #[error("Physical communication parameter cannot be changed as it is locked by another LogicalLink")]
+    #[error(
+        "Physical communication parameter cannot be changed as it is locked by another LogicalLink"
+    )]
     ComParamLocked = 0x00000064,
 
     /// Transmit queue is full
@@ -401,9 +411,9 @@ impl PduError {
 }
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// Function error events (Used in asynchronous situations)
 pub enum PduErrorEvt {
     /// No error
@@ -433,9 +443,9 @@ pub enum PduErrorEvt {
 impl_as_str!(PduErrorEvt);
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// ComParam data type
 pub enum PduPt {
     /// Unsigned 8 bit
@@ -461,9 +471,9 @@ pub enum PduPt {
 impl_as_str!(PduPt);
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// ComParam data class
 pub enum PduPc {
     /// Message timing
@@ -485,9 +495,9 @@ pub enum PduPc {
 impl_as_str!(PduPc);
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// ComParam struct type
 pub enum PduCpst {
     /// Session timing
@@ -499,9 +509,9 @@ pub enum PduCpst {
 impl_as_str!(PduCpst);
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// Vehicle preselection mode
 pub enum VidPreselectMode {
     /// No preselection
@@ -515,9 +525,9 @@ pub enum VidPreselectMode {
 impl_as_str!(VidPreselectMode);
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// DoIP Combination mode
 pub enum CombinationMode {
     /// No combination
@@ -533,9 +543,9 @@ pub enum CombinationMode {
 impl_as_str!(CombinationMode);
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[derive(strum::AsRefStr)]
-#[derive(num_enum::TryFromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::AsRefStr, num_enum::TryFromPrimitive,
+)]
 /// Timing set types used by [ParamStructAccessTiming]
 pub enum TimingSet {
     /// Default timing set
