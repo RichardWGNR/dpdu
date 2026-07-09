@@ -1,3 +1,14 @@
+macro_rules! impl_as_str {
+    ($enum:ty) => {
+        impl $enum {
+            /// Returns string representation of enum variant.
+            pub fn as_str(&self) -> &str {
+                self.as_ref()
+            }
+        }
+    };
+}
+
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[derive(strum::AsRefStr)]
@@ -44,6 +55,8 @@ pub enum PduIt {
     EntityStatus = 0x1803,
 }
 
+impl_as_str!(PduIt);
+
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[derive(strum::AsRefStr)]
@@ -65,6 +78,8 @@ pub enum PduCopt {
     RestoreParam = 0x8006,
 }
 
+impl_as_str!(PduCopt);
+
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[derive(strum::AsRefStr)]
@@ -84,6 +99,8 @@ pub enum PduObjt {
     /// resource object
     Resource = 0x8026,
 }
+
+impl_as_str!(PduObjt);
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -117,6 +134,8 @@ pub enum PduStatus {
     ModstAvail = 0x8063,
 }
 
+impl_as_str!(PduStatus);
+
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[derive(strum::AsRefStr)]
@@ -131,6 +150,8 @@ pub enum PduInfo {
     ComParamChange = 0x8072,
 }
 
+impl_as_str!(PduInfo);
+
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[derive(strum::AsRefStr)]
@@ -142,6 +163,8 @@ pub enum PduEvtData {
     /// The ComLogicalLink has lost event data due to a buffer overrun
     Lost = 0x0802,
 }
+
+impl_as_str!(PduEvtData);
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -159,6 +182,8 @@ pub enum PduFilter {
     BlockUUDT = 0x00000012,
 }
 
+impl_as_str!(PduFilter);
+
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[derive(strum::AsRefStr)]
@@ -175,6 +200,8 @@ pub enum PduQueueMode {
     /// stored events if the buffer is full (Like a circular buffer)
     Circular = 0x00000002,
 }
+
+impl_as_str!(PduQueueMode);
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -364,6 +391,8 @@ pub enum PduError {
     DoIPResponseTimeout = 0x000000BC,
 }
 
+impl_as_str!(PduError);
+
 impl PduError {
     /// Returns `true` if the result indicates success according to the API.
     pub fn is_success(&self) -> bool {
@@ -401,6 +430,8 @@ pub enum PduErrorEvt {
     InitError = 0x00000108,
 }
 
+impl_as_str!(PduErrorEvt);
+
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[derive(strum::AsRefStr)]
@@ -427,6 +458,8 @@ pub enum PduPt {
     LongField = 0x00000109,
 }
 
+impl_as_str!(PduPt);
+
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[derive(strum::AsRefStr)]
@@ -449,6 +482,8 @@ pub enum PduPc {
     TesterPresent = 7,
 }
 
+impl_as_str!(PduPc);
+
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[derive(strum::AsRefStr)]
@@ -460,6 +495,8 @@ pub enum PduCpst {
     /// Access timing
     AccessTiming = 0x00000002,
 }
+
+impl_as_str!(PduCpst);
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -474,6 +511,8 @@ pub enum VidPreselectMode {
     /// DoIP with given EID
     EID = 2,
 }
+
+impl_as_str!(VidPreselectMode);
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -490,6 +529,8 @@ pub enum CombinationMode {
     /// Combine all
     All = 3,
 }
+
+impl_as_str!(CombinationMode);
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -508,3 +549,5 @@ pub enum TimingSet {
     /// Extended timing set
     Extended = 0xFF,
 }
+
+impl_as_str!(TimingSet);
