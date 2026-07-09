@@ -7,7 +7,7 @@ edition = "2024"
 proc-macro = true
 
 [dependencies]
-syn = { version = "2.0.101" }
-quote = { version = "1.0.40" }
-proc-macro2 = { version = "1.0.95" }
+syn = { version = "2.0.118" }
+quote = { version = "1.0.46" }
+proc-macro2 = { version = "1.0.106" }
 convert_case = { version = "0.11.0" }
