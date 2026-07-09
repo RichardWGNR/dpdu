@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+dpdu-wrapper-support = { version = "0.1.0", path = "../dpdu-wrapper-support" }
 thiserror = { version = "2.0.18" }
 quick-xml = { version = "0.41.0", features = ["serialize"] }
 serde = { version = "1.0.228", features = ["default", "derive"] }
@@ -14,15 +15,15 @@ exe = { version = "0.5.7" }
 regex = { version = "1.12.4" }
 semver = { version = "1.0.28" }
 strum = { version = "0.28.0", features = ["derive", "strum_macros"] }
-dpdu-api-types = { version = "0.9.8", path = "../dpdu-api-types" }
+dpdu-api-types = { version = "0.9.9", path = "../dpdu-api-types" }
 libloading = { version = "0.9.0" }
 rand = { version = "0.10.1" }
 chrono = { version = "0.4.45" }
 murmur3 = { version = "0.5.2" }
+tokio = { version = "1.52.3", features = ["sync", "macros"] }
 
 serde_json = { version = "1.0.150", optional = true }
-dpdu-wrapper-support = { version = "0.1.0", path = "../dpdu-wrapper-support", optional = true }
 
 [features]
 default = []
-with-serde-json = ["serde_json", "dpdu-wrapper-support"]
+with-serde-json = ["serde_json"]
