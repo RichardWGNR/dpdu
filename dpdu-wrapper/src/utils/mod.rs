@@ -79,6 +79,12 @@ impl<'a, T> Deref for PhantomRef<'a, T> {
     }
 }
 
+#[derive(Debug)]
+pub struct UnsafePtr<T>(pub *const T);
+
+unsafe impl<T> Send for UnsafePtr<T> {}
+unsafe impl<T> Sync for UnsafePtr<T> {}
+
 /// A lifetime-bound opaque pointer (`*const c_void`).
 ///
 /// Does not own the pointed-to value.

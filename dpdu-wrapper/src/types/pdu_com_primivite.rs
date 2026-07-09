@@ -192,6 +192,12 @@ pub enum ResponseType {
     Negative = 1,
 }
 
+impl ResponseType {
+    pub fn as_str(&self) -> &str {
+        self.as_ref()
+    }
+}
+
 /// При фильтрации по приему API D-PDU пытается сопоставить байты данных полученного ответа с
 /// байтами шаблона ожидаемого ответа (всегда с учетом байтов маски).
 /// Количество байтов данных в полученном ответе может отличаться от количества байтов
@@ -319,4 +325,10 @@ pub enum ComParamBuffer {
     /// the “Active” or “Working” buffers are modified by any subsequent calls to
     /// PDUSetComParam.
     Working = 1,
+}
+
+impl ComParamBuffer {
+    pub fn as_str(&self) -> &str {
+        self.as_ref()
+    }
 }

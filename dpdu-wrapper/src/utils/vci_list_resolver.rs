@@ -2,7 +2,9 @@ use crate::api::{PduApi, Result as ApiResult};
 use crate::types::pdu_status::PduStatusTarget;
 use crate::types::pdu_vci::PduVci;
 use std::sync::Arc;
+use tokio::sync::oneshot;
 use tracing::{error, info};
+use crate::worker::{PduAsyncWorker, Query, Response, WorkerError, WorkerResult};
 
 pub type VciList = Vec<Arc<PduVci>>;
 
@@ -10,7 +12,7 @@ pub type VciList = Vec<Arc<PduVci>>;
 pub struct VciListResolver;
 
 impl VciListResolver {
-    pub fn resolve(api: &PduApi) -> ApiResult<VciList> {
+    pub fn blocking_resolve(api: &PduApi) -> ApiResult<VciList> {
         info!("Attempt to retrieve the list of communication modules (VCI)...");
 
         let modules = api.pdu_get_module_ids().inspect_err(|err| {
@@ -33,6 +35,14 @@ impl VciListResolver {
             "Successfully retrieved {} communication modules",
             list.len()
         );
+
         Ok(list)
+    }
+
+    pub async fn resolve(worker: &PduAsyncWorker) -> WorkerResult<VciList> {
+        match worker.receive_query_response_callback(Query::ResolveVciList).await {
+            Ok(Response::ResolveVciList(v)) => Ok(v?),
+            _ => unreachable!()
+        }
     }
 }
