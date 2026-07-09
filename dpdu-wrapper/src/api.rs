@@ -1,5 +1,5 @@
 use crate::types::pdu_com_logical_link::{
-    CllBusType, CllCreateFlags, CllCreateType, CllPinType, CllProtocolType, PduComLogicalLink,
+    CllCreateFlags, CllCreateType, PduComLogicalLink,
 };
 use crate::types::pdu_com_param::{
     ByteFieldComParam, LongFieldComParam, PduComParam, PduCpVariant, StructComParam,
@@ -15,9 +15,9 @@ use crate::types::pdu_event::{
 use crate::types::pdu_event_callback::PduEventCallbackTarget;
 use crate::types::pdu_io_ctl::{IoCtlByteArray, PduIoCtlCommand, PduIoCtlData, PduIoCtlTarget};
 use crate::types::pdu_lock_resource::PduLockResourceMask;
-use crate::types::pdu_module::{PduConflictingModule, PduModule, PduModuleList};
+use crate::types::pdu_module::{PduConflictingModule, PduModule, PduModuleList, PduModuleResourceIds, PduModulesResourcesIds};
 use crate::types::pdu_object::PduObjectIdSource;
-use crate::types::pdu_resource::{PduResource, PduResourceStatus, ResourceStatus};
+use crate::types::pdu_resource::{BusSource, PduResource, PduResourceStatus, PinSource, ProtocolSource, ResourceStatus, TargetPin};
 use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
 use crate::types::pdu_version::PduVersionData;
 use crate::types::{
@@ -27,7 +27,7 @@ use crate::types::{
 use crate::utils::c_str;
 use crate::utils::module_description::{PduModuleDescription, PduModuleDescriptionError};
 use crate::utils::root_file::Mvci;
-use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PduModuleConnectFn, PduModuleDisconnectFn, PduCancelComPrimitiveFn, PduGetConflictingResourcesFn, ModuleItem, ModuleData};
+use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PduModuleConnectFn, PduModuleDisconnectFn, PduCancelComPrimitiveFn, PduGetConflictingResourcesFn, ModuleItem, ModuleData, PduGetResourceIdsFn};
 use rand::random;
 use std::cell::OnceCell;
 use std::collections::{HashMap};
@@ -89,7 +89,7 @@ impl PduApi {
     }
 
     pub fn from_mvci(mvci: &Mvci, options: PduOptions) -> Result<Arc<Self>> {
-        let library= unsafe { libloading::Library::new(&mvci.library_file)? };
+        let library = unsafe { libloading::Library::new(&mvci.library_file)? };
         let mdf = mvci.module_description_file
             .as_ref()
             .map(|v| PduModuleDescription::parse_from_xml_file(v))
@@ -341,7 +341,7 @@ impl PduApi {
                     extra_info_header: extra_header.take(),
                     extra_info_footer: extra_footer.take(),
                 }
-                .into()
+                    .into()
             }
             PduIt::Error => {
                 let data = unsafe { &*(item.p_data as *const ErrorData) };
@@ -349,7 +349,7 @@ impl PduApi {
                     code: data.error_code_id,
                     extra_code: data.extra_error_info_id,
                 }
-                .into()
+                    .into()
             }
             PduIt::Info => {
                 let data = unsafe { &*(item.p_data as *const InfoData) };
@@ -357,7 +357,7 @@ impl PduApi {
                     code: data.info_code,
                     extra_code: data.extra_info_data,
                 }
-                .into()
+                    .into()
             }
             typ => {
                 self.pdu_destroy_item(item_ptr as _)?;
@@ -502,6 +502,7 @@ impl PduApi {
         trace!(
             func = FUNC,
             item_ptr = format!("0x{:x}", item_ptr as usize),
+            item_type = ?NonNull::new(item_ptr).map(|wptr| unsafe { (&*wptr.as_ptr()).item_type }),
             "D-PDU API Call Return"
         );
 
@@ -580,7 +581,7 @@ impl PduApi {
                                 data.p_struct_array as *mut StructComParam,
                                 data.param_act_entries as _,
                             )
-                            .to_vec(),
+                                .to_vec(),
                             Some(data.param_max_entries as _),
                         )
                     }),
@@ -1331,44 +1332,10 @@ impl PduApi {
             } => {
                 trace!(func = FUNC, %bus, %protocol, "D-PDU API Call Args");
 
-                let bus_type_id = match bus {
-                    CllBusType::Id(id) => id.clone(),
-                    CllBusType::Name(name) => self.pdu_get_object_id(PduObjt::BusType, name)?,
-                };
+                let bus_type_id = bus.resolve_bus_id(self)?;
+                let protocol_id = protocol.resolve_protocol_id(self)?;
 
-                let protocol_id = match protocol {
-                    CllProtocolType::Id(id) => id.clone(),
-                    CllProtocolType::Name(name) => {
-                        self.pdu_get_object_id(PduObjt::Protocol, name)?
-                    }
-                };
-
-                let pin_data = {
-                    let mut vec = Vec::with_capacity(pins.len());
-
-                    for pin in pins.iter() {
-                        trace!(
-                            func = FUNC,
-                            pin_num = pin.num_on_vci,
-                            pin_type = %pin.pin_type,
-                            "D-PDU API Call Args"
-                        );
-
-                        let pin_id = match &pin.pin_type {
-                            CllPinType::Id(id) => id.clone(),
-                            CllPinType::Name(name) => {
-                                self.pdu_get_object_id(PduObjt::PinType, name)?
-                            }
-                        };
-
-                        vec.push(PinData {
-                            dlc_pin_number: pin.num_on_vci,
-                            dlc_pin_type_id: pin_id,
-                        });
-                    }
-
-                    vec
-                };
+                let pin_data = target_pins_to_pin_data(self, FUNC, &pins)?;
 
                 let rsc_data = RscData {
                     bus_type_id,
@@ -1833,7 +1800,8 @@ impl PduApi {
 
         trace!(
             func = FUNC,
-            output_conflict_list_ptr = format!("{:#x}", conflict_data_ptr as usize),
+            item_ptr = format!("0x{:x}", conflict_data_ptr as usize),
+            item_type = ?NonNull::new(conflict_data_ptr).map(|wptr| unsafe { (&*wptr.as_ptr()).item_type }),
             "D-PDU API Call Return"
         );
 
@@ -1870,8 +1838,8 @@ impl PduApi {
             .map(|i| {
                 trace!(
                     func = FUNC,
-                    conflicting_resource_id = i.resource_id,
                     conflicting_h_mod = i.h_mod,
+                    conflicting_resource_id = i.resource_id,
                     "D-PDU API Call Return"
                 );
                 PduConflictingModule {
@@ -1885,4 +1853,128 @@ impl PduApi {
 
         Ok(owned)
     }
+
+    pub fn pdu_get_resource_ids(
+        &self,
+        h_mod: Option<PduModuleHandle>,
+        bus: &BusSource,
+        protocol: &ProtocolSource,
+        pins: &[TargetPin],
+    ) -> Result<PduModulesResourcesIds> {
+        const FUNC: &'static str = "PDUGetResourceIds";
+        self.log_api_call(FUNC);
+
+        let h_mod = h_mod.unwrap_or(PDU_HANDLE_UNDEF);
+
+        trace!(
+            func = FUNC,
+            h_mod,
+            %bus,
+            %protocol,
+            "D-PDU API Call Args",
+        );
+
+        let bus_id = bus.resolve_bus_id(self)?;
+        let protocol_id = protocol.resolve_protocol_id(self)?;
+        let pin_data = target_pins_to_pin_data(self, FUNC, pins)?;
+
+        let resource_data = RscData {
+            bus_type_id: bus_id,
+            protocol_id,
+            num_pin_data: pin_data.len() as _,
+            p_dlc_pin_data: pin_data.as_ptr() as _,
+        };
+
+        let mut rsc_data_ptr = ptr::null_mut();
+
+        let get_resource_ids_fn = self.get_pdu_function::<PduGetResourceIdsFn>(FUNC.as_bytes())?;
+        let result = get_resource_ids_fn(
+            h_mod,
+            &resource_data as *const _ as _,
+            &mut rsc_data_ptr
+        );
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        trace!(
+            func = FUNC,
+            item_ptr = format!("0x{:x}", rsc_data_ptr as usize),
+            item_type = ?NonNull::new(rsc_data_ptr).map(|wptr| unsafe { (&*wptr.as_ptr()).item_type }),
+            "D-PDU API Call Return"
+        );
+
+        if rsc_data_ptr.is_null() {
+            error!(
+                func = FUNC,
+                "Item data pointer is null. Emulation of PduError::FctFailed..."
+            );
+            return Err(PduError::FctFailed)?;
+        }
+
+        let rsc_data = unsafe { &*rsc_data_ptr };
+
+        if !matches!(rsc_data.item_type, PduIt::RscConflict) {
+            error!(
+                func = FUNC,
+                "Invalid item type received: PduIt::{}. Emulation of PduError::FctFailed...",
+                rsc_data.item_type.as_ref(),
+            );
+
+            self.pdu_destroy_item(rsc_data_ptr as _)?;
+            return Err(PduError::FctFailed)?;
+        }
+
+        let mut map = PduModulesResourcesIds::with_capacity(rsc_data.num_modules as _);
+
+        let rsc_items = unsafe {
+            slice::from_raw_parts(rsc_data.p_id_item_data, rsc_data.num_modules as _)
+        };
+
+        for rsc_item in rsc_items {
+            let resource_ids = unsafe {
+                slice::from_raw_parts(rsc_item.p_resource_id_array, rsc_item.num_ids as _)
+            };
+
+            trace!(
+                func = FUNC,
+                rsc_item_h_mod = rsc_item.h_mod,
+                rsc_item_resource_ids = ?resource_ids,
+                "D-PDU API Call Return"
+            );
+
+            map.insert(rsc_item.h_mod, resource_ids.to_vec());
+        }
+
+        Ok(map)
+    }
+}
+
+fn target_pins_to_pin_data(api: &PduApi, func_name: &str, pins: &[TargetPin]) -> Result<Vec<PinData>> {
+    let mut vec = Vec::with_capacity(pins.len());
+
+    for pin in pins.iter() {
+        trace!(
+            func = func_name,
+            pin_num = pin.num_on_vci,
+            pin_type = %pin.pin_type,
+            "D-PDU API Call Args"
+        );
+
+        let pin_id = match &pin.pin_type {
+            PinSource::Id(id) => id.clone(),
+            PinSource::Name(name) => {
+                api.pdu_get_object_id(PduObjt::PinType, name)?
+            }
+        };
+
+        vec.push(PinData {
+            dlc_pin_number: pin.num_on_vci,
+            dlc_pin_type_id: pin_id,
+        });
+    }
+
+    Ok(vec)
 }

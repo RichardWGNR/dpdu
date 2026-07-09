@@ -1,5 +1,6 @@
 use crate::types::{PduCllHandle, PduModuleHandle, PduObjectId};
 use std::fmt::{Display, Formatter};
+use crate::types::pdu_resource::{BusSource, ProtocolSource, TargetPin};
 
 #[derive(Debug, Clone)]
 pub struct PduComLogicalLink {
@@ -44,149 +45,10 @@ pub enum CllCreateType {
     ///
     /// Recommended.
     ResourceData {
-        bus: CllBusType,
-        protocol: CllProtocolType,
-        pins: Vec<CllPin>,
+        bus: BusSource,
+        protocol: ProtocolSource,
+        pins: Vec<TargetPin>,
     },
-}
-
-#[derive(Debug, Clone)]
-pub enum CllBusType {
-    /// Bus type by ID.
-    ///
-    /// Not recommended.
-    ///
-    /// The bus type id will be used ‘as is’.
-    Id(PduObjectId),
-
-    /// Bus type by name.
-    ///
-    /// Recommended.
-    ///
-    /// It will be taken from the module description file or by calling the PDUGetObjectId function.
-    Name(String),
-}
-
-impl From<PduObjectId> for CllBusType {
-    fn from(value: PduObjectId) -> Self {
-        CllBusType::Id(value)
-    }
-}
-
-impl From<String> for CllBusType {
-    fn from(value: String) -> Self {
-        CllBusType::Name(value)
-    }
-}
-
-impl From<&str> for CllBusType {
-    fn from(value: &str) -> Self {
-        CllBusType::Name(value.to_owned())
-    }
-}
-
-impl Display for CllBusType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CllBusType::Id(v) => write!(f, "#{v}"),
-            CllBusType::Name(v) => write!(f, "{v}"),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum CllProtocolType {
-    /// Protocol type by ID.
-    ///
-    /// Not recommended.
-    ///
-    /// The protocol id will be used ‘as is’.
-    Id(PduObjectId),
-
-    /// Protocol by name.
-    ///
-    /// Recommended.
-    ///
-    /// It will be taken from the module description file or by calling the PDUGetObjectId function.
-    Name(String),
-}
-
-impl From<PduObjectId> for CllProtocolType {
-    fn from(value: PduObjectId) -> Self {
-        CllProtocolType::Id(value)
-    }
-}
-
-impl From<String> for CllProtocolType {
-    fn from(value: String) -> Self {
-        CllProtocolType::Name(value)
-    }
-}
-
-impl From<&str> for CllProtocolType {
-    fn from(value: &str) -> Self {
-        CllProtocolType::Name(value.to_owned())
-    }
-}
-
-impl Display for CllProtocolType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CllProtocolType::Id(v) => write!(f, "#{v}"),
-            CllProtocolType::Name(v) => write!(f, "{v}"),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct CllPin {
-    pub num_on_vci: u32,
-
-    pub pin_type: CllPinType,
-}
-
-#[derive(Debug, Clone)]
-pub enum CllPinType {
-    /// Pin type by ID.
-    ///
-    /// Not recommended.
-    ///
-    /// The pin type id will be used ‘as is’.
-    Id(u32),
-
-    /// Pin type by name.
-    ///
-    /// Recommended.
-    ///
-    /// It will be taken from the module description file or by calling the PDUGetObjectId function.
-    Name(String),
-}
-
-impl From<PduObjectId> for CllPinType {
-    fn from(value: PduObjectId) -> Self {
-        CllPinType::Id(value)
-    }
-}
-
-impl From<String> for CllPinType {
-    fn from(value: String) -> Self {
-        CllPinType::Name(value)
-    }
-}
-
-impl From<&str> for CllPinType {
-    fn from(value: &str) -> Self {
-        CllPinType::Name(value.to_owned())
-    }
-}
-
-impl Display for CllPinType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CllPinType::Id(v) => write!(f, "#{v}"),
-            CllPinType::Name(v) => write!(f, "{v}"),
-        }
-    }
 }
 
 /// Вспомогательная структура, используемая в функции [`PduWrapper::create_com_logical_link()`] при

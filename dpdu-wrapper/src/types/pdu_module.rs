@@ -1,7 +1,11 @@
-use crate::types::PduModuleHandle;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use crate::types::{PduModuleHandle, PduObjectId};
 use dpdu_api_types::PduStatus;
 
 pub type PduModuleList = Vec<PduModule>;
+
+pub type PduModulesResourcesIds = HashMap<PduModuleHandle, Vec<PduObjectId>>;
 
 #[derive(Debug, Clone)]
 pub struct PduModule {
@@ -14,4 +18,11 @@ pub struct PduModule {
     pub vendor_additional_info: Option<String>,
 
     pub status: PduStatus,
+}
+
+#[derive(Debug, Clone)]
+pub struct PduConflictingModule {
+    pub h_mod: PduModuleHandle,
+
+    pub resource_id: PduObjectId,
 }
