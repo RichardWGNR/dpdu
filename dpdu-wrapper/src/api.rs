@@ -27,7 +27,7 @@ use crate::types::{
 use crate::utils::c_str;
 use crate::utils::module_description::{PduModuleDescription, PduModuleDescriptionError};
 use crate::utils::root_file::Mvci;
-use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PduModuleConnectFn, PduModuleDisconnectFn, PduCancelComPrimitiveFn, PduGetConflictingResourcesFn, ModuleItem, ModuleData, PduGetResourceIdsFn};
+use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PduModuleConnectFn, PduModuleDisconnectFn, PduCancelComPrimitiveFn, PduGetConflictingResourcesFn, ModuleItem, ModuleData, PduGetResourceIdsFn, PduGetTimestampFn};
 use rand::random;
 use std::cell::OnceCell;
 use std::collections::{HashMap};
@@ -1949,6 +1949,38 @@ impl PduApi {
         }
 
         Ok(map)
+    }
+
+    pub fn pdu_get_timestamp(&self, h_mod: PduModuleHandle) -> Result<u32> {
+        const FUNC: &'static str = "PDUGetTimestamp";
+        self.log_api_call(FUNC);
+
+        let mut timestamp = MaybeUninit::uninit();
+
+        trace!(
+            func = FUNC,
+            h_mod,
+            timestamp_ptr = format!("{:#x}", timestamp.as_ptr() as usize),
+            "D-PDU API Call Args"
+        );
+
+        let get_timestamp_fn = self.get_pdu_function::<PduGetTimestampFn>(FUNC.as_bytes())?;
+        let result = get_timestamp_fn(h_mod, timestamp.as_mut_ptr());
+
+        if !result.is_success() {
+            self.log_failed_api_call(FUNC, result);
+            return Err(result)?;
+        }
+
+        let timestamp = unsafe { timestamp.assume_init() };
+
+        trace!(
+            func = FUNC,
+            timestamp,
+            "D-PDU API Call Return"
+        );
+
+        Ok(timestamp)
     }
 }
 
