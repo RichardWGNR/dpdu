@@ -23,7 +23,7 @@ pub struct PduComParam {
 
     pub class: PduPc,
 
-    pub variant: PduCpVariant,
+    pub variant: CpVariant,
 }
 
 impl Hash for PduComParam {
@@ -41,7 +41,7 @@ impl PartialEq for PduComParam {
 impl Eq for PduComParam {}
 
 impl PduComParam {
-    pub fn from_id(id: PduObjectId, class: PduPc, variant: impl Into<PduCpVariant>) -> Self {
+    pub fn from_id(id: PduObjectId, class: PduPc, variant: impl Into<CpVariant>) -> Self {
         Self {
             short_name: OnceCell::new(),
             id,
@@ -55,7 +55,7 @@ impl PduComParam {
         api: &PduApi,
         sn: impl Into<String>,
         class: PduPc,
-        variant: impl Into<PduCpVariant>,
+        variant: impl Into<CpVariant>,
     ) -> ApiResult<PduComParam> {
         let short_name = sn.into();
         let id = api.pdu_get_object_id(PduObjt::ComParam, &short_name)?;
@@ -206,7 +206,7 @@ impl LongFieldComParam {
 
 // TODO : impl Debug
 #[derive(Clone)]
-pub enum PduCpVariant {
+pub enum CpVariant {
     Unum8(u8),
     Snum8(i8),
     Unum16(u16),
@@ -218,55 +218,55 @@ pub enum PduCpVariant {
     LongField(LongFieldComParam),
 }
 
-impl From<u8> for PduCpVariant {
+impl From<u8> for CpVariant {
     fn from(value: u8) -> Self {
         Self::Unum8(value)
     }
 }
 
-impl From<i8> for PduCpVariant {
+impl From<i8> for CpVariant {
     fn from(value: i8) -> Self {
         Self::Snum8(value)
     }
 }
 
-impl From<u16> for PduCpVariant {
+impl From<u16> for CpVariant {
     fn from(value: u16) -> Self {
         Self::Unum16(value)
     }
 }
 
-impl From<i16> for PduCpVariant {
+impl From<i16> for CpVariant {
     fn from(value: i16) -> Self {
         Self::Snum16(value)
     }
 }
 
-impl From<u32> for PduCpVariant {
+impl From<u32> for CpVariant {
     fn from(value: u32) -> Self {
         Self::Unum32(value)
     }
 }
 
-impl From<i32> for PduCpVariant {
+impl From<i32> for CpVariant {
     fn from(value: i32) -> Self {
         Self::Snum32(value)
     }
 }
 
-impl From<Vec<u8>> for PduCpVariant {
+impl From<Vec<u8>> for CpVariant {
     fn from(value: Vec<u8>) -> Self {
         Self::ByteField(ByteFieldComParam::new(value, None))
     }
 }
 
-impl From<(Vec<u8>, usize)> for PduCpVariant {
+impl From<(Vec<u8>, usize)> for CpVariant {
     fn from(value: (Vec<u8>, usize)) -> Self {
         Self::ByteField(ByteFieldComParam::new(value.0, Some(value.1)))
     }
 }
 
-impl From<Vec<ParamStructAccessTiming>> for PduCpVariant {
+impl From<Vec<ParamStructAccessTiming>> for CpVariant {
     fn from(value: Vec<ParamStructAccessTiming>) -> Self {
         let vec = value.into_iter().map(|v| StructComParam::from(v)).collect();
 
@@ -274,7 +274,7 @@ impl From<Vec<ParamStructAccessTiming>> for PduCpVariant {
     }
 }
 
-impl From<(Vec<ParamStructAccessTiming>, usize)> for PduCpVariant {
+impl From<(Vec<ParamStructAccessTiming>, usize)> for CpVariant {
     fn from(value: (Vec<ParamStructAccessTiming>, usize)) -> Self {
         let vec = value
             .0
@@ -290,7 +290,7 @@ impl From<(Vec<ParamStructAccessTiming>, usize)> for PduCpVariant {
     }
 }
 
-impl From<Vec<ParamStructSessionTiming>> for PduCpVariant {
+impl From<Vec<ParamStructSessionTiming>> for CpVariant {
     fn from(value: Vec<ParamStructSessionTiming>) -> Self {
         let vec = value.into_iter().map(|v| StructComParam::from(v)).collect();
 
@@ -298,7 +298,7 @@ impl From<Vec<ParamStructSessionTiming>> for PduCpVariant {
     }
 }
 
-impl From<(Vec<ParamStructSessionTiming>, usize)> for PduCpVariant {
+impl From<(Vec<ParamStructSessionTiming>, usize)> for CpVariant {
     fn from(value: (Vec<ParamStructSessionTiming>, usize)) -> Self {
         let vec = value
             .0
@@ -314,19 +314,19 @@ impl From<(Vec<ParamStructSessionTiming>, usize)> for PduCpVariant {
     }
 }
 
-impl From<Vec<u32>> for PduCpVariant {
+impl From<Vec<u32>> for CpVariant {
     fn from(value: Vec<u32>) -> Self {
         Self::LongField(LongFieldComParam::new(value, None))
     }
 }
 
-impl From<(Vec<u32>, usize)> for PduCpVariant {
+impl From<(Vec<u32>, usize)> for CpVariant {
     fn from(value: (Vec<u32>, usize)) -> Self {
         Self::LongField(LongFieldComParam::new(value.0, Some(value.1)))
     }
 }
 
-impl PduCpVariant {
+impl CpVariant {
     pub fn as_unum8(&self) -> Option<&u8> {
         match self {
             Self::Unum8(v) => Some(&v),

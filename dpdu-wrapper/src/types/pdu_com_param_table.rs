@@ -21,6 +21,10 @@ impl DerefMut for PduComParamTable {
 }
 
 impl PduComParamTable {
+    pub(crate) fn with_capacity(cap: usize) -> Self {
+        PduComParamTable(HashMap::with_capacity(cap))
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
