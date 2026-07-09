@@ -1,10 +1,9 @@
 use crate::api::{PduApi, Result as ApiResult};
 use crate::types::pdu_status::PduStatusTarget;
 use crate::types::pdu_vci::PduVci;
+use crate::worker::{PduAsyncWorker, Query, Response, WorkerResult};
 use std::sync::Arc;
-use tokio::sync::oneshot;
 use tracing::{error, info};
-use crate::worker::{PduAsyncWorker, Query, Response, WorkerError, WorkerResult};
 
 pub type VciList = Vec<Arc<PduVci>>;
 
@@ -40,9 +39,12 @@ impl VciListResolver {
     }
 
     pub async fn resolve(worker: &PduAsyncWorker) -> WorkerResult<VciList> {
-        match worker.receive_query_response_callback(Query::ResolveVciList).await {
+        match worker
+            .receive_query_response_callback(Query::ResolveVciList)
+            .await
+        {
             Ok(Response::ResolveVciList(v)) => Ok(v?),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }

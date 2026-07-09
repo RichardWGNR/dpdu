@@ -1,8 +1,6 @@
-use crate::types::pdu_com_logical_link::{
-    CllCreateFlags, CllCreateType, PduComLogicalLink,
-};
+use crate::types::pdu_com_logical_link::{CllCreateFlags, CllCreateType, PduComLogicalLink};
 use crate::types::pdu_com_param::{
-    ByteFieldComParam, LongFieldComParam, PduComParam, CpVariant, StructComParam,
+    ByteFieldComParam, CpVariant, LongFieldComParam, PduComParam, StructComParam,
     StructFieldComParam,
 };
 use crate::types::pdu_com_param_table::PduComParamTable;
@@ -15,9 +13,13 @@ use crate::types::pdu_event::{
 use crate::types::pdu_event_callback::PduEventCallbackTarget;
 use crate::types::pdu_io_ctl::{IoCtlByteArray, PduIoCtlCommand, PduIoCtlData, PduIoCtlTarget};
 use crate::types::pdu_lock_resource::PduLockResourceMask;
-use crate::types::pdu_module::{PduConflictingModules, PduModule, PduModuleList, PduModulesResourcesIds};
+use crate::types::pdu_module::{
+    PduConflictingModules, PduModule, PduModuleList, PduModulesResourcesIds,
+};
 use crate::types::pdu_object::PduObjectIdSource;
-use crate::types::pdu_resource::{BusSource, PduResource, PduResourceStatus, PinSource, ProtocolSource, ResourceStatus, TargetPin};
+use crate::types::pdu_resource::{
+    BusSource, PduResource, PduResourceStatus, PinSource, ProtocolSource, ResourceStatus, TargetPin,
+};
 use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
 use crate::types::pdu_version::PduVersionData;
 use crate::types::{
@@ -27,11 +29,25 @@ use crate::types::{
 use crate::utils::c_str;
 use crate::utils::module_description::{PduModuleDescription, PduModuleDescriptionError};
 use crate::utils::root_file::Mvci;
-use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructFieldData, PduConnectFn, PduConstructFn, PduCopt, PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PduModuleConnectFn, PduModuleDisconnectFn, PduCancelComPrimitiveFn, PduGetConflictingResourcesFn, ModuleItem, ModuleData, PduGetResourceIdsFn, PduGetTimestampFn, PduGetUniqueRespIdTableFn, PduCpst, ParamStructAccessTiming, ParamStructSessionTiming};
+use dpdu_api_types::{
+    CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData,
+    InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData,
+    ModuleData, ModuleItem, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem,
+    ParamLongFieldData, ParamStructAccessTiming, ParamStructFieldData, ParamStructSessionTiming,
+    PduCancelComPrimitiveFn, PduConnectFn, PduConstructFn, PduCopt, PduCpst,
+    PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn,
+    PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetConflictingResourcesFn,
+    PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceIdsFn,
+    PduGetResourceStatusFn, PduGetStatusFn, PduGetTimestampFn, PduGetUniqueRespIdTableFn,
+    PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduModuleConnectFn,
+    PduModuleDisconnectFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn,
+    PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PduUnlockResourceFn, PinData,
+    ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData,
+};
 use rand::random;
 use std::cell::OnceCell;
-use std::collections::{HashMap};
-use std::ffi::{CString, c_void, CStr};
+use std::collections::HashMap;
+use std::ffi::{CString, c_void};
 use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::sync::{Arc, Weak};
@@ -47,7 +63,7 @@ pub enum Error {
 
     #[error("communication error: {0}")]
     CommError(#[from] PduError),
-    
+
     #[error("module description error: {0}")]
     MdfError(#[from] PduModuleDescriptionError),
 }
@@ -90,7 +106,8 @@ impl PduApi {
 
     pub fn from_mvci(mvci: &Mvci, options: PduOptions) -> Result<Arc<Self>> {
         let library = unsafe { libloading::Library::new(&mvci.library_file)? };
-        let mdf = mvci.module_description_file
+        let mdf = mvci
+            .module_description_file
             .as_ref()
             .map(|v| PduModuleDescription::parse_from_xml_file(v))
             .transpose()?;
@@ -100,7 +117,7 @@ impl PduApi {
             library,
             Some(mvci.library_file.clone()),
             mdf,
-            Some(mvci.clone())
+            Some(mvci.clone()),
         ))
     }
 
@@ -117,7 +134,7 @@ impl PduApi {
             library,
             Some(library_file),
             module_description,
-            None
+            None,
         ))
     }
 
@@ -131,7 +148,7 @@ impl PduApi {
             library,
             None,
             module_description,
-            None
+            None,
         ))
     }
 
@@ -341,7 +358,7 @@ impl PduApi {
                     extra_info_header: extra_header.take(),
                     extra_info_footer: extra_footer.take(),
                 }
-                    .into()
+                .into()
             }
             PduIt::Error => {
                 let data = unsafe { &*(item.p_data as *const ErrorData) };
@@ -349,7 +366,7 @@ impl PduApi {
                     code: data.error_code_id,
                     extra_code: data.extra_error_info_id,
                 }
-                    .into()
+                .into()
             }
             PduIt::Info => {
                 let data = unsafe { &*(item.p_data as *const InfoData) };
@@ -357,7 +374,7 @@ impl PduApi {
                     code: data.info_code,
                     extra_code: data.extra_info_data,
                 }
-                    .into()
+                .into()
             }
             typ => {
                 self.pdu_destroy_item(item_ptr as _)?;
@@ -581,7 +598,7 @@ impl PduApi {
                                 data.p_struct_array as *mut StructComParam,
                                 data.param_act_entries as _,
                             )
-                                .to_vec(),
+                            .to_vec(),
                             Some(data.param_max_entries as _),
                         )
                     }),
@@ -1135,8 +1152,10 @@ impl PduApi {
                         } else {
                             let len = byte_array.data_size as _;
                             Ok(Some(
-                                IoCtlByteArray(slice::from_raw_parts(byte_array.p_data, len).to_vec())
-                                    .into(),
+                                IoCtlByteArray(
+                                    slice::from_raw_parts(byte_array.p_data, len).to_vec(),
+                                )
+                                .into(),
                             ))
                         }
                     }
@@ -1692,7 +1711,8 @@ impl PduApi {
 
         trace!(func = FUNC, h_mod, "D-PDU API Call Args");
 
-        let module_disconnect_fn = self.get_pdu_function::<PduModuleDisconnectFn>(FUNC.as_bytes())?;
+        let module_disconnect_fn =
+            self.get_pdu_function::<PduModuleDisconnectFn>(FUNC.as_bytes())?;
         let result = module_disconnect_fn(h_mod);
 
         if !result.is_success() {
@@ -1707,14 +1727,15 @@ impl PduApi {
         &self,
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
-        h_cop: PduCopHandle
+        h_cop: PduCopHandle,
     ) -> Result<()> {
         const FUNC: &'static str = "PDUCancelComPrimitive";
         self.log_api_call(FUNC);
 
         trace!(func = FUNC, h_mod, h_cll, h_cop, "D-PDU API Call Args");
 
-        let cancel_com_primitive_fn = self.get_pdu_function::<PduCancelComPrimitiveFn>(FUNC.as_bytes())?;
+        let cancel_com_primitive_fn =
+            self.get_pdu_function::<PduCancelComPrimitiveFn>(FUNC.as_bytes())?;
         let result = cancel_com_primitive_fn(h_mod, h_cll, h_cop);
 
         if !result.is_success() {
@@ -1753,12 +1774,12 @@ impl PduApi {
 
                 module_names.push(
                     CString::new(m.vendor_module_name.clone().unwrap_or_else(String::new))
-                        .expect("CString::new()") // infallible
+                        .expect("CString::new()"), // infallible
                 );
 
                 module_infos.push(
                     CString::new(m.vendor_additional_info.clone().unwrap_or_else(String::new))
-                        .expect("CString::new()") // infallible
+                        .expect("CString::new()"), // infallible
                 );
 
                 ModuleData {
@@ -1786,11 +1807,12 @@ impl PduApi {
             "D-PDU API Call Args"
         );
 
-        let get_conflicting_resources_fn = self.get_pdu_function::<PduGetConflictingResourcesFn>(FUNC.as_bytes())?;
+        let get_conflicting_resources_fn =
+            self.get_pdu_function::<PduGetConflictingResourcesFn>(FUNC.as_bytes())?;
         let result = get_conflicting_resources_fn(
             resource_id,
             &module_data as *const _ as _,
-            &mut conflict_data_ptr
+            &mut conflict_data_ptr,
         );
 
         if !result.is_success() {
@@ -1829,7 +1851,7 @@ impl PduApi {
         let conflict_items = unsafe {
             slice::from_raw_parts(
                 conflict_data.p_rsc_conflict_data,
-                conflict_data.num_entries as _
+                conflict_data.num_entries as _,
             )
         };
 
@@ -1885,11 +1907,7 @@ impl PduApi {
         let mut rsc_data_ptr = ptr::null_mut();
 
         let get_resource_ids_fn = self.get_pdu_function::<PduGetResourceIdsFn>(FUNC.as_bytes())?;
-        let result = get_resource_ids_fn(
-            h_mod,
-            &resource_data as *const _ as _,
-            &mut rsc_data_ptr
-        );
+        let result = get_resource_ids_fn(h_mod, &resource_data as *const _ as _, &mut rsc_data_ptr);
 
         if !result.is_success() {
             self.log_failed_api_call(FUNC, result);
@@ -1926,9 +1944,8 @@ impl PduApi {
 
         let mut map = PduModulesResourcesIds::with_capacity(rsc_data.num_modules as _);
 
-        let rsc_items = unsafe {
-            slice::from_raw_parts(rsc_data.p_id_item_data, rsc_data.num_modules as _)
-        };
+        let rsc_items =
+            unsafe { slice::from_raw_parts(rsc_data.p_id_item_data, rsc_data.num_modules as _) };
 
         for rsc_item in rsc_items {
             let resource_ids = unsafe {
@@ -1971,11 +1988,7 @@ impl PduApi {
 
         let timestamp = unsafe { timestamp.assume_init() };
 
-        trace!(
-            func = FUNC,
-            timestamp,
-            "D-PDU API Call Return"
-        );
+        trace!(func = FUNC, timestamp, "D-PDU API Call Return");
 
         Ok(timestamp)
     }
@@ -1998,7 +2011,8 @@ impl PduApi {
             "D-PDU API Call Return"
         );
 
-        let get_timestamp_fn = self.get_pdu_function::<PduGetUniqueRespIdTableFn>(FUNC.as_bytes())?;
+        let get_timestamp_fn =
+            self.get_pdu_function::<PduGetUniqueRespIdTableFn>(FUNC.as_bytes())?;
         let result = get_timestamp_fn(h_mod, h_cll, &mut table_item_ptr);
 
         if !result.is_success() {
@@ -2034,9 +2048,8 @@ impl PduApi {
             return Err(PduError::FctFailed)?;
         }
 
-        let table = unsafe {
-            slice::from_raw_parts(table_item.p_unique_data, table_item.num_entries as _)
-        };
+        let table =
+            unsafe { slice::from_raw_parts(table_item.p_unique_data, table_item.num_entries as _) };
 
         let mut map = PduComParamTable::with_capacity(table.len());
 
@@ -2048,9 +2061,8 @@ impl PduApi {
 
         for row in table {
             let unique_id = row.unique_resp_identifier;
-            let com_params = unsafe {
-                slice::from_raw_parts(row.p_params, row.num_param_items as _)
-            };
+            let com_params =
+                unsafe { slice::from_raw_parts(row.p_params, row.num_param_items as _) };
 
             trace!(
                 func = FUNC,
@@ -2070,7 +2082,7 @@ impl PduApi {
                     self.pdu_destroy_item(table_item_ptr as _)?;
                     return Err(PduError::FctFailed)?;
                 }
-                
+
                 trace!(
                     func = FUNC,
                     table_item_cp_id = cp.com_param_id,
@@ -2080,7 +2092,7 @@ impl PduApi {
                 );
 
                 let variant: CpVariant = unsafe {
-                    use ptr::read as read;
+                    use ptr::read;
 
                     match cp.com_param_data_type {
                         PduPt::Unum8 => read::<u8>(cp.p_com_param_data as _).into(),
@@ -2091,29 +2103,32 @@ impl PduApi {
                         PduPt::Snum32 => read::<i32>(cp.p_com_param_data as _).into(),
                         PduPt::ByteField => {
                             let data = read::<ParamByteFieldData>(cp.p_com_param_data as _);
-                            let bytes = slice::from_raw_parts(data.p_data_array, data.param_act_len as _);
+                            let bytes =
+                                slice::from_raw_parts(data.p_data_array, data.param_act_len as _);
                             (bytes.to_vec(), data.param_max_len as usize).into()
-                        },
+                        }
                         PduPt::LongField => {
                             let data = read::<ParamLongFieldData>(cp.p_com_param_data as _);
-                            let nums = slice::from_raw_parts(data.p_data_array, data.param_act_len as _);
+                            let nums =
+                                slice::from_raw_parts(data.p_data_array, data.param_act_len as _);
                             (nums.to_vec(), data.param_max_len as usize).into()
-                        },
+                        }
                         PduPt::StructField => {
                             let data = read::<ParamStructFieldData>(cp.p_com_param_data as _);
                             match data.com_param_struct_type {
                                 PduCpst::AccessTiming => {
                                     let structs: &[ParamStructAccessTiming] = slice::from_raw_parts(
                                         data.p_struct_array as _,
-                                        data.param_act_entries as _
+                                        data.param_act_entries as _,
                                     );
                                     (structs.to_vec(), data.param_max_entries as usize).into()
-                                },
+                                }
                                 PduCpst::SessionTiming => {
-                                    let structs: &[ParamStructSessionTiming] = slice::from_raw_parts(
-                                        data.p_struct_array as _,
-                                        data.param_act_entries as _
-                                    );
+                                    let structs: &[ParamStructSessionTiming] =
+                                        slice::from_raw_parts(
+                                            data.p_struct_array as _,
+                                            data.param_act_entries as _,
+                                        );
                                     (structs.to_vec(), data.param_max_entries as usize).into()
                                 }
                             }
@@ -2121,11 +2136,7 @@ impl PduApi {
                     }
                 };
 
-                let com_param = PduComParam::from_id(
-                    cp.com_param_id,
-                    cp.com_param_class,
-                    variant
-                );
+                let com_param = PduComParam::from_id(cp.com_param_id, cp.com_param_class, variant);
 
                 com_param.try_init_short_name(self);
 
@@ -2139,7 +2150,11 @@ impl PduApi {
     }
 }
 
-fn target_pins_to_pin_data(api: &PduApi, func_name: &str, pins: &[TargetPin]) -> Result<Vec<PinData>> {
+fn target_pins_to_pin_data(
+    api: &PduApi,
+    func_name: &str,
+    pins: &[TargetPin],
+) -> Result<Vec<PinData>> {
     let mut vec = Vec::with_capacity(pins.len());
 
     for pin in pins.iter() {
@@ -2152,9 +2167,7 @@ fn target_pins_to_pin_data(api: &PduApi, func_name: &str, pins: &[TargetPin]) ->
 
         let pin_id = match &pin.pin_type {
             PinSource::Id(id) => id.clone(),
-            PinSource::Name(name) => {
-                api.pdu_get_object_id(PduObjt::PinType, name)?
-            }
+            PinSource::Name(name) => api.pdu_get_object_id(PduObjt::PinType, name)?,
         };
 
         vec.push(PinData {

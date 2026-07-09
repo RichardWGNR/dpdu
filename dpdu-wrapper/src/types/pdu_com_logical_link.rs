@@ -1,6 +1,6 @@
+use crate::types::pdu_resource::{BusSource, ProtocolSource, TargetPin};
 use crate::types::{PduCllHandle, PduModuleHandle, PduObjectId};
 use std::fmt::{Display, Formatter};
-use crate::types::pdu_resource::{BusSource, ProtocolSource, TargetPin};
 
 #[derive(Debug, Clone)]
 pub struct PduComLogicalLink {

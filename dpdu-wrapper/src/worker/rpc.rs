@@ -1,28 +1,32 @@
-use crate::types::pdu_event::{PduEvent, PduEventTarget};
-use std::ffi::c_void;
-use dpdu_api_types::{EventCallbackFn, PduCopt, PduObjt};
-use crate::utils::UnsafePtr;
-use dpdu_wrapper_support::declare_worker_rpc;
-use crate::types::pdu_version::PduVersionData;
-use crate::types::{PduCllHandle, PduCopHandle, PduModuleHandle, PduObjectId};
 use crate::types::pdu_com_logical_link::{CllCreateFlags, CllCreateType, PduComLogicalLink};
 use crate::types::pdu_com_param::PduComParam;
 use crate::types::pdu_com_param_table::PduComParamTable;
 use crate::types::pdu_com_primivite::PduComPrimiviteParams;
 use crate::types::pdu_error::{PduErrorData, PduLastErrorTarget};
+use crate::types::pdu_event::{PduEvent, PduEventTarget};
 use crate::types::pdu_event_callback::PduEventCallbackTarget;
 use crate::types::pdu_io_ctl::{PduIoCtlCommand, PduIoCtlData, PduIoCtlTarget};
 use crate::types::pdu_lock_resource::PduLockResourceMask;
-use crate::types::pdu_module::{PduConflictingModules, PduModule, PduModuleList, PduModulesResourcesIds};
+use crate::types::pdu_module::{
+    PduConflictingModules, PduModule, PduModuleList, PduModulesResourcesIds,
+};
 use crate::types::pdu_object::PduObjectIdSource;
-use crate::types::pdu_resource::{BusSource, PduResource, PduResourceStatus, ProtocolSource, TargetPin};
+use crate::types::pdu_resource::{
+    BusSource, PduResource, PduResourceStatus, ProtocolSource, TargetPin,
+};
 use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
+use crate::types::pdu_version::PduVersionData;
+use crate::types::{PduCllHandle, PduCopHandle, PduModuleHandle, PduObjectId};
+use crate::utils::UnsafePtr;
 use crate::utils::vci_list_resolver::VciList;
+use dpdu_api_types::{EventCallbackFn, PduCopt, PduObjt};
+use dpdu_wrapper_support::declare_worker_rpc;
+use std::ffi::c_void;
 
 declare_worker_rpc! {
     // Virtual functions.
     ResolveVciList => _virtual() -> VciList,
-    
+
     // Real D-PDU functions.
     PduCancelComPrimitive => pdu_cancel_com_primitive(h_mod: PduModuleHandle, h_cll: PduCllHandle, h_cop: PduCopHandle) -> (),
     PduConnect => pdu_connect(h_mod: PduModuleHandle, h_cll: PduCllHandle) -> (),

@@ -2,8 +2,8 @@ use crate::api::PduApi;
 use crate::types::PduModuleHandle;
 use crate::types::pdu_status::PduStatusData;
 use dpdu_api_types::PduStatus;
-use std::sync::{LazyLock, Weak};
 use regex::Regex;
+use std::sync::{LazyLock, Weak};
 
 #[derive(Debug, Clone)]
 pub struct PduVci {

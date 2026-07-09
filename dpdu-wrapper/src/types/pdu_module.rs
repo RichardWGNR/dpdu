@@ -1,7 +1,6 @@
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 use crate::types::{PduModuleHandle, PduObjectId};
 use dpdu_api_types::PduStatus;
+use std::collections::HashMap;
 
 pub type PduModuleList = Vec<PduModule>;
 

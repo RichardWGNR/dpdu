@@ -1,20 +1,19 @@
 mod rpc;
 
-use crate::api::{Error as ApiError};
-use std::sync::Arc;
-use std::thread::{spawn};
-use crossbeam_channel::select;
-use tokio::sync::oneshot;
-use tracing::info;
+use crate::api::Error as ApiError;
 use crate::api::PduApi;
+use crate::utils::vci_list_resolver::VciListResolver;
+use crossbeam_channel::select;
 pub use rpc::Query;
 pub use rpc::Response;
-use crate::utils::vci_list_resolver::VciListResolver;
+use std::sync::Arc;
+use std::thread::spawn;
+use tokio::sync::oneshot;
+use tracing::info;
 
 pub type WorkerResult<T> = std::result::Result<T, WorkerError>;
 
-#[derive(Debug)]
-#[derive(thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum WorkerError {
     #[error("api error: {0}")]
     ApiError(#[from] ApiError),
@@ -23,7 +22,7 @@ pub enum WorkerError {
     ChannelError(String),
 
     #[error("worker stopped")]
-    WorkerStopped
+    WorkerStopped,
 }
 
 #[derive(Debug, Clone)]
@@ -54,10 +53,9 @@ impl PduAsyncWorker {
     pub fn get_api(&self) -> &PduApi {
         &self.api
     }
-    
+
     pub fn request(&self, query: Query, tx: oneshot::Sender<Response>) -> WorkerResult<()> {
-        self
-            .query_tx
+        self.query_tx
             .send((query, tx))
             .map_err(|_e| WorkerError::WorkerStopped)?;
 
@@ -67,7 +65,7 @@ impl PduAsyncWorker {
     fn thread(
         api: Arc<PduApi>,
         shdn: crossbeam_channel::Receiver<()>,
-        cmd: crossbeam_channel::Receiver<(Query, oneshot::Sender<Response>)>
+        cmd: crossbeam_channel::Receiver<(Query, oneshot::Sender<Response>)>,
     ) {
         use rpc::Query as Q;
         use rpc::Response as R;
@@ -127,12 +125,16 @@ impl PduAsyncWorker {
         }
     }
 
-    pub(crate) async fn receive_query_response_callback(&self, query: Query) -> WorkerResult<Response> {
+    pub(crate) async fn receive_query_response_callback(
+        &self,
+        query: Query,
+    ) -> WorkerResult<Response> {
         let (tx, rx) = oneshot::channel();
 
         self.request(query, tx)?;
 
-        rx.await.map_err(|e| WorkerError::ChannelError(e.to_string()))
+        rx.await
+            .map_err(|e| WorkerError::ChannelError(e.to_string()))
     }
 }
 
@@ -143,7 +145,7 @@ impl Drop for PduAsyncWorker {
         match self.shutdown_tx.try_send(()) {
             Err(TrySendError::Disconnected(_)) => {
                 panic!("Unexpected closure of the shutdown channel in PduAsyncWorker");
-            },
+            }
             _ => {}
         }
     }

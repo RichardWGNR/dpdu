@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
-use dpdu_api_types::PduObjt;
 use crate::api::{PduApi, Result as ApiResult};
 use crate::types::{PduModuleHandle, PduObjectId};
+use dpdu_api_types::PduObjt;
+use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 
 pub type PduResourceStatus = HashMap<PduResource, ResourceStatus>;
 
@@ -125,9 +125,7 @@ impl ProtocolSource {
     pub(crate) fn resolve_protocol_id(&self, api: &PduApi) -> ApiResult<PduObjectId> {
         Ok(match self {
             ProtocolSource::Id(id) => id.clone(),
-            ProtocolSource::Name(name) => {
-                api.pdu_get_object_id(PduObjt::Protocol, name)?
-            }
+            ProtocolSource::Name(name) => api.pdu_get_object_id(PduObjt::Protocol, name)?,
         })
     }
 }
