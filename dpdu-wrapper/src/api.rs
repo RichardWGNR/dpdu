@@ -321,39 +321,58 @@ impl PduApi {
                     let extra_info = unsafe { &*data.p_extra_info };
                     if !extra_info.p_header_bytes.is_null() {
                         let ptr = extra_info.p_header_bytes;
-                        let len = extra_info.p_header_bytes;
-                        extra_header
-                            .set(unsafe { slice::from_raw_parts(ptr, len as _) }.to_vec())
-                            .unwrap();
+                        let len = extra_info.num_header_bytes;
+                        if !ptr.is_null() && len > 0 {
+                            extra_header
+                                .set(unsafe { slice::from_raw_parts(ptr, len as _) }.to_vec())
+                                .unwrap();
+                        }
                     }
                     if !extra_info.p_footer_bytes.is_null() {
                         let ptr = extra_info.p_footer_bytes;
                         let len = extra_info.num_footer_bytes;
-                        extra_footer
-                            .set(unsafe { slice::from_raw_parts(ptr, len as _) }.to_vec())
-                            .unwrap();
+                        if !ptr.is_null() && len > 0 {
+                            extra_footer
+                                .set(unsafe { slice::from_raw_parts(ptr, len as _) }.to_vec())
+                                .unwrap();
+                        }
                     }
                 }
 
                 PduResultEvent {
                     rx_flags: unsafe {
                         let ptr = data.rx_flag.p_flag_data;
-                        let len = data.rx_flag.num_flag_bytes;
-                        slice::from_raw_parts(ptr, len as _).to_vec().into()
+                        let len = data.rx_flag.num_flag_bytes as usize;
+                        let slice = if ptr.is_null() || len == 0 {
+                            &[]
+                        } else {
+                            slice::from_raw_parts(ptr, len)
+                        };
+                        slice.to_vec().into()
                     },
                     unique_resp_identifier: data.unique_resp_identifier,
                     acceptance_id: data.acceptance_id,
                     timestamp_flags: unsafe {
                         let ptr = data.timestamp_flags.p_flag_data;
-                        let len = data.timestamp_flags.num_flag_bytes;
-                        slice::from_raw_parts(ptr, len as _).to_vec().into()
+                        let len = data.timestamp_flags.num_flag_bytes as usize;
+                        let slice = if ptr.is_null() || len == 0 {
+                            &[]
+                        } else {
+                            slice::from_raw_parts(ptr, len)
+                        };
+                        slice.to_vec().into()
                     },
                     tx_msg_done_timestamp: data.tx_msg_done_timestamp,
                     start_msg_timestamp: data.start_msg_timestamp,
                     data: unsafe {
                         let ptr = data.p_data_bytes;
-                        let len = data.num_data_bytes;
-                        slice::from_raw_parts(ptr, len as _).to_vec()
+                        let len = data.num_data_bytes as usize;
+                        let slice = if ptr.is_null() || len == 0 {
+                            &[]
+                        } else {
+                            slice::from_raw_parts(ptr, len)
+                        };
+                        slice.to_vec().into()
                     },
                     extra_info_header: extra_header.take(),
                     extra_info_footer: extra_footer.take(),
@@ -584,29 +603,44 @@ impl PduApi {
                     PduPt::Snum32 => CpVariant::Snum32(read(data_ptr as _)),
                     PduPt::ByteField => CpVariant::ByteField({
                         let data = &*(data_ptr as *const ParamByteFieldData);
+                        let ptr = data.p_data_array;
+                        let len = data.param_act_len as _;
+                        let slice = if ptr.is_null() || len == 0 {
+                            &[]
+                        } else {
+                            slice::from_raw_parts(ptr, len)
+                        };
                         ByteFieldComParam::new(
-                            slice::from_raw_parts(data.p_data_array, data.param_act_len as _)
-                                .to_vec(),
+                            slice.to_vec(),
                             Some(data.param_max_len as _),
                         )
                     }),
                     PduPt::StructField => CpVariant::StructField({
                         let data = &*(data_ptr as *const ParamStructFieldData);
+                        let ptr = data.p_struct_array as *mut StructComParam;
+                        let len = data.param_act_entries as _;
+                        let slice = if ptr.is_null() || len == 0 {
+                            &[]
+                        } else {
+                            slice::from_raw_parts(ptr, len)
+                        };
                         StructFieldComParam::new(
                             data.com_param_struct_type,
-                            slice::from_raw_parts(
-                                data.p_struct_array as *mut StructComParam,
-                                data.param_act_entries as _,
-                            )
-                            .to_vec(),
+                            slice.to_vec(),
                             Some(data.param_max_entries as _),
                         )
                     }),
                     PduPt::LongField => CpVariant::LongField({
                         let data = &*(data_ptr as *const ParamLongFieldData);
+                        let ptr = data.p_data_array;
+                        let len = data.param_act_len as _;
+                        let slice = if ptr.is_null() || len == 0 {
+                            &[]
+                        } else {
+                            slice::from_raw_parts(ptr, len)
+                        };
                         LongFieldComParam::new(
-                            slice::from_raw_parts(data.p_data_array, data.param_act_len as _)
-                                .to_vec(),
+                            slice.to_vec(),
                             Some(data.param_max_len as _),
                         )
                     }),
@@ -1150,13 +1184,14 @@ impl PduApi {
                             );
                             return Err(PduError::FctFailed)?;
                         } else {
+                            let ptr = byte_array.p_data;
                             let len = byte_array.data_size as _;
-                            Ok(Some(
-                                IoCtlByteArray(
-                                    slice::from_raw_parts(byte_array.p_data, len).to_vec(),
-                                )
-                                .into(),
-                            ))
+                            let slice = if ptr.is_null() || len == 0 {
+                                &[]
+                            } else {
+                                slice::from_raw_parts(ptr, len)
+                            };
+                            Ok(Some(IoCtlByteArray(slice.to_vec()).into()))
                         }
                     }
                     PduIt::IoFilter => Ok(Some(data.p_data.cast::<IoFilterData>().read().into())),
@@ -1223,7 +1258,13 @@ impl PduApi {
             "D-PDU API Call Return"
         );
 
-        let module_list = unsafe { slice::from_raw_parts(ptr, len) }
+        let modules = if ptr.is_null() || len == 0 {
+            &[]
+        } else {
+            unsafe { slice::from_raw_parts(ptr, len) }
+        };
+
+        let module_list = modules
             .into_iter()
             .map(|v| {
                 let vendor_module_name = c_str(v.vendor_module_name as _);
@@ -1848,11 +1889,13 @@ impl PduApi {
             return Err(PduError::FctFailed)?;
         }
 
-        let conflict_items = unsafe {
-            slice::from_raw_parts(
-                conflict_data.p_rsc_conflict_data,
-                conflict_data.num_entries as _,
-            )
+        let ptr = conflict_data.p_rsc_conflict_data;
+        let len = conflict_data.num_entries as usize;
+
+        let conflict_items = if ptr.is_null() || len == 0 {
+            &[]
+        } else {
+            unsafe { slice::from_raw_parts(ptr, len) }
         };
 
         let map = conflict_items
@@ -1944,12 +1987,23 @@ impl PduApi {
 
         let mut map = PduModulesResourcesIds::with_capacity(rsc_data.num_modules as _);
 
-        let rsc_items =
-            unsafe { slice::from_raw_parts(rsc_data.p_id_item_data, rsc_data.num_modules as _) };
+        let rsc_items_ptr = rsc_data.p_id_item_data;
+        let rsc_items_len = rsc_data.num_modules as usize;
+
+        let rsc_items = if rsc_items_ptr.is_null() || rsc_items_len == 0 {
+            &[]
+        } else {
+            unsafe { slice::from_raw_parts(rsc_items_ptr, rsc_items_len) }
+        };
 
         for rsc_item in rsc_items {
-            let resource_ids = unsafe {
-                slice::from_raw_parts(rsc_item.p_resource_id_array, rsc_item.num_ids as _)
+            let rsc_ids_ptr = rsc_item.p_resource_id_array;
+            let rsc_ids_len = rsc_item.num_ids as usize;
+
+            let resource_ids = if rsc_ids_ptr.is_null() || rsc_ids_len == 0 {
+                &[]
+            } else {
+                unsafe { slice::from_raw_parts(rsc_ids_ptr, rsc_ids_len) }
             };
 
             trace!(
@@ -2048,8 +2102,14 @@ impl PduApi {
             return Err(PduError::FctFailed)?;
         }
 
-        let table =
-            unsafe { slice::from_raw_parts(table_item.p_unique_data, table_item.num_entries as _) };
+        let table_ptr = table_item.p_unique_data;
+        let table_len = table_item.num_entries as usize;
+
+        let table = if table_ptr.is_null() || table_len == 0 {
+            &[]
+        } else {
+            unsafe { slice::from_raw_parts(table_ptr, table_len) }
+        };
 
         let mut map = PduComParamTable::with_capacity(table.len());
 
@@ -2061,8 +2121,15 @@ impl PduApi {
 
         for row in table {
             let unique_id = row.unique_resp_identifier;
-            let com_params =
-                unsafe { slice::from_raw_parts(row.p_params, row.num_param_items as _) };
+
+            let com_params_ptr = row.p_params;
+            let com_params_len = row.num_param_items as usize;
+
+            let com_params = if com_params_ptr.is_null() || com_params_len == 0 {
+                &[]
+            } else {
+                unsafe { slice::from_raw_parts(com_params_ptr, com_params_len) }
+            };
 
             trace!(
                 func = FUNC,
@@ -2103,32 +2170,45 @@ impl PduApi {
                         PduPt::Snum32 => read::<i32>(cp.p_com_param_data as _).into(),
                         PduPt::ByteField => {
                             let data = read::<ParamByteFieldData>(cp.p_com_param_data as _);
-                            let bytes =
-                                slice::from_raw_parts(data.p_data_array, data.param_act_len as _);
+                            let ptr = data.p_data_array;
+                            let len = data.param_act_len as usize;
+                            let bytes = if ptr.is_null() || len == 0 {
+                                &[]
+                            } else {
+                                slice::from_raw_parts(ptr, len)
+                            };
                             (bytes.to_vec(), data.param_max_len as usize).into()
                         }
                         PduPt::LongField => {
                             let data = read::<ParamLongFieldData>(cp.p_com_param_data as _);
-                            let nums =
-                                slice::from_raw_parts(data.p_data_array, data.param_act_len as _);
+                            let ptr = data.p_data_array;
+                            let len = data.param_act_len as usize;
+                            let nums = if ptr.is_null() || len == 0 {
+                                &[]
+                            } else {
+                                slice::from_raw_parts(ptr, len)
+                            };
                             (nums.to_vec(), data.param_max_len as usize).into()
                         }
                         PduPt::StructField => {
                             let data = read::<ParamStructFieldData>(cp.p_com_param_data as _);
+                            let ptr = data.p_struct_array;
+                            let len = data.param_act_entries as usize;
                             match data.com_param_struct_type {
                                 PduCpst::AccessTiming => {
-                                    let structs: &[ParamStructAccessTiming] = slice::from_raw_parts(
-                                        data.p_struct_array as _,
-                                        data.param_act_entries as _,
-                                    );
+                                    let structs: &[ParamStructAccessTiming] = if ptr.is_null() || len == 0 {
+                                        &[]
+                                    } else {
+                                        slice::from_raw_parts(ptr as _, len)
+                                    };
                                     (structs.to_vec(), data.param_max_entries as usize).into()
                                 }
                                 PduCpst::SessionTiming => {
-                                    let structs: &[ParamStructSessionTiming] =
-                                        slice::from_raw_parts(
-                                            data.p_struct_array as _,
-                                            data.param_act_entries as _,
-                                        );
+                                    let structs: &[ParamStructSessionTiming] = if ptr.is_null() || len == 0 {
+                                        &[]
+                                    } else {
+                                        slice::from_raw_parts(ptr as _, len)
+                                    };
                                     (structs.to_vec(), data.param_max_entries as usize).into()
                                 }
                             }
