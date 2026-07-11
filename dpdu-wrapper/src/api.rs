@@ -54,7 +54,7 @@ use std::sync::{Arc, Weak};
 use std::{ptr, slice};
 use tracing::{debug, error, trace, warn};
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type ApiResult<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -104,7 +104,7 @@ impl PduApi {
         })
     }
 
-    pub fn from_mvci(mvci: &Mvci, options: PduOptions) -> Result<Arc<Self>> {
+    pub fn from_mvci(mvci: &Mvci, options: PduOptions) -> ApiResult<Arc<Self>> {
         let library = unsafe { libloading::Library::new(&mvci.library_file)? };
         let mdf = mvci
             .module_description_file
@@ -125,7 +125,7 @@ impl PduApi {
         library_file: impl Into<PduLibraryPath>,
         options: PduOptions,
         module_description: Option<PduModuleDescription>,
-    ) -> Result<Arc<Self>> {
+    ) -> ApiResult<Arc<Self>> {
         let library_file = library_file.into();
         let library = unsafe { libloading::Library::new(&library_file)? };
 
@@ -142,7 +142,7 @@ impl PduApi {
         library: libloading::Library,
         options: PduOptions,
         module_description: Option<PduModuleDescription>,
-    ) -> Result<Arc<Self>> {
+    ) -> ApiResult<Arc<Self>> {
         Ok(PduApi::new(
             options,
             library,
@@ -165,7 +165,7 @@ impl PduApi {
         );
     }
 
-    fn get_pdu_function<F>(&self, name: &[u8]) -> Result<libloading::Symbol<'_, F>> {
+    fn get_pdu_function<F>(&self, name: &[u8]) -> ApiResult<libloading::Symbol<'_, F>> {
         // SAFETY:
         // The caller must ensure that the requested symbol exists and that its
         // signature matches the D-PDU API specification.
@@ -184,7 +184,7 @@ impl PduApi {
         }
     }
 
-    pub fn pdu_construct(&self) -> Result<()> {
+    pub fn pdu_construct(&self) -> ApiResult<()> {
         const FUNC: &'static str = "PDUConstruct";
         self.log_api_call(FUNC);
 
@@ -222,7 +222,7 @@ impl PduApi {
         Ok(())
     }
 
-    pub fn pdu_destruct(&self) -> Result<()> {
+    pub fn pdu_destruct(&self) -> ApiResult<()> {
         const FUNC: &'static str = "PDUDestruct";
         self.log_api_call(FUNC);
 
@@ -237,7 +237,7 @@ impl PduApi {
         }
     }
 
-    pub fn pdu_destroy_item(&self, item_ptr: *mut PduItem) -> Result<()> {
+    pub fn pdu_destroy_item(&self, item_ptr: *mut PduItem) -> ApiResult<()> {
         const FUNC: &'static str = "PDUDestroyItem";
         self.log_api_call(FUNC);
 
@@ -262,7 +262,7 @@ impl PduApi {
         Ok(())
     }
 
-    pub fn pdu_get_event_item(&self, target: PduEventTarget) -> Result<Option<PduEvent>> {
+    pub fn pdu_get_event_item(&self, target: PduEventTarget) -> ApiResult<Option<PduEvent>> {
         const FUNC: &'static str = "PDUGetEventItem";
         self.log_api_call(FUNC);
 
@@ -415,7 +415,7 @@ impl PduApi {
         }))
     }
 
-    pub fn pdu_get_version(&self, h_mod: PduModuleHandle) -> Result<PduVersionData> {
+    pub fn pdu_get_version(&self, h_mod: PduModuleHandle) -> ApiResult<PduVersionData> {
         const FUNC: &'static str = "PDUGetVersion";
         self.log_api_call(FUNC);
 
@@ -457,7 +457,7 @@ impl PduApi {
         Ok(version_data)
     }
 
-    pub fn pdu_get_object_id(&self, object: PduObjt, short_name: &str) -> Result<PduObjectId> {
+    pub fn pdu_get_object_id(&self, object: PduObjt, short_name: &str) -> ApiResult<PduObjectId> {
         const FUNC: &'static str = "PDUGetObjectId";
         self.log_api_call(FUNC);
 
@@ -511,7 +511,7 @@ impl PduApi {
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
         object_id: PduObjectIdSource,
-    ) -> Result<PduComParam> {
+    ) -> ApiResult<PduComParam> {
         const FUNC: &'static str = "PDUGetComParam";
         self.log_api_call(FUNC);
 
@@ -658,7 +658,7 @@ impl PduApi {
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
         cp: &PduComParam,
-    ) -> Result<()> {
+    ) -> ApiResult<()> {
         const FUNC: &'static str = "PDUSetComParam";
         self.log_api_call(FUNC);
 
@@ -722,7 +722,7 @@ impl PduApi {
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
         table: &PduComParamTable,
-    ) -> Result<()> {
+    ) -> ApiResult<()> {
         const FUNC: &'static str = "PDUSetUniqueRespIdTable";
         self.log_api_call(FUNC);
 
@@ -817,7 +817,7 @@ impl PduApi {
         &self,
         target: PduEventCallbackTarget,
         callback: Option<EventCallbackFn>,
-    ) -> Result<()> {
+    ) -> ApiResult<()> {
         const FUNC: &'static str = "PDURegisterEventCallback";
         self.log_api_call(FUNC);
 
@@ -884,7 +884,7 @@ impl PduApi {
         cop_type: PduCopt,
         data: &[u8],
         params: Option<&PduComPrimiviteParams>,
-    ) -> Result<PduCopHandle> {
+    ) -> ApiResult<PduCopHandle> {
         const FUNC: &'static str = "PDUStartComPrimitive";
         self.log_api_call(FUNC);
 
@@ -1078,7 +1078,7 @@ impl PduApi {
         target: PduIoCtlTarget,
         command: PduIoCtlCommand,
         data: Option<&PduIoCtlData>,
-    ) -> Result<Option<PduIoCtlData>> {
+    ) -> ApiResult<Option<PduIoCtlData>> {
         const FUNC: &'static str = "PDUIoCtl";
         self.log_api_call(FUNC);
 
@@ -1168,7 +1168,7 @@ impl PduApi {
 
         if !output_data_ptr.is_null() {
             let data = unsafe { &*output_data_ptr };
-            let io_ctl_data: Result<Option<PduIoCtlData>> = unsafe {
+            let io_ctl_data: ApiResult<Option<PduIoCtlData>> = unsafe {
                 match data.item_type {
                     PduIt::IoUnum32 => Ok(Some(data.p_data.cast::<u32>().read().into())),
                     PduIt::IoProgVoltage => {
@@ -1217,7 +1217,7 @@ impl PduApi {
         }
     }
 
-    pub fn pdu_get_module_ids(&self) -> Result<PduModuleList> {
+    pub fn pdu_get_module_ids(&self) -> ApiResult<PduModuleList> {
         const FUNC: &'static str = "PDUGetModuleIds";
         self.log_api_call(FUNC);
 
@@ -1294,7 +1294,7 @@ impl PduApi {
         Ok(module_list)
     }
 
-    pub fn pdu_get_status(&self, target: PduStatusTarget) -> Result<PduStatusData> {
+    pub fn pdu_get_status(&self, target: PduStatusTarget) -> ApiResult<PduStatusData> {
         const FUNC: &'static str = "PDUGetStatus";
         self.log_api_call(FUNC);
 
@@ -1357,7 +1357,7 @@ impl PduApi {
         h_mod: PduModuleHandle,
         create_type: &CllCreateType,
         create_flags: &CllCreateFlags,
-    ) -> Result<PduComLogicalLink> {
+    ) -> ApiResult<PduComLogicalLink> {
         const FUNC: &'static str = "PDUCreateComLogicalLink";
         self.log_api_call(FUNC);
 
@@ -1445,7 +1445,7 @@ impl PduApi {
         &self,
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
-    ) -> Result<()> {
+    ) -> ApiResult<()> {
         const FUNC: &'static str = "PDUDestroyComLogicalLink";
         self.log_api_call(FUNC);
 
@@ -1464,7 +1464,7 @@ impl PduApi {
         Ok(())
     }
 
-    pub fn pdu_get_last_error(&self, target: PduLastErrorTarget) -> Result<PduErrorData> {
+    pub fn pdu_get_last_error(&self, target: PduLastErrorTarget) -> ApiResult<PduErrorData> {
         const FUNC: &'static str = "PDUGetLastError";
         self.log_api_call(FUNC);
 
@@ -1536,7 +1536,7 @@ impl PduApi {
     pub fn pdu_get_resource_status(
         &self,
         resources: Vec<PduResource>,
-    ) -> Result<PduResourceStatus> {
+    ) -> ApiResult<PduResourceStatus> {
         const FUNC: &'static str = "PDUGetResourceStatus";
         self.log_api_call(FUNC);
 
@@ -1631,7 +1631,7 @@ impl PduApi {
         Ok(map)
     }
 
-    pub fn pdu_connect(&self, h_mod: PduModuleHandle, h_cll: PduCllHandle) -> Result<()> {
+    pub fn pdu_connect(&self, h_mod: PduModuleHandle, h_cll: PduCllHandle) -> ApiResult<()> {
         const FUNC: &'static str = "PDUConnect";
         self.log_api_call(FUNC);
 
@@ -1648,7 +1648,7 @@ impl PduApi {
         Ok(())
     }
 
-    pub fn pdu_disconnect(&self, h_mod: PduModuleHandle, h_cll: PduCllHandle) -> Result<()> {
+    pub fn pdu_disconnect(&self, h_mod: PduModuleHandle, h_cll: PduCllHandle) -> ApiResult<()> {
         const FUNC: &'static str = "PDUDisconnect";
         self.log_api_call(FUNC);
 
@@ -1670,7 +1670,7 @@ impl PduApi {
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
         mask: PduLockResourceMask,
-    ) -> Result<()> {
+    ) -> ApiResult<()> {
         const FUNC: &'static str = "PDULockResource";
         self.log_api_call(FUNC);
 
@@ -1702,7 +1702,7 @@ impl PduApi {
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
         mask: PduLockResourceMask,
-    ) -> Result<()> {
+    ) -> ApiResult<()> {
         const FUNC: &'static str = "PDUUnlockResource";
         self.log_api_call(FUNC);
 
@@ -1729,7 +1729,7 @@ impl PduApi {
         Ok(())
     }
 
-    pub fn pdu_module_connect(&self, h_mod: PduModuleHandle) -> Result<()> {
+    pub fn pdu_module_connect(&self, h_mod: PduModuleHandle) -> ApiResult<()> {
         const FUNC: &'static str = "PDUModuleConnect";
         self.log_api_call(FUNC);
 
@@ -1746,9 +1746,11 @@ impl PduApi {
         Ok(())
     }
 
-    pub fn pdu_module_disconnect(&self, h_mod: PduModuleHandle) -> Result<()> {
+    pub fn pdu_module_disconnect(&self, h_mod: Option<PduModuleHandle>) -> ApiResult<()> {
         const FUNC: &'static str = "PDUModuleDisconnect";
         self.log_api_call(FUNC);
+
+        let h_mod = h_mod.unwrap_or(PDU_HANDLE_UNDEF);
 
         trace!(func = FUNC, h_mod, "D-PDU API Call Args");
 
@@ -1769,7 +1771,7 @@ impl PduApi {
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
         h_cop: PduCopHandle,
-    ) -> Result<()> {
+    ) -> ApiResult<()> {
         const FUNC: &'static str = "PDUCancelComPrimitive";
         self.log_api_call(FUNC);
 
@@ -1791,7 +1793,7 @@ impl PduApi {
         &self,
         resource_id: PduObjectId,
         modules: Vec<PduModule>,
-    ) -> Result<PduConflictingModules> {
+    ) -> ApiResult<PduConflictingModules> {
         const FUNC: &'static str = "PDUGetConflictingResources";
         self.log_api_call(FUNC);
 
@@ -1922,7 +1924,7 @@ impl PduApi {
         bus: &BusSource,
         protocol: &ProtocolSource,
         pins: &[TargetPin],
-    ) -> Result<PduModulesResourcesIds> {
+    ) -> ApiResult<PduModulesResourcesIds> {
         const FUNC: &'static str = "PDUGetResourceIds";
         self.log_api_call(FUNC);
 
@@ -2019,7 +2021,7 @@ impl PduApi {
         Ok(map)
     }
 
-    pub fn pdu_get_timestamp(&self, h_mod: PduModuleHandle) -> Result<u32> {
+    pub fn pdu_get_timestamp(&self, h_mod: PduModuleHandle) -> ApiResult<u32> {
         const FUNC: &'static str = "PDUGetTimestamp";
         self.log_api_call(FUNC);
 
@@ -2051,7 +2053,7 @@ impl PduApi {
         &self,
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
-    ) -> Result<PduComParamTable> {
+    ) -> ApiResult<PduComParamTable> {
         const FUNC: &'static str = "PDUGetUniqueRespIdTable";
         self.log_api_call(FUNC);
 
@@ -2234,7 +2236,7 @@ fn target_pins_to_pin_data(
     api: &PduApi,
     func_name: &str,
     pins: &[TargetPin],
-) -> Result<Vec<PinData>> {
+) -> ApiResult<Vec<PinData>> {
     let mut vec = Vec::with_capacity(pins.len());
 
     for pin in pins.iter() {

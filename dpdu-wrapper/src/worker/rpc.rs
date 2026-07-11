@@ -25,7 +25,7 @@ use std::ffi::c_void;
 
 declare_worker_rpc! {
     // Virtual functions.
-    ResolveVciList => _virtual() -> VciList,
+    VciList => _virtual() -> VciList,
 
     // Real D-PDU functions.
     PduCancelComPrimitive => pdu_cancel_com_primitive(h_mod: PduModuleHandle, h_cll: PduCllHandle, h_cop: PduCopHandle) -> (),
@@ -51,7 +51,7 @@ declare_worker_rpc! {
     PduIoCtl => pdu_io_ctl(target: PduIoCtlTarget, command: PduIoCtlCommand, data: Option<PduIoCtlData>) -> Option<PduIoCtlData>,
     PduLockResource => pdu_lock_resource(h_mod: PduModuleHandle, h_cll: PduCllHandle, mask: PduLockResourceMask) -> (),
     PduModuleConnect => pdu_module_connect(h_mod: PduModuleHandle) -> (),
-    PduModuleDisconnect => pdu_module_disconnect(h_mod: PduModuleHandle) -> (),
+    PduModuleDisconnect => pdu_module_disconnect(h_mod: Option<PduModuleHandle>) -> (),
     PduRegisterEventCallback => pdu_register_event_callback(target: PduEventCallbackTarget, callback: Option<EventCallbackFn>) -> (),
     PduSetComParam => pdu_set_com_param(h_mod: PduModuleHandle, h_cll: PduCllHandle, cp: PduComParam) -> (),
     PduSetUniqueRespIdTable => pdu_set_unique_resp_id_table(h_mod: PduModuleHandle, h_cll: PduCllHandle, table: PduComParamTable) -> (),
