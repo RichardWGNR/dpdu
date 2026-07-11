@@ -28,7 +28,7 @@ pub fn declare_worker_rpc(input: TokenStream) -> TokenStream {
         let name = &rpc.variant;
         let ret = &rpc.ret;
         quote! {
-            #name(crate::api::Result<#ret>)
+            #name(crate::api::ApiResult<#ret>)
         }
     });
 
