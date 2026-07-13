@@ -1,5 +1,5 @@
-use crate::types::{PduCllHandle, PduModuleHandle};
-use dpdu_api_types::{PduErrorEvt, PduInfo, PduStatus};
+use crate::types::{PduCllHandle, PduCopHandle, PduModuleHandle, PduUniqueCopTag};
+use dpdu_api_types::{PduErrorEvt, PduInfo, PduStatus, PDU_HANDLE_UNDEF};
 use std::fmt::{Display, Formatter};
 use std::ops::{Deref, DerefMut};
 
@@ -7,13 +7,17 @@ use std::ops::{Deref, DerefMut};
 pub struct PduEvent {
     pub target: PduEventTarget,
 
+    pub h_cop: Option<PduCopHandle>,
+
+    pub cop_tag: Option<PduUniqueCopTag>,
+
     pub timestamp: u32,
 
     /// Желательно создавать через типаж [`Into<PduEventData>`].
     pub data: PduEventData,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone, strum::AsRefStr, strum::Display)]
 pub enum PduEventTarget {
     System,
     Module(PduModuleHandle),
@@ -21,6 +25,20 @@ pub enum PduEventTarget {
 }
 
 impl PduEventTarget {
+    pub(crate) fn from_callback(h_mod: PduModuleHandle, h_cll: PduCllHandle) -> Self {
+        let h_mod_opt = (h_mod != PDU_HANDLE_UNDEF).then(|| h_mod);
+        let h_cll_opt = (h_cll != PDU_HANDLE_UNDEF).then(|| h_cll);
+
+        match (h_mod_opt, h_cll_opt) {
+            (None, None) => PduEventTarget::System,
+            (Some(h_mod), None) => PduEventTarget::Module(h_mod),
+            (Some(h_mod), Some(h_cll)) => PduEventTarget::ComLogicalLink(h_mod, h_cll),
+            _ => {
+                unreachable!("internal error: CLL handle cannot exist without a module handle");
+            }
+        }
+    }
+
     pub fn is_system(&self) -> bool {
         matches!(self, PduEventTarget::System)
     }
@@ -49,7 +67,7 @@ impl PduEventTarget {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, strum::AsRefStr)]
 pub enum PduEventData {
     Status(PduStatusEvent),
 
@@ -85,6 +103,10 @@ impl From<PduInfoEvent> for PduEventData {
 }
 
 impl PduEventData {
+    pub fn as_str(&self) -> &str {
+        self.as_ref()
+    }
+    
     pub fn as_status(&self) -> Option<&PduStatusEvent> {
         match self {
             PduEventData::Status(v) => Some(v),

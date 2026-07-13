@@ -20,8 +20,10 @@ libloading = { version = "0.9.0" }
 rand = { version = "0.10.1" }
 chrono = { version = "0.4.45" }
 murmur3 = { version = "0.5.2" }
-tokio = { version = "1.52.3", features = ["sync", "macros"] }
+tokio = { version = "1.52.3", features = ["sync", "macros", "rt"] }
 crossbeam-channel = { version = "0.5.16" }
+arc-swap = { version = "1.9.2" }
+parking_lot = { version = "0.12.5" }
 
 serde_json = { version = "1.0.150", optional = true }
 

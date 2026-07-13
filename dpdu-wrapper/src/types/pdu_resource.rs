@@ -1,4 +1,4 @@
-use crate::api::{PduApi, Result as ApiResult};
+use crate::api::{PduApi, ApiResult as ApiResult};
 use crate::types::{PduModuleHandle, PduObjectId};
 use dpdu_api_types::PduObjt;
 use std::collections::HashMap;

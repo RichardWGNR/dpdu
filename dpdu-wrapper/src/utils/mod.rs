@@ -1,15 +1,16 @@
 pub mod module_description;
 pub mod root_file;
-pub mod vci_list_resolver;
 
 use crate::types::PduUniqueRespIdentifier;
 use std::ffi::{CStr, c_char, c_void};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Cursor, Read, Seek};
 use std::marker::PhantomData;
+use std::num::NonZeroUsize;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::ptr::NonNull;
+use rand::{random, RngExt};
 
 /// Converts a nullable C string to `Option<String>`.
 ///
@@ -154,4 +155,9 @@ where
     S: AsRef<str>,
 {
     murmur3::murmur3_32(&mut Cursor::new(name.as_ref()), 0).expect("murmur failed")
+}
+
+pub(crate) fn random_non_zero_usize() -> NonZeroUsize {
+    NonZeroUsize::new(rand::rng().random_range(1..=usize::MAX))
+        .expect("internal error: random_range(1..=usize::MAX) cannot return zero")
 }
