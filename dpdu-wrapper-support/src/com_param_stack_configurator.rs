@@ -1,14 +1,14 @@
+use convert_case::Boundary;
 use proc_macro::TokenStream;
-use convert_case::{Boundary};
 use proc_macro2::Ident;
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
-use syn::{parse_macro_input, GenericArgument, PathArguments, Token, Type};
 use syn::punctuated::Punctuated;
+use syn::{GenericArgument, PathArguments, Token, Type, parse_macro_input};
 
 struct ParamDef {
     name: Ident,
-    ty: Type
+    ty: Type,
 }
 
 impl Parse for ParamDef {
@@ -16,10 +16,7 @@ impl Parse for ParamDef {
         let name: Ident = input.parse()?;
         input.parse::<Token![:]>()?;
         let ty: Type = input.parse()?;
-        Ok(ParamDef {
-            name,
-            ty
-        })
+        Ok(ParamDef { name, ty })
     }
 }
 
