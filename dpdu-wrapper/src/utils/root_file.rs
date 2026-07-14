@@ -163,7 +163,7 @@ impl PduRootFile {
             if #[cfg(target_arch = "x86_64")] {
                 let flags = enums::KEY_READ;
             } else if #[cfg(target_arch = "x86")] {
-                let flags = enums::KEY_READ | enums::KEY_WOW64_32_KEY;
+                let flags = enums::KEY_READ | enums::KEY_WOW64_32KEY;
             } else {
                 compile_error!("Unsupported target architecture");
             }
