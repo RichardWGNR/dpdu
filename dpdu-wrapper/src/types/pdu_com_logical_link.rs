@@ -666,7 +666,7 @@ impl StartComm {
     }
 
     pub fn with_param_buffer(mut self, param_buffer: ComParamBuffer) -> Self {
-        self.param_buffer = self.param_buffer;
+        self.param_buffer = param_buffer;
         self
     }
 
@@ -753,7 +753,7 @@ impl StopComm {
     }
 
     pub fn with_param_buffer(mut self, param_buffer: ComParamBuffer) -> Self {
-        self.param_buffer = self.param_buffer;
+        self.param_buffer = param_buffer;
         self
     }
 
@@ -843,7 +843,7 @@ impl SendRecv {
     }
 
     pub fn with_param_buffer(mut self, param_buffer: ComParamBuffer) -> Self {
-        self.param_buffer = self.param_buffer;
+        self.param_buffer = param_buffer;
         self
     }
 

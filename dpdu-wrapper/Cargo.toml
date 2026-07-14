@@ -24,9 +24,8 @@ tokio = { version = "1.52.3", features = ["sync", "macros", "rt"] }
 crossbeam-channel = { version = "0.5.16" }
 arc-swap = { version = "1.9.2" }
 parking_lot = { version = "0.12.5" }
-
-serde_json = { version = "1.0.150", optional = true }
+serde_json = { version = "1.0.150" }
+async-trait = { version = "0.1.89" }
+map-macro = { version = "0.3.0" }
 
 [features]
-default = []
-with-serde-json = ["serde_json"]

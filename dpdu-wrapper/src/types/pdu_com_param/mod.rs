@@ -1,23 +1,29 @@
-use crate::api::{PduApi, ApiResult as ApiResult};
+pub mod stack;
+pub mod table;
+
+use crate::api::{PduApi, ApiResult as ApiResult, ApiError};
 use crate::types::PduObjectId;
 use crate::utils::{PhantomPtr, PhantomRef};
 use dpdu_api_types::{
     PDU_ID_UNDEF, ParamByteFieldData, ParamLongFieldData, ParamStructAccessTiming,
     ParamStructFieldData, ParamStructSessionTiming, PduCpst, PduError, PduObjt, PduPc, PduPt,
 };
-use std::cell::OnceCell;
 use std::ffi::c_void;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
+use std::sync::OnceLock;
+use tokio::task::spawn_blocking;
 use tracing::warn;
+use crate::AsyncRuntimeTarget;
+use crate::worker::{PduAsyncWorker, WorkerResult};
 
 /// With the current design, this structure cannot be created directly. It can only be constructed
-/// via the [`from_*`] ethods. This is done to prevent panics when calling [PduApi::set_com_param()].
+/// via the [`from_*`] methods. This is done to prevent panics when calling [PduApi::set_com_param()].
 ///
 /// Thus, a [ComParam] is always identified either by an ID or a short name.
 #[derive(Clone)]
 pub struct PduComParam {
-    pub(crate) short_name: OnceCell<String>,
+    pub(crate) short_name: OnceLock<String>,
 
     pub(crate) id: PduObjectId,
 
@@ -43,25 +49,24 @@ impl Eq for PduComParam {}
 impl PduComParam {
     pub fn from_id(id: PduObjectId, class: PduPc, variant: impl Into<CpVariant>) -> Self {
         Self {
-            short_name: OnceCell::new(),
+            short_name: OnceLock::new(),
             id,
             class,
             variant: variant.into(),
         }
     }
 
-    /// Recommended way to construct the current structure.
-    pub fn from_short_name(
+    pub fn blocking_from_short_name(
         api: &PduApi,
-        sn: impl Into<String>,
+        short_name: impl Into<String>,
         class: PduPc,
         variant: impl Into<CpVariant>,
     ) -> ApiResult<PduComParam> {
-        let short_name = sn.into();
-        let id = api.pdu_get_object_id(PduObjt::ComParam, &short_name)?;
+        let sn = short_name.into();
+        let id = api.pdu_get_object_id(PduObjt::ComParam, &sn)?;
 
         let com_param = Self {
-            short_name: OnceCell::from(short_name),
+            short_name: sn.into(),
             id,
             class,
             variant: variant.into(),
@@ -73,6 +78,46 @@ impl PduComParam {
                 "ComParam not supported"
             );
             return Err(PduError::ComParamNotSupported)?;
+        }
+
+        Ok(com_param)
+    }
+
+    /// Recommended way to construct the current structure.
+    pub async fn from_short_name<'a>(
+        runtime: impl Into<AsyncRuntimeTarget<'a>>,
+        short_name: impl Into<String>,
+        class: PduPc,
+        variant: impl Into<CpVariant>,
+    ) -> WorkerResult<PduComParam> {
+        let sn = short_name.into();
+        let id = match runtime.into() {
+            AsyncRuntimeTarget::Async(worker) => {
+                worker.pdu_get_object_id(PduObjt::ComParam, &sn).await?
+            },
+            AsyncRuntimeTarget::Sync(api) => {
+                let api = api.clone_arc();
+                let sn = sn.to_owned();
+                let task = move || api.pdu_get_object_id(PduObjt::ComParam, &sn);
+                spawn_blocking(task)
+                    .await
+                    .expect("internal error: PduComParam::blocking_from_short_name() task panicked")?
+            }
+        };
+        
+        let com_param = Self {
+            short_name: sn.into(),
+            id,
+            class,
+            variant: variant.into(),
+        };
+
+        if id == PDU_ID_UNDEF {
+            warn!(
+                com_param = com_param.get_debug_name(),
+                "ComParam not supported"
+            );
+            return Err(ApiError::PduError(PduError::ComParamNotSupported))?;
         }
 
         Ok(com_param)

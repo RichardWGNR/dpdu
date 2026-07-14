@@ -1,6 +1,5 @@
 use crate::types::pdu_com_logical_link::{CllCreateFlags, CllCreateType, PduCllData};
 use crate::types::pdu_com_param::PduComParam;
-use crate::types::pdu_com_param_table::PduComParamTable;
 use crate::types::pdu_com_primitive::{PduComPrimitiveParams, PduCopData};
 use crate::types::pdu_error::{PduErrorData, PduLastErrorTarget};
 use crate::types::pdu_event::{PduEvent, PduEventTarget};
@@ -20,6 +19,7 @@ use crate::utils::UnsafePtr;
 use dpdu_api_types::{EventCallbackFn, PduCopt, PduObjt};
 use dpdu_wrapper_support::declare_worker_rpc;
 use std::ffi::c_void;
+use crate::types::pdu_com_param::table::PduComParamTable;
 use crate::types::pdu_vci::VciList;
 
 declare_worker_rpc! {

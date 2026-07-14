@@ -1,6 +1,5 @@
 pub mod pdu_com_logical_link;
 pub mod pdu_com_param;
-pub mod pdu_com_param_table;
 pub mod pdu_com_primitive;
 pub mod pdu_error;
 pub mod pdu_event;

@@ -3,7 +3,6 @@ use crate::types::pdu_com_param::{
     ByteFieldComParam, CpVariant, LongFieldComParam, PduComParam, StructComParam,
     StructFieldComParam,
 };
-use crate::types::pdu_com_param_table::PduComParamTable;
 use crate::types::pdu_com_primitive::{PduComPrimitiveParams, PduCopData};
 use crate::types::pdu_error::{PduErrorData, PduLastErrorTarget};
 use crate::types::pdu_event::{
@@ -46,12 +45,13 @@ use std::collections::HashMap;
 use std::ffi::{CString, c_void};
 use std::mem::MaybeUninit;
 use std::ptr::NonNull;
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, OnceLock, Weak};
 use std::{ptr, slice};
 use std::num::NonZeroUsize;
 use std::thread::spawn;
 use tracing::{debug, error, trace, warn};
 use crate::handle_manager::PduHandleManager;
+use crate::types::pdu_com_param::table::PduComParamTable;
 
 pub type ApiResult<T> = std::result::Result<T, ApiError>;
 
@@ -171,6 +171,12 @@ impl PduApi {
             result_int = format!("{:#x}", result as usize),
             "D-PDU API Call failed"
         );
+    }
+
+    pub(crate) fn clone_arc(&self) -> Arc<Self> {
+        self.me
+            .upgrade()
+            .expect("internal error: unable to upgrade the Weak<PduApi> pointer") // infallible
     }
 
     fn get_pdu_function<F>(&self, name: &[u8]) -> ApiResult<libloading::Symbol<'_, F>> {
@@ -584,7 +590,7 @@ impl PduApi {
 
             let item = &*item_ptr;
             let data_ptr = item.p_com_param_data;
-            let short_name = OnceCell::new();
+            let short_name = OnceLock::new();
 
             match &object_id {
                 PduObjectIdSource::ShortName(v) => {

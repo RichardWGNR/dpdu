@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::ops::Deref;
-use std::sync::{Arc, LazyLock, Weak};
+use std::sync::{Arc, LazyLock, OnceLock, Weak};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{sleep, spawn};
 use std::time::{Duration, Instant};
 use parking_lot::RwLock;
-use tokio::sync::{mpsc, OnceCell};
+use tokio::sync::{mpsc};
 use tracing::warn;
 use crate::api::PduApi;
 use crate::types::{PduModuleHandle, PduUniqueApiTag, PduUniqueCllTag, PduUniqueCopTag};
@@ -240,7 +240,7 @@ impl PduHandleManager {
 
 #[derive(Debug)]
 pub(crate) struct HandleContainer<T> {
-    reference: OnceCell<Weak<T>>,
-    event_tx: OnceCell<Weak<mpsc::Sender<PduEvent>>>,
+    reference: OnceLock<Weak<T>>,
+    event_tx: OnceLock<Weak<mpsc::Sender<PduEvent>>>,
     created_at: Instant
 }
