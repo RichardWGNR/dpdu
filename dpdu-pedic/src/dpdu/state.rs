@@ -11,17 +11,21 @@ pub struct PduState {
 
 impl PduState {
     pub fn set_constructed(&self, status: bool) -> &Self {
-        self.constructed.store(status, Ordering::Relaxed);
+        self.constructed.store(status, Ordering::Release);
         self
     }
 
     pub fn is_constructed(&self) -> bool {
-        self.constructed.load(Ordering::Relaxed)
+        self.constructed.load(Ordering::Acquire)
     }
 
     pub fn set_api_tag(&self, tag: usize) -> &Self {
-        self.api_tag.store(tag, Ordering::Relaxed);
+        self.api_tag.store(tag, Ordering::Release);
         self
+    }
+    
+    pub fn get_api_tag(&self) -> usize {
+        self.api_tag.load(Ordering::Acquire)
     }
 
     pub fn destruct(&self) {
