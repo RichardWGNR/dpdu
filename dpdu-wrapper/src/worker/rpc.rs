@@ -1,6 +1,7 @@
 use crate::types::pdu_com_logical_link::{CllCreateFlags, CllCreateType, PduCllData};
 use crate::types::pdu_com_param::PduComParam;
-use crate::types::pdu_com_primitive::{PduComPrimitiveParams, PduCopData};
+use crate::types::pdu_com_param::table::PduComParamTable;
+use crate::types::pdu_com_primitive::{PduPrimitiveParams, PduCopData};
 use crate::types::pdu_error::{PduErrorData, PduLastErrorTarget};
 use crate::types::pdu_event::{PduEvent, PduEventTarget};
 use crate::types::pdu_io_ctl::{PduIoCtlCommand, PduIoCtlData, PduIoCtlTarget};
@@ -13,19 +14,23 @@ use crate::types::pdu_resource::{
     BusSource, PduResource, PduResourceStatus, ProtocolSource, TargetPin,
 };
 use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
+use crate::types::pdu_vci::VciList;
 use crate::types::pdu_version::PduVersionData;
-use crate::types::{PduCllHandle, PduCopHandle, PduModuleHandle, PduObjectId, PduUniqueCllTag, PduUniqueCopTag};
+use crate::types::{
+    PduCllHandle, PduCopHandle, PduModuleHandle, PduObjectId, PduUniqueCllTag, PduUniqueCopTag,
+};
 use crate::utils::UnsafePtr;
 use dpdu_api_types::{EventCallbackFn, PduCopt, PduObjt};
 use dpdu_wrapper_support::declare_worker_rpc;
 use std::ffi::c_void;
-use crate::types::pdu_com_param::table::PduComParamTable;
-use crate::types::pdu_vci::VciList;
 
 declare_worker_rpc! {
     // Virtual functions.
-    VciList => get_vci_list() -> VciList,
-
+    VtVciList => get_vci_list() -> VciList,
+    VtModuleDestructor => _virtual(h_mod: PduModuleHandle) -> (),
+    VtCllDestructor => _virtual(h_mod: PduModuleHandle, h_cll: PduCllHandle) -> (),
+    VtCopDestructor => _virtual(h_mod: PduModuleHandle, h_cll: PduCllHandle, h_cop: PduCopHandle) -> (),
+    
     // Real D-PDU functions.
     PduCancelComPrimitive => pdu_cancel_com_primitive(h_mod: PduModuleHandle, h_cll: PduCllHandle, h_cop: PduCopHandle) -> (),
     PduConnect => pdu_connect(h_mod: PduModuleHandle, h_cll: PduCllHandle) -> (),
@@ -40,10 +45,11 @@ declare_worker_rpc! {
     PduGetEventItem => pdu_get_event_item(target: PduEventTarget) -> Option<PduEvent>,
     PduGetLastError => pdu_get_last_error(target: PduLastErrorTarget) -> PduErrorData,
     PduGetModuleIds => pdu_get_module_ids() -> PduModuleList,
-    PduGetObjectId => pdu_get_object_id(object: PduObjt, short_name: Into<String>) -> PduObjectId,
+    PduGetObjectId => pdu_get_object_id(object: PduObjt, short_name: Into<String>) -> Option<PduObjectId>,
     PduGetResourceIds => pdu_get_resource_ids(h_mod: Option<PduModuleHandle>, bus: BusSource, protocol: ProtocolSource, pins: Vec<TargetPin>) -> PduModulesResourcesIds,
     PduGetResourceStatus => pdu_get_resource_status(resources: Vec<PduResource>) -> PduResourceStatus,
     PduGetStatus => pdu_get_status(target: PduStatusTarget) -> PduStatusData,
+    //PduGetStatusWithSuppressInvalidHandle => pdu_get_status_with_suppress_invalid_handle(target: PduStatusTarget) -> PduStatusData,
     PduGetTimestamp => pdu_get_timestamp(h_mod: PduModuleHandle) -> u32,
     PduGetUniqueRespIdTable => pdu_get_unique_resp_id_table(h_mod: PduModuleHandle, h_cll: PduCllHandle) -> PduComParamTable,
     PduGetVersion => pdu_get_version(h_mod: PduModuleHandle) -> PduVersionData,
@@ -54,6 +60,6 @@ declare_worker_rpc! {
     PduRegisterEventCallback => pdu_register_event_callback(target: PduEventTarget, callback: Option<EventCallbackFn>) -> (),
     PduSetComParam => pdu_set_com_param(h_mod: PduModuleHandle, h_cll: PduCllHandle, cp: PduComParam) -> (),
     PduSetUniqueRespIdTable => pdu_set_unique_resp_id_table(h_mod: PduModuleHandle, h_cll: PduCllHandle, table: PduComParamTable) -> (),
-    PduStartComPrimitive => pdu_start_com_primitive(h_mod: PduModuleHandle, h_cll: PduCllHandle, cop_type: PduCopt, data: Vec<u8>, params: Option<PduComPrimitiveParams>, tag: Option<PduUniqueCopTag>) -> PduCopData,
+    PduStartComPrimitive => pdu_start_com_primitive(h_mod: PduModuleHandle, h_cll: PduCllHandle, cop_type: PduCopt, data: Vec<u8>, params: Option<PduPrimitiveParams>, tag: Option<PduUniqueCopTag>) -> PduCopData,
     PduUnlockResource => pdu_unlock_resource(h_mod: PduModuleHandle, h_cll: PduCllHandle, mask: PduLockResourceMask) -> (),
 }

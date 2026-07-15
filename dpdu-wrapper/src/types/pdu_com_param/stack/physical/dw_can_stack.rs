@@ -1,7 +1,9 @@
+use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
+use crate::types::pdu_com_param::table::{
+    ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
+};
 use dpdu_wrapper_support::impl_configure_from_serde_json_map_for_com_param_stack;
 use map_macro::hash_set;
-use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
-use crate::types::pdu_com_param::table::{ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable};
 
 /// Стек возможных коммуникационных параметров для физического протокола DW CAN (ISO 11898-2).
 ///
@@ -118,6 +120,58 @@ impl Default for DwCanStack {
     }
 }
 
+impl DwCanStack {
+    pub fn with_baudrate(mut self, rate: u32) -> Self {
+        self.baudrate = rate;
+        self
+    }
+
+    pub fn with_canfd_baudate(mut self, rate: u32) -> Self {
+        self.canfd_baudrate = rate;
+        self
+    }
+
+    pub fn with_canfd_bit_sample_point(mut self, point: u32) -> Self {
+        self.canfd_bit_sample_point = point;
+        self
+    }
+
+    pub fn with_canfd_sync_jump_width(mut self, width: u32) -> Self {
+        self.canfd_sync_jump_width = width;
+        self
+    }
+
+    pub fn with_bit_sample_point(mut self, point: u32) -> Self {
+        self.bit_sample_point = point;
+        self
+    }
+
+    pub fn with_can_baudrate_record(mut self, record: Vec<u32>) -> Self {
+        self.can_baudrate_record = record;
+        self
+    }
+
+    pub fn with_listen_only(mut self, status: bool) -> Self {
+        self.listen_only = if status { 1 } else { 0 };
+        self
+    }
+
+    pub fn with_samples_per_bit(mut self, samples: u32) -> Self {
+        self.samples_per_bit = samples;
+        self
+    }
+
+    pub fn with_sync_jump_width(mut self, width: u32) -> Self {
+        self.sync_jump_width = width;
+        self
+    }
+
+    pub fn with_termination_type(mut self, typ: u32) -> Self {
+        self.termination_type = typ;
+        self
+    }
+}
+
 impl ComParamDefinitionStack for DwCanStack {
     impl_configure_from_serde_json_map_for_com_param_stack! {
         CP_Baudrate: u32,
@@ -134,7 +188,7 @@ impl ComParamDefinitionStack for DwCanStack {
 
     fn build_set(&self) -> ComParamDefinitionSet<ComParamDefinition> {
         use crate::types::pdu_com_param::table::ComParamDefinition as Def;
-        use dpdu_api_types::PduPc::{BusType};
+        use dpdu_api_types::PduPc::BusType;
 
         ComParamDefinitionSet(hash_set! {
             // Bus type.
@@ -143,7 +197,8 @@ impl ComParamDefinitionStack for DwCanStack {
             Def::new(BusType, "CP_CANFDBaudrate", self.canfd_baudrate),
             Def::new(BusType, "CP_CANFDBitSamplePoint", self.canfd_bit_sample_point),
             Def::new(BusType, "CP_CANFDSyncJumpWidth", self.canfd_sync_jump_width),
-            Def::new(BusType, "CP_CanBaudrateRecord", (self.can_baudrate_record.clone(), 255)),
+            //Def::new(BusType, "CP_CanBaudrateRecord", (self.can_baudrate_record.clone(), 255)),
+            Def::new(BusType, "CP_CanBaudrateRecord", self.can_baudrate_record.clone()),
             Def::new(BusType, "CP_ListenOnly", self.listen_only),
             Def::new(BusType, "CP_SamplesPerBit", self.samples_per_bit),
             Def::new(BusType, "CP_SyncJumpWidth", self.sync_jump_width),

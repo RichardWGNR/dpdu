@@ -13,8 +13,8 @@ pub struct PduStatusData {
 pub enum PduStatusTarget {
     System,
     Module(PduModuleHandle),
-    ComLogicalLink(PduModuleHandle, PduCllHandle),
-    ComPrimivite(PduModuleHandle, PduCllHandle, PduCopHandle),
+    LogicalLink(PduModuleHandle, PduCllHandle),
+    Primitive(PduModuleHandle, PduCllHandle, PduCopHandle),
 }
 
 impl PduStatusTarget {
@@ -26,34 +26,34 @@ impl PduStatusTarget {
         matches!(self, PduStatusTarget::Module(..))
     }
 
-    pub fn is_com_logical_link(&self) -> bool {
-        matches!(self, PduStatusTarget::ComLogicalLink(..))
+    pub fn is_logical_link(&self) -> bool {
+        matches!(self, PduStatusTarget::LogicalLink(..))
     }
 
-    pub fn is_com_primivite(&self) -> bool {
-        matches!(self, PduStatusTarget::ComPrimivite(..))
+    pub fn is_primitive(&self) -> bool {
+        matches!(self, PduStatusTarget::Primitive(..))
     }
 
     pub fn get_module_handle(&self) -> Option<PduModuleHandle> {
         match self {
             Self::Module(h_mod) => Some(h_mod.clone()),
-            Self::ComLogicalLink(h_mod, ..) => Some(h_mod.clone()),
-            Self::ComPrimivite(h_mod, ..) => Some(h_mod.clone()),
+            Self::LogicalLink(h_mod, ..) => Some(h_mod.clone()),
+            Self::Primitive(h_mod, ..) => Some(h_mod.clone()),
             _ => None,
         }
     }
 
     pub fn get_cll_handle(&self) -> Option<PduCllHandle> {
         match self {
-            Self::ComLogicalLink(_, h_cll, ..) => Some(h_cll.clone()),
-            Self::ComPrimivite(_, h_cll, ..) => Some(h_cll.clone()),
+            Self::LogicalLink(_, h_cll, ..) => Some(h_cll.clone()),
+            Self::Primitive(_, h_cll, ..) => Some(h_cll.clone()),
             _ => None,
         }
     }
 
     pub fn get_cop_handle(&self) -> Option<PduCopHandle> {
         match self {
-            Self::ComPrimivite(_, _, h_cop) => Some(h_cop.clone()),
+            Self::Primitive(_, _, h_cop) => Some(h_cop.clone()),
             _ => None,
         }
     }

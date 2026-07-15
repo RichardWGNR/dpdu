@@ -25,19 +25,19 @@ impl PduModuleData {
     pub fn get_module_handle(&self) -> PduModuleHandle {
         self.h_mod
     }
-    
+
     pub fn get_module_type_id(&self) -> u32 {
         self.module_type_id
     }
-    
+
     pub fn get_vendor_module_name(&self) -> Option<&String> {
         self.vendor_module_name.as_ref()
     }
-    
+
     pub fn get_vendor_additional_info(&self) -> Option<&String> {
         self.vendor_additional_info.as_ref()
     }
-    
+
     pub fn get_status(&self) -> &PduStatus {
         &self.status
     }

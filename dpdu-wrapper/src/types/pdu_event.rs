@@ -1,5 +1,5 @@
 use crate::types::{PduCllHandle, PduCopHandle, PduModuleHandle, PduUniqueCopTag};
-use dpdu_api_types::{PduErrorEvt, PduInfo, PduStatus, PDU_HANDLE_UNDEF};
+use dpdu_api_types::{PDU_HANDLE_UNDEF, PduErrorEvt, PduInfo, PduStatus};
 use std::fmt::{Display, Formatter};
 use std::ops::{Deref, DerefMut};
 
@@ -21,7 +21,7 @@ pub struct PduEvent {
 pub enum PduEventTarget {
     System,
     Module(PduModuleHandle),
-    ComLogicalLink(PduModuleHandle, PduCllHandle),
+    LogicalLink(PduModuleHandle, PduCllHandle),
 }
 
 impl PduEventTarget {
@@ -32,7 +32,7 @@ impl PduEventTarget {
         match (h_mod_opt, h_cll_opt) {
             (None, None) => PduEventTarget::System,
             (Some(h_mod), None) => PduEventTarget::Module(h_mod),
-            (Some(h_mod), Some(h_cll)) => PduEventTarget::ComLogicalLink(h_mod, h_cll),
+            (Some(h_mod), Some(h_cll)) => PduEventTarget::LogicalLink(h_mod, h_cll),
             _ => {
                 unreachable!("internal error: CLL handle cannot exist without a module handle");
             }
@@ -47,21 +47,21 @@ impl PduEventTarget {
         matches!(self, PduEventTarget::Module(..))
     }
 
-    pub fn is_com_logical_link(&self) -> bool {
-        matches!(self, PduEventTarget::ComLogicalLink(..))
+    pub fn is_logical_link(&self) -> bool {
+        matches!(self, PduEventTarget::LogicalLink(..))
     }
 
     pub fn get_module_handle(&self) -> Option<PduModuleHandle> {
         match self {
             PduEventTarget::Module(h_mod) => Some(h_mod.clone()),
-            PduEventTarget::ComLogicalLink(h_mod, ..) => Some(h_mod.clone()),
+            PduEventTarget::LogicalLink(h_mod, ..) => Some(h_mod.clone()),
             _ => None,
         }
     }
 
     pub fn get_cll_handle(&self) -> Option<PduCllHandle> {
         match self {
-            PduEventTarget::ComLogicalLink(_, h_cll) => Some(h_cll.clone()),
+            PduEventTarget::LogicalLink(_, h_cll) => Some(h_cll.clone()),
             _ => None,
         }
     }
@@ -106,7 +106,7 @@ impl PduEventData {
     pub fn as_str(&self) -> &str {
         self.as_ref()
     }
-    
+
     pub fn as_status(&self) -> Option<&PduStatusEvent> {
         match self {
             PduEventData::Status(v) => Some(v),
@@ -136,6 +136,7 @@ impl PduEventData {
     }
 }
 
+#[repr(transparent)]
 #[derive(Debug, Clone)]
 pub struct PduStatusEvent(pub PduStatus);
 

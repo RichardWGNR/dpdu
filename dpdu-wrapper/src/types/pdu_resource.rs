@@ -1,6 +1,6 @@
-use crate::api::{PduApi, ApiResult as ApiResult};
+use crate::api::{ApiResult, PduApi};
 use crate::types::{PduModuleHandle, PduObjectId};
-use dpdu_api_types::PduObjt;
+use dpdu_api_types::{PduError, PduObjt};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
@@ -69,10 +69,26 @@ pub enum BusSource {
 }
 
 impl BusSource {
-    pub(crate) fn resolve_bus_id(&self, api: &PduApi) -> ApiResult<PduObjectId> {
+    pub fn dual_wire_can() -> Self {
+        BusSource::Name("ISO_11898_2_DWCAN".into())
+    }
+
+    pub(crate) fn resolve_bus_id(&self, func: &str, api: &PduApi) -> ApiResult<PduObjectId> {
         Ok(match self {
             BusSource::Id(id) => id.clone(),
-            BusSource::Name(name) => api.pdu_get_object_id(PduObjt::BusType, name)?,
+            BusSource::Name(name) => {
+                let Some(id) = api.pdu_get_object_id(PduObjt::BusType, name)? else {
+                    let result = PduError::InvalidParameters;
+                    api.log_api_call_virtual_fail(
+                        func,
+                        result,
+                        &format!("Unable to lookup bus type by name: {name}"),
+                        None
+                    );
+                    return Err(result)?;
+                };
+                id
+            },
         })
     }
 }
@@ -122,10 +138,34 @@ pub enum ProtocolSource {
 }
 
 impl ProtocolSource {
-    pub(crate) fn resolve_protocol_id(&self, api: &PduApi) -> ApiResult<PduObjectId> {
+    pub fn uds_on_iso_tp() -> Self {
+        ProtocolSource::Name("ISO_15765_3_on_ISO_15765_2".into())
+    }
+
+    pub fn kwp_on_iso_tp() -> Self {
+        ProtocolSource::Name("ISO_14230_3_on_ISO_15765_2".into())
+    }
+
+    pub fn iso_11898_raw() -> Self {
+        ProtocolSource::Name("ISO_11898_RAW".into())
+    }
+
+    pub(crate) fn resolve_protocol_id(&self, func: &str, api: &PduApi) -> ApiResult<PduObjectId> {
         Ok(match self {
             ProtocolSource::Id(id) => id.clone(),
-            ProtocolSource::Name(name) => api.pdu_get_object_id(PduObjt::Protocol, name)?,
+            ProtocolSource::Name(name) => {
+                let Some(id) = api.pdu_get_object_id(PduObjt::Protocol, name)? else {
+                    let result = PduError::InvalidParameters;
+                    api.log_api_call_virtual_fail(
+                        func,
+                        result,
+                        &format!("Unable to lookup protocol by name: {name}"),
+                        None
+                    );
+                    return Err(result)?;
+                };
+                id
+            },
         })
     }
 }
@@ -206,4 +246,13 @@ pub struct TargetPin {
     pub num_on_vci: u32,
 
     pub pin_type: PinSource,
+}
+
+impl TargetPin {
+    pub fn obd_dual_wire_can() -> Vec<TargetPin> {
+        vec![
+            TargetPin { num_on_vci: 6, pin_type: PinSource::Name("HI".into()) },
+            TargetPin { num_on_vci: 14, pin_type: PinSource::Name("LOW".into()) }
+        ]
+    }
 }

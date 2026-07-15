@@ -1,9 +1,11 @@
 pub mod stack;
 pub mod table;
 
-use crate::api::{PduApi, ApiResult as ApiResult, ApiError};
+use crate::AsyncRuntimeTarget;
+use crate::api::{ApiError, ApiResult, PduApi};
 use crate::types::PduObjectId;
 use crate::utils::{PhantomPtr, PhantomRef};
+use crate::worker::{WorkerResult};
 use dpdu_api_types::{
     PDU_ID_UNDEF, ParamByteFieldData, ParamLongFieldData, ParamStructAccessTiming,
     ParamStructFieldData, ParamStructSessionTiming, PduCpst, PduError, PduObjt, PduPc, PduPt,
@@ -14,8 +16,6 @@ use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 use tokio::task::spawn_blocking;
 use tracing::warn;
-use crate::AsyncRuntimeTarget;
-use crate::worker::{PduAsyncWorker, WorkerResult};
 
 /// With the current design, this structure cannot be created directly. It can only be constructed
 /// via the [`from_*`] methods. This is done to prevent panics when calling [PduApi::set_com_param()].
@@ -63,7 +63,10 @@ impl PduComParam {
         variant: impl Into<CpVariant>,
     ) -> ApiResult<PduComParam> {
         let sn = short_name.into();
-        let id = api.pdu_get_object_id(PduObjt::ComParam, &sn)?;
+        let Some(id) = api.pdu_get_object_id(PduObjt::ComParam, &sn)? else {
+            warn!("Unsupported comparam: {sn}");
+            return Err(PduError::ComParamNotSupported)?;
+        };
 
         let com_param = Self {
             short_name: sn.into(),
@@ -71,14 +74,6 @@ impl PduComParam {
             class,
             variant: variant.into(),
         };
-
-        if id == PDU_ID_UNDEF {
-            warn!(
-                com_param = com_param.get_debug_name(),
-                "ComParam not supported"
-            );
-            return Err(PduError::ComParamNotSupported)?;
-        }
 
         Ok(com_param)
     }
@@ -94,31 +89,30 @@ impl PduComParam {
         let id = match runtime.into() {
             AsyncRuntimeTarget::Async(worker) => {
                 worker.pdu_get_object_id(PduObjt::ComParam, &sn).await?
-            },
+            }
             AsyncRuntimeTarget::Sync(api) => {
                 let api = api.clone_arc();
-                let sn = sn.to_owned();
-                let task = move || api.pdu_get_object_id(PduObjt::ComParam, &sn);
+                let name = sn.to_owned();
+                let task = move || api.pdu_get_object_id(PduObjt::ComParam, &name);
                 spawn_blocking(task)
                     .await
-                    .expect("internal error: PduComParam::blocking_from_short_name() task panicked")?
+                    .expect(
+                        "internal error: PduComParam::blocking_from_short_name() task panicked"
+                    )?
             }
         };
-        
+
+        let Some(id) = id else {
+            warn!("Unsupported comparam: {sn}");
+            return Err(ApiError::PduError(PduError::ComParamNotSupported))?;
+        };
+
         let com_param = Self {
             short_name: sn.into(),
             id,
             class,
             variant: variant.into(),
         };
-
-        if id == PDU_ID_UNDEF {
-            warn!(
-                com_param = com_param.get_debug_name(),
-                "ComParam not supported"
-            );
-            return Err(ApiError::PduError(PduError::ComParamNotSupported))?;
-        }
 
         Ok(com_param)
     }
@@ -173,7 +167,7 @@ impl ByteFieldComParam {
         data.reserve(capacity - len);
 
         FieldComParam {
-            capacity,
+            capacity: data.capacity(),
             owned_data: data,
             struct_type: None,
         }
@@ -205,7 +199,7 @@ impl StructFieldComParam {
         data.reserve(capacity - len);
 
         FieldComParam {
-            capacity: data.len(),
+            capacity: data.capacity(),
             owned_data: data,
             struct_type: Some(struct_type),
         }
@@ -234,7 +228,7 @@ impl LongFieldComParam {
         data.reserve(capacity - len);
 
         FieldComParam {
-            capacity: data.len(),
+            capacity: data.capacity(),
             owned_data: data,
             struct_type: None,
         }
@@ -443,7 +437,7 @@ impl CpVariant {
             Self::Unum16(..) => PduPt::Unum16,
             Self::Snum16(..) => PduPt::Snum16,
 
-            Self::Unum32(..) => PduPt::Snum32,
+            Self::Unum32(..) => PduPt::Unum32,
             Self::Snum32(..) => PduPt::Snum32,
 
             Self::ByteField(..) => PduPt::ByteField,

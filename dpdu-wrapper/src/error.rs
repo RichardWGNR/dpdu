@@ -10,5 +10,5 @@ pub enum GeneralPduError {
     WorkerError(#[from] crate::worker::WorkerError),
 
     #[error("cop error: {0}")]
-    CopError(#[from] crate::types::pdu_com_primitive::CopError)
+    CopError(#[from] crate::types::pdu_com_primitive::CopError),
 }

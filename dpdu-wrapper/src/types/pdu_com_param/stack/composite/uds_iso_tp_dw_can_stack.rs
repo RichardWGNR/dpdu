@@ -1,9 +1,11 @@
-use std::collections::HashMap;
-use crate::types::pdu_com_param::stack::application::UdsStack;
 use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
+use crate::types::pdu_com_param::stack::application::UdsStack;
 use crate::types::pdu_com_param::stack::physical::DwCanStack;
 use crate::types::pdu_com_param::stack::transport::IsoTpStack;
-use crate::types::pdu_com_param::table::{ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable};
+use crate::types::pdu_com_param::table::{
+    ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
+};
+use std::collections::HashMap;
 
 /// Layers:
 ///   - Application: ISO 14229-3 (UDS)

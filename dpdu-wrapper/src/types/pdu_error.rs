@@ -18,7 +18,7 @@ pub struct PduErrorData {
 pub enum PduLastErrorTarget {
     System,
     Module(PduModuleHandle),
-    ComLogicalLink(PduModuleHandle, PduCllHandle),
+    LogicalLink(PduModuleHandle, PduCllHandle),
 }
 
 impl PduLastErrorTarget {
@@ -30,21 +30,21 @@ impl PduLastErrorTarget {
         matches!(self, PduLastErrorTarget::Module(..))
     }
 
-    pub fn is_com_logical_link(&self) -> bool {
-        matches!(self, PduLastErrorTarget::ComLogicalLink(..))
+    pub fn is_logical_link(&self) -> bool {
+        matches!(self, PduLastErrorTarget::LogicalLink(..))
     }
 
     pub fn get_module_handle(&self) -> Option<PduModuleHandle> {
         match self {
             PduLastErrorTarget::Module(h_mod) => Some(h_mod.clone()),
-            PduLastErrorTarget::ComLogicalLink(h_mod, ..) => Some(h_mod.clone()),
+            PduLastErrorTarget::LogicalLink(h_mod, ..) => Some(h_mod.clone()),
             _ => None,
         }
     }
 
     pub fn get_cll_handle(&self) -> Option<PduCllHandle> {
         match self {
-            PduLastErrorTarget::ComLogicalLink(_, h_cll) => Some(h_cll.clone()),
+            PduLastErrorTarget::LogicalLink(_, h_cll) => Some(h_cll.clone()),
             _ => None,
         }
     }

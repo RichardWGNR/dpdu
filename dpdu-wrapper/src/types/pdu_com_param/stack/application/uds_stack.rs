@@ -1,8 +1,10 @@
+use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
+use crate::types::pdu_com_param::table::{
+    ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
+};
 use dpdu_api_types::ParamStructSessionTiming;
 use dpdu_wrapper_support::impl_configure_from_serde_json_map_for_com_param_stack;
 use map_macro::hash_set;
-use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
-use crate::types::pdu_com_param::table::{ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable};
 
 /// Стек возможных коммуникационных параметров для протокола приложения UDS (ISO 14229-3).
 ///
@@ -381,8 +383,7 @@ impl ComParamDefinitionStack for UdsStack {
 
     fn build_set(&self) -> ComParamDefinitionSet<ComParamDefinition> {
         use ComParamDefinition as Def;
-        use dpdu_api_types::PduPc::{Timing as Time, ErrHdl, Com, TesterPresent as Tp};
-
+        use dpdu_api_types::PduPc::{Com, ErrHdl, TesterPresent as Tp, Timing as Time};
 
         ComParamDefinitionSet(hash_set! {
             // Timings.

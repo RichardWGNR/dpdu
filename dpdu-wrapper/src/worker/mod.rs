@@ -1,7 +1,8 @@
 mod rpc;
 
-use crate::api::ApiError as ApiError;
+use crate::api::ApiError;
 use crate::api::PduApi;
+use crate::types::pdu_vci::PduVci;
 use crossbeam_channel::select;
 pub use rpc::Query;
 pub use rpc::Response;
@@ -9,7 +10,7 @@ use std::sync::{Arc, Weak};
 use std::thread::spawn;
 use tokio::sync::oneshot;
 use tracing::{info, warn};
-use crate::types::pdu_vci::PduVci;
+use crate::types::PduModuleHandle;
 
 pub type WorkerResult<T> = std::result::Result<T, WorkerError>;
 
@@ -57,11 +58,10 @@ impl PduAsyncWorker {
                 let shdn_rx = shdn_rx.clone();
                 let cmd_rx = cmd_rx.clone();
 
-                let thread_result = spawn(move || PduAsyncWorker::command_thread(
-                    api.clone(),
-                    shdn_rx.clone(),
-                    cmd_rx.clone())
-                ).join();
+                let thread_result = spawn(move || {
+                    PduAsyncWorker::command_thread(api.clone(), shdn_rx.clone(), cmd_rx.clone())
+                })
+                .join();
 
                 if thread_result.is_ok() {
                     break; // normal thread termination
@@ -78,7 +78,11 @@ impl PduAsyncWorker {
         &self.api
     }
 
-    pub(crate) fn request(&self, query: Query, tx: Option<oneshot::Sender<Response>>) -> WorkerResult<()> {
+    pub(crate) fn request(
+        &self,
+        query: Query,
+        tx: Option<oneshot::Sender<Response>>,
+    ) -> WorkerResult<()> {
         self.query_tx
             .try_send((query, tx))
             .map_err(|err| WorkerError::ChannelError(err.to_string()))?;
@@ -108,10 +112,13 @@ impl PduAsyncWorker {
                             unreachable!("Unexpected command receive errror: {}", err);
                         }
                     };
-
+                    
                     let response = match query {
                         // Virtual functions.
-                        Q::VciList => R::VciList(PduVci::blocking_list(&api)),
+                        Q::VtVciList => R::VtVciList(PduVci::blocking_list(&api)),
+                        Q::VtModuleDestructor(h_mod) => R::VtModuleDestructor(api.vt_module_destructor(h_mod)),
+                        Q::VtCllDestructor(h_mod, h_cll) => R::VtCllDestructor(api.vt_cll_destructor(h_mod, h_cll)),
+                        Q::VtCopDestructor(h_mod, h_cll, h_cop) => R::VtCopDestructor(api.vt_cop_destructor(h_mod, h_cll, h_cop)),
 
                         // Real D-PDU API queries.
                         Q::PduCancelComPrimitive(h_mod, h_cll, h_cop) => R::PduCancelComPrimitive(api.pdu_cancel_com_primitive(h_mod, h_cll, h_cop)),

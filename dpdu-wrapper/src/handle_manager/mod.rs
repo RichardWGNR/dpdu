@@ -1,17 +1,17 @@
+use crate::api::PduApi;
+use crate::types::pdu_com_logical_link::PduLogicalLink;
+use crate::types::pdu_com_primitive::PduPrimitive;
+use crate::types::pdu_event::PduEvent;
+use crate::types::{PduModuleHandle, PduUniqueApiTag, PduUniqueCllTag, PduUniqueCopTag};
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::ops::Deref;
-use std::sync::{Arc, LazyLock, OnceLock, Weak};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, LazyLock, OnceLock, Weak};
 use std::thread::{sleep, spawn};
 use std::time::{Duration, Instant};
-use parking_lot::RwLock;
-use tokio::sync::{mpsc};
+use tokio::sync::mpsc;
 use tracing::warn;
-use crate::api::PduApi;
-use crate::types::{PduModuleHandle, PduUniqueApiTag, PduUniqueCllTag, PduUniqueCopTag};
-use crate::types::pdu_com_logical_link::PduComLogicalLink;
-use crate::types::pdu_com_primitive::PduComPrimitive;
-use crate::types::pdu_event::PduEvent;
 
 static MGR: LazyLock<Arc<PduHandleManager>> = LazyLock::new(|| PduHandleManager::new());
 static CONSTRUCTED: AtomicBool = AtomicBool::new(false);
@@ -20,8 +20,8 @@ static CONSTRUCTED: AtomicBool = AtomicBool::new(false);
 #[derive(Debug)]
 pub struct PduHandleManager {
     apis: RwLock<HashMap<PduUniqueApiTag, Weak<PduApi>>>,
-    clls: RwLock<HashMap<(PduUniqueApiTag, PduUniqueCllTag), HandleContainer<PduComLogicalLink>>>,
-    cops: RwLock<HashMap<(PduUniqueApiTag, PduUniqueCopTag), HandleContainer<PduComPrimitive>>>
+    clls: RwLock<HashMap<(PduUniqueApiTag, PduUniqueCllTag), HandleContainer<PduLogicalLink>>>,
+    cops: RwLock<HashMap<(PduUniqueApiTag, PduUniqueCopTag), HandleContainer<PduPrimitive>>>,
 }
 
 impl PduHandleManager {
@@ -41,7 +41,7 @@ impl PduHandleManager {
         let me = Arc::new(Self {
             apis: RwLock::default(),
             clls: RwLock::default(),
-            cops: RwLock::default()
+            cops: RwLock::default(),
         });
 
         CONSTRUCTED.store(true, Ordering::Relaxed);
@@ -76,44 +76,50 @@ impl PduHandleManager {
         apis.get(&unique_id)?.upgrade()
     }
 
+    /// Returns the only one D-PDU API that is registered.
+    /// If several are registered, it returns None.
+    /// This is necessary for those D-PDU drivers that cannot work with the API tag.
+    pub(crate) fn get_single_api() -> Option<Arc<PduApi>> {
+        let apis = MGR.apis.read();
+        if apis.len() != 1 {
+            return None;
+        }
+        apis.iter().next().and_then(|(_, api)| api.upgrade())
+    }
+
     pub(crate) fn register_cll(
         api_tag: PduUniqueApiTag,
         cll_tag: PduUniqueCllTag,
         tx: Option<Weak<mpsc::Sender<PduEvent>>>,
-        cll: Option<Weak<PduComLogicalLink>>,
+        cll: Option<Weak<PduLogicalLink>>,
     ) {
         let mut clls = MGR.clls.write();
 
-        let container = clls
-            .entry((api_tag, cll_tag))
-            .or_insert(HandleContainer {
-                reference: Default::default(),
-                event_tx: Default::default(),
-                created_at: Instant::now(),
-            });
+        let container = clls.entry((api_tag, cll_tag)).or_insert(HandleContainer {
+            reference: Default::default(),
+            event_tx: Default::default(),
+            created_at: Instant::now(),
+        });
 
         if let Some(tx) = tx {
-            container
-                .event_tx
-                .set(tx)
-                .expect(&format!("internal error: event_tx already registered for cll tag {cll_tag}"));
+            container.event_tx.set(tx).expect(&format!(
+                "internal error: event_tx already registered for cll tag {cll_tag}"
+            ));
         }
 
         if let Some(cll) = cll {
-            container
-                .reference
-                .set(cll)
-                .expect(&format!("internal error: reference already registered for cll tag {cll_tag}"));
+            container.reference.set(cll).expect(&format!(
+                "internal error: reference already registered for cll tag {cll_tag}"
+            ));
         }
     }
 
     pub(crate) fn lookup_cll_reference(
         api_tag: PduUniqueApiTag,
-        cll_tag: PduUniqueCllTag
-    ) -> Option<Arc<PduComLogicalLink>> {
+        cll_tag: PduUniqueCllTag,
+    ) -> Option<Arc<PduLogicalLink>> {
         let clls = MGR.clls.read();
-        clls
-            .get(&(api_tag, cll_tag))?
+        clls.get(&(api_tag, cll_tag))?
             .reference
             .get()
             .and_then(Weak::upgrade)
@@ -121,11 +127,10 @@ impl PduHandleManager {
 
     pub(crate) fn lookup_cll_event_tx(
         api_tag: PduUniqueApiTag,
-        cll_tag: PduUniqueCllTag
+        cll_tag: PduUniqueCllTag,
     ) -> Option<Arc<mpsc::Sender<PduEvent>>> {
         let clls = MGR.clls.read();
-        clls
-            .get(&(api_tag, cll_tag))?
+        clls.get(&(api_tag, cll_tag))?
             .event_tx
             .get()
             .and_then(Weak::upgrade)
@@ -135,40 +140,35 @@ impl PduHandleManager {
         api_tag: PduUniqueApiTag,
         cop_tag: PduUniqueCopTag,
         tx: Option<Weak<mpsc::Sender<PduEvent>>>,
-        cop: Option<Weak<PduComPrimitive>>,
+        cop: Option<Weak<PduPrimitive>>,
     ) {
         let mut cops = MGR.cops.write();
 
-        let container = cops
-            .entry((api_tag, cop_tag))
-            .or_insert(HandleContainer {
-                reference: Default::default(),
-                event_tx: Default::default(),
-                created_at: Instant::now(),
-            });
+        let container = cops.entry((api_tag, cop_tag)).or_insert(HandleContainer {
+            reference: Default::default(),
+            event_tx: Default::default(),
+            created_at: Instant::now(),
+        });
 
         if let Some(tx) = tx {
-            container
-                .event_tx
-                .set(tx)
-                .expect(&format!("internal error: event_tx already registered for cop tag {cop_tag}"));
+            container.event_tx.set(tx).expect(&format!(
+                "internal error: event_tx already registered for cop tag {cop_tag}"
+            ));
         }
 
         if let Some(cop) = cop {
-            container
-                .reference
-                .set(cop)
-                .expect(&format!("internal error: reference already registered for cop tag {cop_tag}"));
+            container.reference.set(cop).expect(&format!(
+                "internal error: reference already registered for cop tag {cop_tag}"
+            ));
         }
     }
 
     pub(crate) fn lookup_cop_reference(
         api_tag: PduUniqueApiTag,
-        cop_tag: PduUniqueCopTag
-    ) -> Option<Arc<PduComPrimitive>> {
+        cop_tag: PduUniqueCopTag,
+    ) -> Option<Arc<PduPrimitive>> {
         let cops = MGR.cops.read();
-        cops
-            .get(&(api_tag, cop_tag))?
+        cops.get(&(api_tag, cop_tag))?
             .reference
             .get()
             .and_then(Weak::upgrade)
@@ -176,11 +176,10 @@ impl PduHandleManager {
 
     pub(crate) fn lookup_cop_event_tx(
         api_tag: PduUniqueApiTag,
-        cop_tag: PduUniqueCopTag
+        cop_tag: PduUniqueCopTag,
     ) -> Option<Arc<mpsc::Sender<PduEvent>>> {
         let cops = MGR.cops.read();
-        cops
-            .get(&(api_tag, cop_tag))?
+        cops.get(&(api_tag, cop_tag))?
             .event_tx
             .get()
             .and_then(Weak::upgrade)
@@ -188,7 +187,9 @@ impl PduHandleManager {
 
     fn retain_handle_containers<T>(now: &Instant, container: &mut HandleContainer<T>) -> bool {
         const REFERENCE_TIMEOUT: LazyLock<Duration> = LazyLock::new(|| Duration::from_mins(1));
-        container.reference.get()
+        container
+            .reference
+            .get()
             .map(|weak| weak.strong_count() > 0)
             .unwrap_or_else(|| {
                 // There's a small window between registering the channel and creating the weak
@@ -214,9 +215,7 @@ impl PduHandleManager {
             }
             {
                 let mut clls = me.clls.write();
-                clls.retain(|_, handle| {
-                    Self::retain_handle_containers(&now, handle)
-                });
+                clls.retain(|_, handle| Self::retain_handle_containers(&now, handle));
                 if clls.capacity() > clls.len() * 2 {
                     // Release resources back to the system.
                     clls.shrink_to_fit();
@@ -224,9 +223,7 @@ impl PduHandleManager {
             }
             {
                 let mut cops = me.cops.write();
-                cops.retain(|_, handle| {
-                    Self::retain_handle_containers(&now, handle)
-                });
+                cops.retain(|_, handle| Self::retain_handle_containers(&now, handle));
                 if cops.capacity() > cops.len() * 2 {
                     // Release resources back to the system.
                     cops.shrink_to_fit();
@@ -242,5 +239,5 @@ impl PduHandleManager {
 pub(crate) struct HandleContainer<T> {
     reference: OnceLock<Weak<T>>,
     event_tx: OnceLock<Weak<mpsc::Sender<PduEvent>>>,
-    created_at: Instant
+    created_at: Instant,
 }

@@ -1,8 +1,10 @@
+use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
+use crate::types::pdu_com_param::table::{
+    ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
+};
+use crate::utils::ecu_name_to_unique_resp_id;
 use dpdu_wrapper_support::impl_configure_from_serde_json_map_for_com_param_stack;
 use map_macro::{hash_map_e, hash_set};
-use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
-use crate::types::pdu_com_param::table::{ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable};
-use crate::utils::ecu_name_to_unique_resp_id;
 
 /// Стек возможных коммуникационных параметров для транспортного протокола ISO-TP (ISO 15765-2).
 ///
@@ -382,7 +384,7 @@ impl ComParamDefinitionStack for IsoTpStack {
 
     fn build_set(&self) -> ComParamDefinitionSet<ComParamDefinition> {
         use crate::types::pdu_com_param::table::ComParamDefinition as Def;
-        use dpdu_api_types::PduPc::{Timing as Time, Com, ErrHdl};
+        use dpdu_api_types::PduPc::{Com, ErrHdl, Timing as Time};
 
         ComParamDefinitionSet(hash_set! {
             // Timing.
@@ -427,7 +429,7 @@ impl ComParamDefinitionStack for IsoTpStack {
 
     fn build_table(&self) -> ComParamDefinitionTable<ComParamDefinition> {
         use crate::types::pdu_com_param::table::ComParamDefinition as Def;
-        use dpdu_api_types::PduPc::{UniqueId};
+        use dpdu_api_types::PduPc::UniqueId;
 
         let id = if self.ecu_layer_short_name.is_empty() {
             0

@@ -1,5 +1,7 @@
+use crate::types::pdu_com_param::table::{
+    ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
+};
 use std::collections::HashMap;
-use crate::types::pdu_com_param::table::{ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable};
 
 pub mod application;
 pub mod composite;

@@ -1,24 +1,24 @@
+use crate::api::{ApiResult, PduApi};
+use crate::event_callback::event_callback;
+use crate::handle_manager::PduHandleManager;
+use crate::types::pdu_com_logical_link::{CllCreateFlags, CllCreateType, PduLogicalLink};
+use crate::types::pdu_event::PduEventTarget;
+use crate::types::pdu_module::PduModuleData;
+use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
+use crate::types::{PduModuleHandle, PduUniqueCllTag};
+use crate::utils::random_non_zero_usize;
+use crate::worker::{PduAsyncWorker, Query, WorkerResult};
+use dpdu_api_types::PduStatus;
+use parking_lot::Mutex;
+use rand::random;
+use regex::Regex;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::ops::Deref;
-use crate::api::{ApiResult, PduApi};
-use crate::types::{PduModuleHandle, PduUniqueCllTag};
-use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
-use dpdu_api_types::PduStatus;
-use regex::Regex;
 use std::sync::{Arc, LazyLock, OnceLock, Weak};
-use parking_lot::Mutex;
-use rand::random;
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 use tracing::{debug, error};
-use crate::event_callback::event_callback;
-use crate::handle_manager::PduHandleManager;
-use crate::types::pdu_com_logical_link::{CllCreateFlags, CllCreateType, PduComLogicalLink};
-use crate::types::pdu_event::PduEventTarget;
-use crate::types::pdu_module::PduModuleData;
-use crate::utils::random_non_zero_usize;
-use crate::worker::{PduAsyncWorker, Query, WorkerResult};
 
 pub type VciList = Vec<Arc<PduVci>>;
 
@@ -33,7 +33,6 @@ pub struct PduVci {
     pub(crate) module_data: Arc<PduModuleData>,
 
     pub(crate) sync: Arc<Mutex<()>>,
-
     //pub(crate) clls_tags: Arc<Vec<CString>>,
 
     //pub(crate) clls: Arc<Mutex<HashMap<String, Arc<ComLogicalLink>>>>
@@ -64,7 +63,8 @@ impl PduVci {
         static ACTIA_RGX: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r#"(?U)MVCIFriendlyName='(?<name>.+)'"#).unwrap());
 
-        let module_name = self.module_data
+        let module_name = self
+            .module_data
             .vendor_module_name
             .clone()
             .unwrap_or_else(|| "VCI".to_string());
@@ -98,16 +98,19 @@ impl PduVci {
         let result = self.api.pdu_get_status(&target)?;
         Ok(VciStatus(result))
     }
-
+    
     pub async fn get_status(&self) -> WorkerResult<VciStatus> {
         match self.worker.get() {
             Some(worker) => {
                 let target = PduStatusTarget::Module(self.module_data.h_mod);
                 let result = worker.pdu_get_status(target).await?;
                 Ok(VciStatus(result))
-            },
+            }
             None => {
-                debug!(h_mod = self.module_data.h_mod, "The use of asynchronous functions is not recommended outside of PduAsyncWorker");
+                debug!(
+                    h_mod = self.module_data.h_mod,
+                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
+                );
                 let me = self.take_me_expect();
                 let result = spawn_blocking(move || me.blocking_get_status())
                     .await
@@ -137,9 +140,12 @@ impl PduVci {
                 }
                 worker.pdu_module_connect(self.module_data.h_mod).await?;
                 Ok(true)
-            },
+            }
             None => {
-                debug!(h_mod = self.module_data.h_mod, "The use of asynchronous functions is not recommended outside of PduAsyncWorker");
+                debug!(
+                    h_mod = self.module_data.h_mod,
+                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
+                );
                 let me = self.take_me_expect();
                 let result = spawn_blocking(move || me.blocking_connect())
                     .await
@@ -156,7 +162,8 @@ impl PduVci {
         }
 
         let _sync_guard = self.sync.lock();
-        self.api.pdu_module_disconnect(Some(self.module_data.h_mod))?;
+        self.api
+            .pdu_module_disconnect(Some(self.module_data.h_mod))?;
         Ok(true)
     }
 
@@ -167,11 +174,16 @@ impl PduVci {
                 if !status.is_connected() {
                     return Ok(false);
                 }
-                worker.pdu_module_disconnect(Some(self.module_data.h_mod)).await?;
+                worker
+                    .pdu_module_disconnect(Some(self.module_data.h_mod))
+                    .await?;
                 Ok(true)
-            },
+            }
             None => {
-                debug!(h_mod = self.module_data.h_mod, "The use of asynchronous functions is not recommended outside of PduAsyncWorker");
+                debug!(
+                    h_mod = self.module_data.h_mod,
+                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
+                );
                 let me = self.take_me_expect();
                 let result = spawn_blocking(move || me.blocking_disconnect())
                     .await
@@ -189,12 +201,13 @@ impl PduVci {
         let mut list = Vec::with_capacity(modules.len());
 
         for module in modules.iter() {
+            /*
             let Ok(_) = api.pdu_register_event_callback(
                 &PduEventTarget::Module(module.h_mod),
-                Some(event_callback)
+                Some(event_callback),
             ) else {
                 continue;
-            };
+            };*/
 
             list.push(Arc::new_cyclic(|weak| PduVci {
                 me: weak.clone(),
@@ -211,61 +224,66 @@ impl PduVci {
     pub async fn list<'a>(resolver: ListResolver<'a>) -> WorkerResult<VciList> {
         match resolver {
             ListResolver::Api(api) => {
-                debug!("The use of asynchronous functions is not recommended outside of PduAsyncWorker");
+                debug!(
+                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
+                );
                 let api = api.clone();
                 let result = spawn_blocking(move || PduVci::blocking_list(&api))
                     .await
                     .expect("internal error: Vci::blocking_list() task panicked");
                 Ok(result?)
-            },
-            ListResolver::Worker(worker) => {
-                Ok(
-                    worker.get_vci_list()
-                        .await?
-                        .into_iter()
-                        .map(|vci| {
-                            vci.set_worker(worker.clone());
-                            vci
-                        })
-                        .collect::<Vec<_>>()
-                )
-            },
+            }
+            ListResolver::Worker(worker) => Ok(worker
+                .get_vci_list()
+                .await?
+                .into_iter()
+                .map(|vci| {
+                    vci.set_worker(worker.clone());
+                    vci
+                })
+                .collect::<Vec<_>>()),
         }
     }
 
-    pub fn blocking_create_com_logical_link(
+    pub fn blocking_create_logical_link(
         &self,
         create_type: &CllCreateType,
-        create_flags: &CllCreateFlags
-    ) -> ApiResult<Arc<PduComLogicalLink>> {
+        create_flags: &CllCreateFlags,
+    ) -> ApiResult<Arc<PduLogicalLink>> {
         let _sync_guard = self.sync.lock();
 
         let unique_tag: PduUniqueCllTag = random_non_zero_usize();
         let (tx, rx) = mpsc::channel(Self::DEFAULT_CLL_EVENT_QUEUE_SIZE);
         let tx = Arc::new(tx);
-        
+
         // Register event tx for unique tag.
-        PduHandleManager::register_cll(self.api.unique_tag, unique_tag, Some(Arc::downgrade(&tx)), None);
+        PduHandleManager::register_cll(
+            self.api.unique_tag,
+            unique_tag,
+            Some(Arc::downgrade(&tx)),
+            None,
+        );
 
         let cll_data = self.api.pdu_create_com_logical_link(
             self.get_module_handle(),
             create_type,
             create_flags,
-            Some(unique_tag)
+            Some(unique_tag),
         )?;
         
-        let event_target = PduEventTarget::ComLogicalLink(self.get_module_handle(), cll_data.h_cll);
-        let register_result = self.api.pdu_register_event_callback(
-            &event_target,
-            Some(event_callback)
-        );
+        let event_target = PduEventTarget::LogicalLink(self.get_module_handle(), cll_data.h_cll);
+        let register_result = self
+            .api
+            .pdu_register_event_callback(&event_target, Some(event_callback));
 
         if let Err(err) = register_result {
-            let _ = self.api.pdu_destroy_com_logical_link(self.get_module_handle(), cll_data.h_cll);
+            let _ = self
+                .api
+                .pdu_destroy_com_logical_link(self.get_module_handle(), cll_data.h_cll);
             return Err(err)?;
         }
-        
-        let cll = Arc::new_cyclic(|weak| PduComLogicalLink {
+
+        let cll = Arc::new_cyclic(|weak| PduLogicalLink {
             me: weak.clone(),
             api: self.api.clone(),
             worker: OnceLock::default(),
@@ -275,18 +293,23 @@ impl PduVci {
             event_rx: Arc::new(rx),
             sync: Arc::default(),
         });
-        
+
         // Register cll reference for unique tag.
-        PduHandleManager::register_cll(self.api.unique_tag, unique_tag, None, Some(Arc::downgrade(&cll)));
+        PduHandleManager::register_cll(
+            self.api.unique_tag,
+            unique_tag,
+            None,
+            Some(Arc::downgrade(&cll)),
+        );
 
         Ok(cll)
     }
 
-    pub async fn create_com_logical_link(
+    pub async fn create_logical_link(
         &self,
         create_type: &CllCreateType,
-        create_flags: &CllCreateFlags
-    ) -> WorkerResult<Arc<PduComLogicalLink>> {
+        create_flags: &CllCreateFlags,
+    ) -> WorkerResult<Arc<PduLogicalLink>> {
         match self.worker.get() {
             Some(worker) => {
                 let unique_tag: PduUniqueCllTag = random_non_zero_usize();
@@ -294,27 +317,35 @@ impl PduVci {
                 let tx = Arc::new(tx);
 
                 // Register event tx for unique tag.
-                PduHandleManager::register_cll(self.api.unique_tag, unique_tag, Some(Arc::downgrade(&tx)), None);
-                
-                let cll_data = worker.pdu_create_com_logical_link(
-                    self.get_module_handle(),
-                    create_type.to_owned(),
-                    create_flags.to_owned(),
-                    Some(unique_tag)
-                ).await?;
+                PduHandleManager::register_cll(
+                    self.api.unique_tag,
+                    unique_tag,
+                    Some(Arc::downgrade(&tx)),
+                    None,
+                );
 
-                let event_target = PduEventTarget::ComLogicalLink(self.get_module_handle(), cll_data.h_cll);
-                let register_result = worker.pdu_register_event_callback(
-                    event_target.clone(),
-                    Some(event_callback)
-                ).await;
+                let cll_data = worker
+                    .pdu_create_com_logical_link(
+                        self.get_module_handle(),
+                        create_type.to_owned(),
+                        create_flags.to_owned(),
+                        Some(unique_tag),
+                    )
+                    .await?;
+
+                let event_target =
+                    PduEventTarget::LogicalLink(self.get_module_handle(), cll_data.h_cll);
+                let register_result = worker
+                    .pdu_register_event_callback(event_target.clone(), Some(event_callback))
+                    .await;
 
                 if let Err(err) = register_result {
-                    let _ = worker.pdu_destroy_com_logical_link(self.get_module_handle(), cll_data.h_cll);
+                    let _ = worker
+                        .pdu_destroy_com_logical_link(self.get_module_handle(), cll_data.h_cll);
                     return Err(err)?;
                 }
-                
-                let cll = Arc::new_cyclic(|weak| PduComLogicalLink {
+
+                let cll = Arc::new_cyclic(|weak| PduLogicalLink {
                     me: weak.clone(),
                     api: self.api.clone(),
                     worker: OnceLock::default(),
@@ -328,24 +359,30 @@ impl PduVci {
                 cll.set_worker(worker.clone());
 
                 // Register cll reference for unique tag.
-                PduHandleManager::register_cll(self.api.unique_tag, unique_tag, None, Some(Arc::downgrade(&cll)));
+                PduHandleManager::register_cll(
+                    self.api.unique_tag,
+                    unique_tag,
+                    None,
+                    Some(Arc::downgrade(&cll)),
+                );
 
                 Ok(cll)
-            },
+            }
             None => {
-                debug!("The use of asynchronous functions is not recommended outside of PduAsyncWorker");
+                debug!(
+                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
+                );
                 let me = self.take_me_expect();
 
                 let create_type = create_type.to_owned();
                 let create_flags = create_flags.to_owned();
 
-                let thread = move || {
-                    me.blocking_create_com_logical_link(&create_type, &create_flags)
-                };
+                let thread =
+                    move || me.blocking_create_logical_link(&create_type, &create_flags);
 
-                let cll = spawn_blocking(thread)
-                    .await
-                    .expect("internal error: Vci::blocking_create_com_logical_link task panicked")?;
+                let cll = spawn_blocking(thread).await.expect(
+                    "internal error: Vci::blocking_create_com_logical_link task panicked",
+                )?;
 
                 Ok(cll)
             }
@@ -360,13 +397,16 @@ impl Drop for PduVci {
         // There is no need to disconnect all `ComLogicalLink`s created by this VCI,
         // as `PduModuleDisconnect` disconnects them automatically.
 
-        debug!(h_mod = self.get_module_handle(), "Disconnecting the Vci via destructor...");
+        debug!(
+            h_mod = self.get_module_handle(),
+            "Disconnecting the Vci via destructor..."
+        );
 
         match self.worker.get() {
             Some(worker) => {
-                let query = Query::PduModuleDisconnect(Some(self.get_module_handle()));
+                let query = Query::VtModuleDestructor(self.get_module_handle());
                 match worker.request(query, None) {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(err) => {
                         error!(
                             h_mod = self.get_module_handle(),
@@ -374,12 +414,15 @@ impl Drop for PduVci {
                         );
                     }
                 }
-            },
+            }
             None => {
-                debug!(h_mod = self.get_module_handle(), "The use of asynchronous functions is not recommended outside of PduAsyncWorker");
+                debug!(
+                    h_mod = self.get_module_handle(),
+                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
+                );
                 let api = self.api.clone();
                 let h_mod = self.get_module_handle();
-                std::thread::spawn(move || api.pdu_module_disconnect(Some(h_mod)));
+                std::thread::spawn(move || api.vt_module_destructor(h_mod));
             }
         }
     }
@@ -425,7 +468,7 @@ impl VciStatus {
 #[derive(Debug, Clone)]
 pub enum ListResolver<'a> {
     Api(&'a Arc<PduApi>),
-    Worker(&'a Arc<PduAsyncWorker>)
+    Worker(&'a Arc<PduAsyncWorker>),
 }
 
 impl<'a> From<&'a Arc<PduApi>> for ListResolver<'a> {
@@ -436,7 +479,6 @@ impl<'a> From<&'a Arc<PduApi>> for ListResolver<'a> {
 
 impl<'a> From<&'a Arc<PduAsyncWorker>> for ListResolver<'a> {
     fn from(value: &'a Arc<PduAsyncWorker>) -> Self {
-
         ListResolver::Worker(value)
     }
 }

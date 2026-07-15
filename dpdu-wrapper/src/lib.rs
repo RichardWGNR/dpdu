@@ -1,19 +1,19 @@
 pub mod api;
+pub mod error;
+mod event_callback;
+pub mod handle_manager;
 pub mod types;
 pub mod utils;
 pub mod worker;
-pub mod handle_manager;
-mod event_callback;
-pub mod error;
 
-pub use libloading;
 use crate::api::PduApi;
 use crate::worker::PduAsyncWorker;
+pub use libloading;
 
 #[derive(Debug)]
 pub enum AsyncRuntimeTarget<'a> {
     Sync(&'a PduApi),
-    Async(&'a PduAsyncWorker)
+    Async(&'a PduAsyncWorker),
 }
 
 impl<'a> From<&'a PduApi> for AsyncRuntimeTarget<'a> {

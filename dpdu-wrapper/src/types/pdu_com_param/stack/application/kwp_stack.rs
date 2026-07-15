@@ -1,5 +1,7 @@
 use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
-use crate::types::pdu_com_param::table::{ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable};
+use crate::types::pdu_com_param::table::{
+    ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
+};
 use dpdu_wrapper_support::impl_configure_from_serde_json_map_for_com_param_stack;
 use map_macro::hash_set;
 
@@ -270,7 +272,7 @@ pub struct KwpStack {
     /// будет ли система отправлять индикаторы или уведомления о начале передачи данных.
     /// Используется для уведомления системы или других устройств о начале или успешном завершении
     /// передачи сообщений.
-    pub transmit_ind_enable: u32
+    pub transmit_ind_enable: u32,
 }
 
 impl Default for KwpStack {
@@ -361,7 +363,7 @@ impl ComParamDefinitionStack for KwpStack {
 
     fn build_set(&self) -> ComParamDefinitionSet<ComParamDefinition> {
         use ComParamDefinition as Def;
-        use dpdu_api_types::PduPc::{Timing as Time, ErrHdl, Com, TesterPresent as Tp};
+        use dpdu_api_types::PduPc::{Com, ErrHdl, TesterPresent as Tp, Timing as Time};
 
         ComParamDefinitionSet(hash_set! {
             // Timings.

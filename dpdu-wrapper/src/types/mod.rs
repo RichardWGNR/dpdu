@@ -16,6 +16,8 @@ use std::collections::HashMap;
 use std::num::{NonZeroU32, NonZeroUsize};
 use std::path::PathBuf;
 
+pub use dpdu_api_types as core;
+
 pub type PduOptions = HashMap<String, String>;
 
 pub type PduLibraryPath = PathBuf;

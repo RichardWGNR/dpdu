@@ -1,9 +1,11 @@
-use std::collections::HashMap;
-use crate::types::pdu_com_param::stack::application::KwpStack;
 use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
+use crate::types::pdu_com_param::stack::application::KwpStack;
 use crate::types::pdu_com_param::stack::physical::DwCanStack;
 use crate::types::pdu_com_param::stack::transport::IsoTpStack;
-use crate::types::pdu_com_param::table::{ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable};
+use crate::types::pdu_com_param::table::{
+    ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
+};
+use std::collections::HashMap;
 
 /// Layers:
 ///   - Application: ISO 14230-3 (KWP2000)
@@ -54,7 +56,7 @@ impl ComParamDefinitionStack for KwpOnIsoTpOnDwCanStack {
         self.bus_stack.configure_from_serde_json_map(map);
         self.can_stack.configure_from_serde_json_map(map);
     }
-    
+
     fn build_set(&self) -> ComParamDefinitionSet<ComParamDefinition> {
         self.app_stack
             .build_set()
