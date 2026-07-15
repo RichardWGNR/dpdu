@@ -1,15 +1,37 @@
 #![allow(non_snake_case)]
 
-use std::ffi::c_void;
-use dpdu_api_types::{CopCtrlData, EventCallbackFn, EventItem, FlagData, ModuleItem, ParamItem, PduCopt, PduDataItem, PduError, PduErrorEvt, PduItem, PduObjt, PduStatus, RscConflictItem, RscData, RscIdItem, RscStatusItem, UniqueRespIdTableItem, VersionData};
+mod state;
+
+use std::ffi::{c_void, CString};
+use std::ptr;
+use dpdu_api_types::{CopCtrlData, EventCallbackFn, EventItem, FlagData, ModuleData, ModuleItem, ParamItem, PduCopt, PduDataItem, PduError, PduErrorEvt, PduIt, PduItem, PduObjt, PduStatus, RscConflictItem, RscData, RscIdItem, RscStatusItem, UniqueRespIdTableItem, VersionData};
+use crate::dpdu::state::PDU_STATE;
+use crate::utils::is_valid_ptr;
 
 #[unsafe(no_mangle)]
-pub extern "system-unwind" fn PDUConstruct() -> PduError {
-    PduError::FctFailed
+pub extern "system-unwind" fn PDUConstruct(
+    option_str: *mut u8,
+    p_api_tag: *mut c_void
+) -> PduError {
+    if PDU_STATE.is_constructed() {
+        return PduError::FctFailed;
+    }
+
+    PDU_STATE
+        .set_api_tag(p_api_tag as *const usize as usize)
+        .set_constructed(true);
+
+    PduError::StatusNoError
 }
 
 #[unsafe(no_mangle)]
 pub extern "system-unwind" fn PDUDestruct() -> PduError {
+    if !PDU_STATE.is_constructed() {
+        return PduError::PduApiNotConstructed;
+    }
+
+    PDU_STATE.destruct();
+
     PduError::FctFailed
 }
 
@@ -169,10 +191,45 @@ pub extern "system" fn PDUGetEventItem(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn PDUDestroyItem(
+pub unsafe extern "system" fn PDUDestroyItem(
     p_item: *mut PduItem
 ) -> PduError {
-    PduError::FctFailed
+    if !is_valid_ptr(p_item) {
+        return PduError::InvalidParameters;
+    }
+
+    let item = unsafe { &*p_item };
+
+    match item.item_type {
+        PduIt::ModuleId => {
+            let item = unsafe { Box::from_raw(p_item as *mut ModuleItem) };
+            if item.num_entries > 0 && is_valid_ptr(item.p_module_data) {
+                let modules = unsafe { Vec::from_raw_parts(
+                    item.p_module_data,
+                    item.num_entries as _,
+                    item.num_entries as _
+                ) };
+
+                for module in modules.iter() {
+                    if is_valid_ptr(module.vendor_module_name) {
+                        drop(unsafe { CString::from_raw(module.vendor_module_name as _) });
+                    }
+                    if is_valid_ptr(module.vendor_additional_info) {
+                        drop(unsafe { CString::from_raw(module.vendor_additional_info as _) });
+                    }
+                }
+
+                drop(modules);
+            }
+
+            drop(item);
+        },
+        _ => {
+            return PduError::InvalidParameters;
+        }
+    }
+
+    PduError::StatusNoError
 }
 
 #[unsafe(no_mangle)]
@@ -194,10 +251,35 @@ pub extern "system" fn PDUGetObjectId(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn PDUGetModuleIds(
+pub unsafe extern "system" fn PDUGetModuleIds(
     p_module_id_list: *mut *mut ModuleItem
 ) -> PduError {
-    PduError::FctFailed
+    if !is_valid_ptr(p_module_id_list) {
+        return PduError::InvalidParameters;
+    }
+
+    let name = CString::new("VendorName='ALLScanner' ModuleName='VXDIAG' J2534 Standard Version='4.04'").unwrap();
+    let info = CString::new("ConnectionType='unknown'").unwrap();
+
+    let (modules_ptr, len, _) = vec![ModuleData {
+        module_type_id: 0,
+        h_mod: 0,
+        vendor_module_name: name.into_raw() as _,
+        vendor_additional_info: info.into_raw() as _,
+        status: PduStatus::ModstAvail,
+    }].into_raw_parts();
+
+    let item = Box::new(ModuleItem {
+        item_type: PduIt::ModuleId,
+        num_entries: len as _,
+        p_module_data: modules_ptr as _,
+    });
+
+    unsafe {
+        *p_module_id_list = Box::into_raw(item);
+    }
+
+    PduError::StatusNoError
 }
 
 #[unsafe(no_mangle)]
