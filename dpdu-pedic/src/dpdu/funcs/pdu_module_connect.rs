@@ -19,6 +19,10 @@ pub extern "system" fn PDUModuleConnect(
     let Some(module) = PassthruModule::get(h_mod as _) else {
         return PduError::InvalidHandle;
     };
+    
+    if !matches!(module.get_status(), PduStatus::ModstAvail) {
+        return PduError::FctFailed;
+    }
 
     let interafce = match Interface::new(&module.library_path) {
         Ok(v) => Box::leak(Box::new(v)),
