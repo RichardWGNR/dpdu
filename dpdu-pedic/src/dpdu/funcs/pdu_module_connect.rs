@@ -3,11 +3,12 @@ use j2534_mrw::{Interface};
 use parking_lot::Mutex;
 use tracing::error;
 use crate::dpdu::state::PDU_STATE;
+use crate::dpdu::types::PduModuleHandle;
 use crate::passthru::PassthruModule;
 
 #[unsafe(no_mangle)]
 pub extern "system" fn PDUModuleConnect(
-    h_mod: u32
+    h_mod: PduModuleHandle
 ) -> PduError {
     static SYNC: Mutex<()> = Mutex::new(());
     let _sync = SYNC.lock();
@@ -19,6 +20,7 @@ pub extern "system" fn PDUModuleConnect(
     let Some(module) = PassthruModule::get(h_mod as _) else {
         return PduError::InvalidHandle;
     };
+    let _mod_sync = module.sync.lock();
     
     if !matches!(module.get_status(), PduStatus::ModstAvail) {
         return PduError::FctFailed;

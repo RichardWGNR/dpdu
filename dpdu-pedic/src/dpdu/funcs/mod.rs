@@ -12,6 +12,9 @@ mod pdu_module_connect;
 mod pdu_module_disconnect;
 mod pdu_get_object_id;
 mod pdu_get_timestamp;
+mod pdu_create_com_logical_link;
+mod pdu_destroy_com_logical_link;
+mod pdu_register_event_callback;
 
 #[unsafe(no_mangle)]
 pub extern "system-unwind" fn PDUIoCtl(
@@ -47,26 +50,6 @@ pub extern "system-unwind" fn PDUGetLastError(
 #[unsafe(no_mangle)]
 pub extern "system" fn PDUGetResourceStatus(
     p_resource_status: *mut RscStatusItem
-) -> PduError {
-    PduError::FctFailed
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn PDUCreateComLogicalLink(
-    h_mod: u32,
-    p_rsc_data: *const RscData,
-    resource_id: u32,
-    p_cll_tag: *const c_void,
-    ph_cll: *mut u32,
-    p_cll_create_flag: *mut FlagData
-) -> PduError {
-    PduError::FctFailed
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn PDUDestroyComLogicalLink(
-    h_mod: u32,
-    h_cll: u32
 ) -> PduError {
     PduError::FctFailed
 }
@@ -152,15 +135,6 @@ pub extern "system" fn PDUGetEventItem(
     h_mod: u32,
     h_cll: u32,
     p_event_item: *mut *mut EventItem
-) -> PduError {
-    PduError::FctFailed
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn PDURegisterEventCallback(
-    h_mod: u32,
-    h_cll: u32,
-    callback_fn: EventCallbackFn
 ) -> PduError {
     PduError::FctFailed
 }

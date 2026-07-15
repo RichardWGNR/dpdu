@@ -4,7 +4,7 @@ use std::sync::{Arc, OnceLock};
 use cfg_if::cfg_if;
 use dpdu_api_types::PduStatus;
 use j2534_mrw::{Device, Interface};
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use tracing::{error, warn};
 use crate::SendSync;
 
@@ -26,6 +26,8 @@ pub struct PassthruModule {
     pub interface: RwLock<Option<Arc<SendSync<&'static Interface>>>>,
 
     pub device: RwLock<Option<Arc<SendSync<Device<'static>>>>>,
+    
+    pub sync: Mutex<()>,
 }
 
 impl PassthruModule {
@@ -126,6 +128,7 @@ impl PassthruModule {
                     status: RwLock::new(PduStatus::ModstAvail),
                     interface: Default::default(),
                     device: Default::default(),
+                    sync: Default::default(),
                 });
             }
 

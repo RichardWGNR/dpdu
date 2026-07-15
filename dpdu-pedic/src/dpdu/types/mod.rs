@@ -3,6 +3,7 @@ use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 pub mod pdu_status;
+pub mod pdu_event;
 
 pub type PduOptions = HashMap<String, String>;
 

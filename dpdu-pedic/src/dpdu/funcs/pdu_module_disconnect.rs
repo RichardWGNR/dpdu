@@ -1,11 +1,12 @@
 use dpdu_api_types::{PduError, PduStatus};
 use parking_lot::Mutex;
 use crate::dpdu::state::PDU_STATE;
+use crate::dpdu::types::PduModuleHandle;
 use crate::passthru::PassthruModule;
 
 #[unsafe(no_mangle)]
 pub extern "system" fn PDUModuleDisconnect(
-    h_mod: u32
+    h_mod: PduModuleHandle
 ) -> PduError {
     static SYNC: Mutex<()> = Mutex::new(());
     let _sync = SYNC.lock();
@@ -17,11 +18,12 @@ pub extern "system" fn PDUModuleDisconnect(
     let Some(module) = PassthruModule::get(h_mod as _) else {
         return PduError::InvalidHandle;
     };
-
+    let _mod_sync = module.sync.lock();
+    
     if !matches!(module.get_status(), PduStatus::ModstReady) {
         return PduError::ModuleNotConnected;
     }
-
+    
     let Some(interface) = module.get_interface() else {
         module.set_status(PduStatus::ModstAvail);
         module.set_interface(None);

@@ -1,15 +1,17 @@
 use dpdu_api_types::{PduError, PduStatus};
+use crate::dpdu::logical_links::LogicalLink;
 use crate::dpdu::state::PDU_STATE;
 use crate::dpdu::timestamp::PduTimestamp;
 use crate::dpdu::types::pdu_status::PduStatusTarget;
+use crate::dpdu::types::{PduCllHandle, PduCopHandle, PduModuleHandle};
 use crate::passthru::PassthruModule;
 use crate::utils::is_valid_ptr;
 
 #[unsafe(no_mangle)]
 pub extern "system-unwind" fn PDUGetStatus(
-    h_mod: u32,
-    h_cll: u32,
-    h_cop: u32,
+    h_mod: PduModuleHandle,
+    h_cll: PduCllHandle,
+    h_cop: PduCopHandle,
     p_status_code: *mut PduStatus,
     p_timestamp: *mut u32,
     p_extra_info: *mut u32
@@ -35,9 +37,18 @@ pub extern "system-unwind" fn PDUGetStatus(
             let Some(module) = PassthruModule::get(h_mod as _) else {
                 return PduError::InvalidHandle;
             };
-            
+
             unsafe { *p_status_code = module.get_status(); }
-            
+
+            true
+        },
+        PduStatusTarget::LogicalLink(_, h_cll) => {
+            let Some(link) = LogicalLink::get(h_cll) else {
+                return PduError::InvalidHandle;
+            };
+
+            unsafe { *p_status_code = link.get_status(); }
+
             true
         },
         _ => false

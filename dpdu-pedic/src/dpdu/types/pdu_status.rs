@@ -10,7 +10,7 @@ pub enum PduStatusTarget {
 }
 
 impl PduStatusTarget {
-    pub fn from_api(h_mod: u32, h_cll: u32, h_cop: u32) -> Result<Self, PduError> {
+    pub fn from_api(h_mod: PduModuleHandle, h_cll: PduCllHandle, h_cop: PduCopHandle) -> Result<Self, PduError> {
         let h_mod = (h_mod != PDU_HANDLE_UNDEF).then(|| h_mod);
         let h_cll = (h_cll != PDU_HANDLE_UNDEF).then(|| h_cll);
         let h_cop = (h_cop != PDU_HANDLE_UNDEF).then(|| h_cop);
