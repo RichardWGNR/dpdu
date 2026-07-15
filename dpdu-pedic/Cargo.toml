@@ -1,0 +1,11 @@
+[package]
+name = "dpdu-pedic"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+dpdu-api-types = { path = "../dpdu-api-types" }
+j2534-mrw = { version = "0.3.6" }
