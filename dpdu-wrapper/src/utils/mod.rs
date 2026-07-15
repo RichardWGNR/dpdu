@@ -2,6 +2,7 @@ pub mod module_description;
 pub mod root_file;
 
 use crate::types::PduUniqueRespIdentifier;
+use rand::{RngExt, random};
 use std::ffi::{CStr, c_char, c_void};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Cursor, Read, Seek};
@@ -9,8 +10,8 @@ use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
+use std::ptr;
 use std::ptr::NonNull;
-use rand::{random, RngExt};
 
 /// Converts a nullable C string to `Option<String>`.
 ///
@@ -50,6 +51,7 @@ pub(crate) fn get_bomless_file_reader(path: &Path) -> Result<BufReader<File>, st
 /// This does **not** provide any runtime guarantees about validity
 /// of pointers or memory safety. It only enforces constraints at
 /// compile time.
+#[repr(C)]
 pub(crate) struct PhantomRef<'a, T> {
     pub data: T,
     _marker: PhantomData<&'a ()>,
@@ -160,4 +162,12 @@ where
 pub(crate) fn random_non_zero_usize() -> NonZeroUsize {
     NonZeroUsize::new(rand::rng().random_range(1..=usize::MAX))
         .expect("internal error: random_range(1..=usize::MAX) cannot return zero")
+}
+
+pub fn take_slice_ptr<T>(slice: &[T]) -> *mut T {
+    if slice.is_empty() {
+        ptr::null_mut()
+    } else {
+        slice.as_ptr() as _
+    }
 }
