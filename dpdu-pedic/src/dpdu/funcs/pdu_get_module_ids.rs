@@ -16,7 +16,13 @@ pub unsafe extern "system-unwind" fn PDUGetModuleIds(
 
     let mut pdu_modules = vec![];
 
-    for (id, passthru_module) in PassthruModule::load().iter().enumerate() {
+    let passthru_modules = {
+        let mut vec = PassthruModule::load().iter().collect::<Vec<_>>();
+        vec.sort_by_key(|&(key, _)| key);
+        vec
+    };
+
+    for (id, passthru_module) in passthru_modules {
         let name = passthru_module.name.replace("'", "");
         let vendor = passthru_module
             .vendor
@@ -24,7 +30,7 @@ pub unsafe extern "system-unwind" fn PDUGetModuleIds(
             .unwrap_or_else(|| "unknown".to_string())
             .replace("'", "");
         let version = passthru_module.product_version.clone()
-            .unwrap_or_else(|| "unknown".to_string())
+            .unwrap_or_else(|| "4.04".to_string())
             .replace("'", "");
 
         let name = CString::new(format!("VendorName='{vendor}' ModuleName='{name}' J2534StandardVersion='{version}'"))
@@ -34,8 +40,8 @@ pub unsafe extern "system-unwind" fn PDUGetModuleIds(
             .expect("CString::new() failed");
 
         pdu_modules.push(ModuleData {
-            module_type_id: 0,
-            h_mod: id as _,
+            module_type_id: 527,
+            h_mod: id.to_owned(),
             vendor_module_name: name.into_raw() as _,
             vendor_additional_info: info.into_raw() as _,
             status: passthru_module.get_status(),

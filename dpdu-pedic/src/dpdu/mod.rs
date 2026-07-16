@@ -1,6 +1,6 @@
 mod state;
 mod funcs;
-mod types;
+pub mod types;
 mod timestamp;
 mod objects;
 mod logical_links;

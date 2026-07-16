@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-mod dpdu;
+pub mod dpdu;
 mod utils;
 mod passthru;
 

@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 use cfg_if::cfg_if;
@@ -6,9 +7,10 @@ use dpdu_api_types::PduStatus;
 use j2534_mrw::{Device, Interface};
 use parking_lot::{Mutex, RwLock};
 use tracing::{error, warn};
+use crate::dpdu::types::PduModuleHandle;
 use crate::SendSync;
 
-static MODULES: OnceLock<Vec<PassthruModule>> = OnceLock::new();
+static MODULES: OnceLock<HashMap<PduModuleHandle, PassthruModule>> = OnceLock::new();
 
 pub struct PassthruModule {
     pub name: String,
@@ -26,7 +28,7 @@ pub struct PassthruModule {
     pub interface: RwLock<Option<Arc<SendSync<&'static Interface>>>>,
 
     pub device: RwLock<Option<Arc<SendSync<Device<'static>>>>>,
-    
+
     pub sync: Mutex<()>,
 }
 
@@ -55,18 +57,18 @@ impl PassthruModule {
         self.status.read().clone()
     }
 
-    pub fn get(id: usize) -> Option<&'static PassthruModule> {
-        PassthruModule::load().get(id)
+    pub fn get(id: PduModuleHandle) -> Option<&'static PassthruModule> {
+        PassthruModule::load().get(&id)
     }
 
-    pub fn load() -> &'static [PassthruModule] {
+    pub fn load() -> &'static HashMap<PduModuleHandle, PassthruModule> {
         use winreg::enums::HKEY_LOCAL_MACHINE;
         use winreg::{enums, RegKey};
 
         MODULES.get_or_init(|| {
             #[allow(non_snake_case)]
             let HKEY_LM_REG_KEY = RegKey::predef(HKEY_LOCAL_MACHINE);
-            let mut modules = vec![];
+            let mut modules = HashMap::new();
 
             cfg_if! {
                 if #[cfg(target_arch = "x86_64")] {
@@ -88,7 +90,7 @@ impl PassthruModule {
                 }
             };
 
-            for folder in key.enum_keys() {
+            for (num, folder) in key.enum_keys().enumerate() {
                 let Ok(folder) = folder else {
                     continue;
                 };
@@ -119,7 +121,7 @@ impl PassthruModule {
                     .get_value::<String, _>("ProductVersion")
                     .ok();
 
-                modules.push(PassthruModule {
+                modules.insert(num as u32 + 1, PassthruModule {
                     name,
                     vendor: key.get_value::<String, _>("Vendor").ok(),
                     library_path,

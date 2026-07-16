@@ -52,9 +52,9 @@ impl PduVci {
     pub fn get_name(&self) -> Option<&String> {
         self.module_data.vendor_module_name.as_ref()
     }
-
+    
     pub fn get_additional_info(&self) -> Option<&String> {
-        self.module_data.vendor_module_name.as_ref()
+        self.module_data.vendor_additional_info.as_ref()
     }
 
     pub fn get_normalized_name(&self) -> Option<String> {

@@ -35,6 +35,11 @@ pub extern "system" fn PDUCreateComLogicalLink(
         return err;
     }
 
+    let flag_data = unsafe { &*p_cll_create_flag };
+    if let Err(err) = check_flags(flag_data) {
+        return err;
+    }
+
     let Some(module) = PassthruModule::get(h_mod as _) else {
         return PduError::InvalidHandle;
     };
@@ -42,8 +47,9 @@ pub extern "system" fn PDUCreateComLogicalLink(
     if !matches!(module.get_status(), PduStatus::ModstReady) {
         return PduError::ModuleNotConnected;
     }
-    
+
     let h_cll = LogicalLink::register(LogicalLink {
+        h_mod,
         protocol_id: resource_data.protocol_id,
         bus_id: resource_data.bus_type_id,
         tag: (!p_cll_tag.is_null())
@@ -98,6 +104,22 @@ fn check_pins(resource_data: &RscData) -> Result<(), PduError> {
     }
 
     if !hi || !low {
+        return Err(PduError::InvalidParameters);
+    }
+
+    Ok(())
+}
+
+fn check_flags(data: &FlagData) -> Result<(), PduError> {
+    if data.num_flag_bytes == 0 || !is_valid_ptr(data.p_flag_data) {
+        return Err(PduError::InvalidParameters);
+    }
+
+    let flag_bytes = unsafe { slice::from_raw_parts(data.p_flag_data, data.num_flag_bytes as _) };
+    let zb = flag_bytes[0];
+
+    if (zb & 0x80) == 0 {
+        // так же проверим бит 7 нулевого байта в флагах создания
         return Err(PduError::InvalidParameters);
     }
 

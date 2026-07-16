@@ -55,7 +55,10 @@ pub extern "system-unwind" fn PDUGetStatus(
     };
 
     if matched {
-        unsafe { *p_timestamp = PduTimestamp::now(); }
+        unsafe {
+            *p_timestamp = PduTimestamp::now();
+            *p_extra_info = 0;
+        }
         PduError::StatusNoError
     } else {
         PduError::FctFailed

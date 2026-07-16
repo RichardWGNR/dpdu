@@ -647,7 +647,7 @@ pub enum CllCreateType {
 }
 
 impl CllCreateType {
-    pub fn raw_on_dw_can() -> Self {
+    pub fn raw_dw_can_on_obd() -> Self {
         CllCreateType::ResourceData {
             bus: BusSource::dual_wire_can(),
             protocol: ProtocolSource::iso_11898_raw(),

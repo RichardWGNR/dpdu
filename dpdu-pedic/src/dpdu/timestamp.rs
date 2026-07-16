@@ -5,9 +5,7 @@ use parking_lot::RwLock;
 static START: LazyLock<RwLock<Instant>> = LazyLock::new(|| RwLock::new(Instant::now()));
 
 #[derive(Debug)]
-pub struct PduTimestamp {
-    start: Instant,
-}
+pub struct PduTimestamp;
 
 impl PduTimestamp {
     /// Reset time base (PDU_IOCTL_RESET / device boot)

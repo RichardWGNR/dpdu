@@ -3,12 +3,13 @@ use std::sync::{Arc, LazyLock};
 use dpdu_api_types::PduStatus;
 use parking_lot::{Mutex, RwLock};
 use rand::random;
-use crate::dpdu::types::{PduCllHandle, PduObjectId, PduUniqueCllTag};
+use crate::dpdu::types::{PduCllHandle, PduModuleHandle, PduObjectId, PduUniqueCllTag};
 
 static LOGICAL_LINKS: LazyLock<RwLock<HashMap<PduCllHandle, Arc<LogicalLink>>>> = LazyLock::new(|| RwLock::default());
 
 #[derive(Debug)]
 pub struct LogicalLink {
+    pub h_mod: PduModuleHandle,
     pub h_cll: PduCllHandle,
     pub tag: Option<PduUniqueCllTag>,
     pub protocol_id: PduObjectId,
@@ -19,6 +20,7 @@ pub struct LogicalLink {
 impl Default for LogicalLink {
     fn default() -> Self {
         Self {
+            h_mod: Default::default(),
             h_cll: Default::default(),
             tag: Default::default(),
             protocol_id: Default::default(),
