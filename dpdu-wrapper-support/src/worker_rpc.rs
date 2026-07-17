@@ -30,7 +30,7 @@ pub fn declare_worker_rpc(input: TokenStream) -> TokenStream {
         let ret = &rpc.ret;
         quote! {
             #doc_hidden
-            #name(crate::api::ApiResult<#ret>)
+            #name(crate::error::GeneralResult<#ret>)
         }
     });
 
@@ -79,7 +79,7 @@ pub fn declare_worker_rpc(input: TokenStream) -> TokenStream {
             quote! {
                 impl crate::worker::PduAsyncWorker {
                     #doc_hidden
-                    #fn_visibility async fn #func_name(&self, #(#func_args),*) -> crate::worker::WorkerResult<#ret_ty> {
+                    #fn_visibility async fn #func_name(&self, #(#func_args),*) -> crate::error::GeneralResult<#ret_ty> {
                         match self.receive_query_response_callback(Query::#query_variant).await? {
                             Response::#variant_name(v) => Ok(v?),
                             _ => unreachable!()

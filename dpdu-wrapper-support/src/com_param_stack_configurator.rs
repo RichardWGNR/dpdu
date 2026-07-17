@@ -111,6 +111,12 @@ pub fn impl_configure_from_serde_json_map_for_com_param_stack(input: TokenStream
                         None => error!(com_param = name, value = format!("{value:?}"), "Invalid ComParam value"),
                     }
                 },
+                "String" => quote! {
+                    match value.as_str() {
+                        Some(str) => self.#field = str.to_owned(),
+                        None => error!(com_param = name, value = format!("{value:?}"), "Invalid ComParam value"),
+                    }
+                },
                 _ => panic!("Unaccepted type")
             }
         } else {
