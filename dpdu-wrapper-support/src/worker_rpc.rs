@@ -25,9 +25,11 @@ pub fn declare_worker_rpc(input: TokenStream) -> TokenStream {
     });
 
     let response_variants = input.items.iter().map(|rpc| {
+        let doc_hidden = rpc.private.then(|| quote! { #[doc(hidden)] });
         let name = &rpc.variant;
         let ret = &rpc.ret;
         quote! {
+            #doc_hidden
             #name(crate::api::ApiResult<#ret>)
         }
     });
@@ -54,17 +56,30 @@ pub fn declare_worker_rpc(input: TokenStream) -> TokenStream {
                     quote! { #name }
                 }
             });
+
+            let doc_hidden = rpc.private.then(|| quote! { #[doc(hidden)] });
+            let fn_visibility = rpc.private
+                .then(|| quote! { pub(crate) })
+                .unwrap_or_else(|| quote! { pub });
+
             let query_variant = if !rpc.args.is_empty() {
-                quote! { #variant_name(#(#query_args),*) }
+                quote! {
+                    #doc_hidden
+                    #variant_name(#(#query_args),*)
+                }
             } else {
-                quote! { #variant_name }
+                quote! {
+                    #doc_hidden
+                    #variant_name
+                }
             };
 
             let ret_ty = &rpc.ret;
 
             quote! {
                 impl crate::worker::PduAsyncWorker {
-                    pub async fn #func_name(&self, #(#func_args),*) -> crate::worker::WorkerResult<#ret_ty> {
+                    #doc_hidden
+                    #fn_visibility async fn #func_name(&self, #(#func_args),*) -> crate::worker::WorkerResult<#ret_ty> {
                         match self.receive_query_response_callback(Query::#query_variant).await? {
                             Response::#variant_name(v) => Ok(v?),
                             _ => unreachable!()
@@ -107,6 +122,14 @@ impl Parse for RpcDefinition {
             input.parse::<Token![=>]>().map_err(|_| {
                 syn::Error::new(input.span(), "expected RPC variant name delimiter")
             })?;
+
+            let private = if input.peek(Token![!]) {
+                // private query/function
+                input.parse::<Token![!]>()?;
+                true
+            } else {
+                false
+            };
 
             let method: Ident = input.parse().map_err(|_| {
                 syn::Error::new(
@@ -173,6 +196,7 @@ impl Parse for RpcDefinition {
             }
 
             items.push(Rpc {
+                private,
                 variant,
                 method,
                 args,
@@ -185,6 +209,7 @@ impl Parse for RpcDefinition {
 }
 
 struct Rpc {
+    private: bool,
     variant: Ident,
     method: Ident,
     args: Vec<Arg>,
