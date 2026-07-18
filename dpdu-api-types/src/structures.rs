@@ -522,18 +522,28 @@ pub struct ParamStructFieldData {
 }
 
 #[repr(C)]
+#[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Session timing for [ParamStructFieldData] when [ParamStructFieldData::com_param_struct_type] is [PduCpst::SessionTiming]
 pub struct ParamStructSessionTiming {
     /// Session ID
+    #[serde(alias = "SessionNumber")]
     pub session: u16,
+
     /// 1ms resolution
+    #[serde(alias = "P2Max_High")]
     pub p2_max_high: u8,
+
     /// 1ms resolution
+    #[serde(alias = "P2Max_Low")]
     pub p2_max_low: u8,
+
     /// 10ms resolution
+    #[serde(alias = "P2Star_High")]
     pub p2_star_high: u8,
+
     /// 10ms resolution
+    #[serde(alias = "P2Star_Low")]
     pub p2_star_low: u8,
 }
 
