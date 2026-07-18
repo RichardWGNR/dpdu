@@ -284,6 +284,10 @@ impl PduHandleManager {
             {
                 let mut mods = me.mods.write();
                 mods.retain(|_, handle| Self::retain_handle_containers(&now, handle));
+                if mods.capacity() > mods.len() * 2 {
+                    // Release resources back to the system.
+                    mods.shrink_to_fit();
+                }
             }
             {
                 let mut clls = me.clls.write();
