@@ -1,12 +1,19 @@
-use std::collections::HashMap;
+use crate::types::pdu_com_param::single::com::{
+    CpChangeSpeedCtrl, CpChangeSpeedMessage, CpChangeSpeedRate, CpChangeSpeedResCtrl,
+    CpEnablePerformanceTest, CpLoopback, CpSwCanHighVoltage, CpTransmitIndEnable,
+};
+use crate::types::pdu_com_param::single::err_hdl::CpRepeatReqCountApp;
+use crate::types::pdu_com_param::single::timing::{
+    CpChangeSpeedTxDelay, CpCyclicRespTimeout, CpP2Max, CpP2Min, CpP3Func, CpP3Phys,
+};
+use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
+use crate::types::pdu_com_param::table::{
+    ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
+};
 use map_macro::hash_set;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::types::pdu_com_param::single::com::{CpChangeSpeedCtrl, CpChangeSpeedMessage, CpChangeSpeedRate, CpChangeSpeedResCtrl, CpEnablePerformanceTest, CpLoopback, CpSwCanHighVoltage, CpTransmitIndEnable};
-use crate::types::pdu_com_param::single::err_hdl::CpRepeatReqCountApp;
-use crate::types::pdu_com_param::single::timing::{CpChangeSpeedTxDelay, CpCyclicRespTimeout, CpP2Max, CpP2Min, CpP3Func, CpP3Phys};
-use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
-use crate::types::pdu_com_param::table::{ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable};
+use std::collections::HashMap;
 
 /// Raw CAN application stack (ISO 11898-3).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,7 +70,10 @@ impl RawCanApplicationStack {
         self
     }
 
-    pub fn set_change_speed_message(&mut self, value: impl Into<CpChangeSpeedMessage>) -> &mut Self {
+    pub fn set_change_speed_message(
+        &mut self,
+        value: impl Into<CpChangeSpeedMessage>,
+    ) -> &mut Self {
         self.change_speed_message = value.into();
         self
     }
@@ -73,17 +83,26 @@ impl RawCanApplicationStack {
         self
     }
 
-    pub fn set_change_speed_res_ctrl(&mut self, value: impl Into<CpChangeSpeedResCtrl>) -> &mut Self {
+    pub fn set_change_speed_res_ctrl(
+        &mut self,
+        value: impl Into<CpChangeSpeedResCtrl>,
+    ) -> &mut Self {
         self.change_speed_res_ctrl = value.into();
         self
     }
 
-    pub fn set_change_speed_tx_delay(&mut self, value: impl Into<CpChangeSpeedTxDelay>) -> &mut Self {
+    pub fn set_change_speed_tx_delay(
+        &mut self,
+        value: impl Into<CpChangeSpeedTxDelay>,
+    ) -> &mut Self {
         self.change_speed_tx_delay = value.into();
         self
     }
 
-    pub fn set_enable_performance_test(&mut self, value: impl Into<CpEnablePerformanceTest>) -> &mut Self {
+    pub fn set_enable_performance_test(
+        &mut self,
+        value: impl Into<CpEnablePerformanceTest>,
+    ) -> &mut Self {
         self.enable_performance_test = value.into();
         self
     }
@@ -134,7 +153,8 @@ impl ComParamDefinitionStack for RawCanApplicationStack {
         let mut value = serde_json::to_value(&self)
             .expect("internal error: cannot serialize RawCanApplicationStack"); // infallible
 
-        let obj = value.as_object_mut()
+        let obj = value
+            .as_object_mut()
             .expect("internal error: cannot represent RawCanApplicationStack as map"); // infallible
 
         for (k, v) in map {
@@ -143,7 +163,7 @@ impl ComParamDefinitionStack for RawCanApplicationStack {
             }
             obj.insert(k.clone(), v.clone());
         }
-        
+
         let new_self: RawCanApplicationStack = serde_json::from_value(value)
             .expect("internal error: cannot deserialize RawCanApplicationStack"); // infallible
 
@@ -151,9 +171,6 @@ impl ComParamDefinitionStack for RawCanApplicationStack {
     }
 
     fn build_set(&self) -> ComParamDefinitionSet<ComParamDefinition> {
-        use ComParamDefinition as Def;
-        use dpdu_api_types::PduPc::{Com, ErrHdl, Timing as Time};
-
         ComParamDefinitionSet(hash_set! {
             // Timings.
             self.change_speed_tx_delay.into(),

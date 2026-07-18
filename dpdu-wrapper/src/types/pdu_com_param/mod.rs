@@ -1,15 +1,15 @@
+pub mod single;
 pub mod stack;
 pub mod table;
-pub mod single;
 
 use crate::AsyncRuntimeTarget;
-use crate::api::{ApiError, ApiResult, PduApi};
+use crate::api::{ApiError, PduApi};
+use crate::error::{GeneralError, GeneralResult};
 use crate::types::PduObjectId;
 use crate::utils::{PhantomPtr, PhantomRef};
-use crate::worker::{WorkerResult};
 use dpdu_api_types::{
-    PDU_ID_UNDEF, ParamByteFieldData, ParamLongFieldData, ParamStructAccessTiming,
-    ParamStructFieldData, ParamStructSessionTiming, PduCpst, PduError, PduObjt, PduPc, PduPt,
+    ParamByteFieldData, ParamLongFieldData, ParamStructAccessTiming, ParamStructFieldData,
+    ParamStructSessionTiming, PduCpst, PduError, PduObjt, PduPc, PduPt,
 };
 use std::ffi::c_void;
 use std::fmt::{Debug, Formatter};
@@ -17,7 +17,6 @@ use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 use tokio::task::spawn_blocking;
 use tracing::warn;
-use crate::error::{GeneralError, GeneralResult};
 
 /// With the current design, this structure cannot be created directly. It can only be constructed
 /// via the [`from_*`] methods. This is done to prevent panics when calling [PduApi::set_com_param()].
@@ -66,12 +65,12 @@ impl PduComParam {
     ) -> GeneralResult<PduComParam> {
         let sn = short_name.into();
 
-        let id = match api.pdu_get_object_id(PduObjt::ComParam, &sn) {
+        let _id = match api.pdu_get_object_id(PduObjt::ComParam, &sn) {
             Ok(v) => v,
             Err(ApiError::PduError(PduError::InvalidParameters)) => {
                 warn!("Unsupported comparam: {sn}");
                 return Err(PduError::ComParamNotSupported)?;
-            },
+            }
             Err(err) => {
                 return Err(err)?;
             }
@@ -109,13 +108,11 @@ impl PduComParam {
                 let api = api.clone_arc();
                 let name = sn.to_owned();
 
-                let task = move || {
-                    Self::blocking_from_short_name(&api, &name, class, variant)
-                };
+                let task = move || Self::blocking_from_short_name(&api, &name, class, variant);
 
-                return spawn_blocking(task)
-                    .await
-                    .expect("internal error: PduComParam::blocking_from_short_name() task panicked");
+                return spawn_blocking(task).await.expect(
+                    "internal error: PduComParam::blocking_from_short_name() task panicked",
+                );
             }
         };
 
@@ -124,7 +121,7 @@ impl PduComParam {
             Err(GeneralError::ApiError(ApiError::PduError(PduError::InvalidParameters))) => {
                 warn!("Unsupported comparam: {sn}");
                 return Err(PduError::ComParamNotSupported)?;
-            },
+            }
             Err(err) => {
                 return Err(err)?;
             }

@@ -1,8 +1,7 @@
+use crate::types::pdu_com_param::single::{deserialize_bool_from_u32, serialize_u32_from_bool};
+use crate::types::pdu_com_param::table::ComParamDefinition;
 use dpdu_api_types::PduPc;
 use serde::{Deserialize, Serialize};
-use crate::types::pdu_com_param::table::ComParamDefinition;
-use crate::types::pdu_com_param::single::{deserialize_bool_from_u32, serialize_u32_from_bool};
-use crate::types::pdu_com_param::single::com::CpTransmitIndEnable;
 
 /// CP_CanFillerByteHandling
 ///
@@ -15,7 +14,7 @@ use crate::types::pdu_com_param::single::com::CpTransmitIndEnable;
 pub struct CpCanFillerByteHandling(
     #[serde(deserialize_with = "deserialize_bool_from_u32")]
     #[serde(serialize_with = "serialize_u32_from_bool")]
-    pub bool
+    pub bool,
 );
 
 impl From<CpCanFillerByteHandling> for ComParamDefinition {
@@ -32,7 +31,6 @@ impl CpCanFillerByteHandling {
     pub const DISABLE: Self = Self(false);
     pub const ENABLE: Self = Self(true);
 }
-
 
 impl From<CpCanFillerByteHandling> for u32 {
     fn from(value: CpCanFillerByteHandling) -> Self {

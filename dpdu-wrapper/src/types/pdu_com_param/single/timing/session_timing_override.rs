@@ -1,6 +1,6 @@
+use crate::types::pdu_com_param::table::ComParamDefinition;
 use dpdu_api_types::{ParamStructSessionTiming, PduPc};
 use serde::{Deserialize, Serialize};
-use crate::types::pdu_com_param::table::ComParamDefinition;
 
 /// CP_SessionTimingOverride
 ///
@@ -19,7 +19,7 @@ impl From<CpSessionTimingOverride> for ComParamDefinition {
         ComParamDefinition {
             class: PduPc::Timing,
             short_name: "CP_SessionTimingOverride".to_string(),
-            variant: value.0.into()
+            variant: value.0.into(),
         }
     }
 }

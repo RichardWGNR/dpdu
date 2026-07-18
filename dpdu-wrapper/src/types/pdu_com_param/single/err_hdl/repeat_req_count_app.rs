@@ -1,8 +1,6 @@
+use crate::types::pdu_com_param::table::ComParamDefinition;
 use dpdu_api_types::PduPc;
 use serde::{Deserialize, Serialize};
-use crate::types::pdu_com_param::single::com::CpCanFillerByte;
-use crate::types::pdu_com_param::single::err_hdl::CpRcByteOffset;
-use crate::types::pdu_com_param::table::ComParamDefinition;
 
 /// CP_RepeatReqCountApp
 ///

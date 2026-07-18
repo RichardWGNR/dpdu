@@ -1,11 +1,11 @@
 use dpdu_api_types::PduError;
 
-mod vxdiag;
 mod detours;
+mod vxdiag;
 
 pub fn wrap_pdu_call<F>(func: &str, mut f: F) -> PduError
 where
-    F: FnMut() -> PduError
+    F: FnMut() -> PduError,
 {
     create_detours();
     register_callbacks();
@@ -14,13 +14,25 @@ where
 
     if vxdiag::has_device_not_connected() {
         return match func {
-            "PDUModuleDisconnect" | "PDUGetTimestamp" | "PDUIoCtl" | "PDUGetVersion" |
-            "PDUGetLastError" | "PDUCreateComLogicalLink" | "PDUDestroyComLogicalLink" |
-            "PDUDisconnect" | "PDULockResource" | "PDUUnlockResource" | "PDUGetComParam" |
-            "PDUSetComParam" | "PDUStartComPrimitive" | "PDUCancelComPrimitive" |
-            "PDUGetEventItem" | "PDURegisterEventCallback" | "PDUGetUniqueRespIdTable" |
-            "PDUSetUniqueRespIdTable" => PduError::ModuleNotConnected,
-            _ => PduError::FctFailed
+            "PDUModuleDisconnect"
+            | "PDUGetTimestamp"
+            | "PDUIoCtl"
+            | "PDUGetVersion"
+            | "PDUGetLastError"
+            | "PDUCreateComLogicalLink"
+            | "PDUDestroyComLogicalLink"
+            | "PDUDisconnect"
+            | "PDULockResource"
+            | "PDUUnlockResource"
+            | "PDUGetComParam"
+            | "PDUSetComParam"
+            | "PDUStartComPrimitive"
+            | "PDUCancelComPrimitive"
+            | "PDUGetEventItem"
+            | "PDURegisterEventCallback"
+            | "PDUGetUniqueRespIdTable"
+            | "PDUSetUniqueRespIdTable" => PduError::ModuleNotConnected,
+            _ => PduError::FctFailed,
         };
     }
 

@@ -1,15 +1,29 @@
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use crate::types::pdu_com_param::single::bus_type::{CpBaudrate, CpBitSamplePoint, CpCanBaudrateRecord, CpCanFdBaudrate, CpCanFdBitSamplePoint, CpCanFdSyncJumpWidth, CpListenOnly, CpSamplesPerBit, CpSyncJumpWidth, CpTerminationType};
-use crate::types::pdu_com_param::single::com::{CpCanFillerByte, CpCanFillerByteHandling, CpChangeSpeedCtrl, CpChangeSpeedMessage, CpChangeSpeedRate, CpChangeSpeedResCtrl, CpEnablePerformanceTest, CpLoopback, CpSendRemoteFrame, CpSwCanHighVoltage, CpTransmitIndEnable};
+use crate::types::pdu_com_param::single::bus_type::{
+    CpBaudrate, CpBitSamplePoint, CpCanBaudrateRecord, CpCanFdBaudrate, CpCanFdBitSamplePoint,
+    CpCanFdSyncJumpWidth, CpListenOnly, CpSamplesPerBit, CpSyncJumpWidth, CpTerminationType,
+};
+use crate::types::pdu_com_param::single::com::{
+    CpCanFillerByte, CpCanFillerByteHandling, CpChangeSpeedCtrl, CpChangeSpeedMessage,
+    CpChangeSpeedRate, CpChangeSpeedResCtrl, CpEnablePerformanceTest, CpLoopback,
+    CpSendRemoteFrame, CpSwCanHighVoltage, CpTransmitIndEnable,
+};
 use crate::types::pdu_com_param::single::err_hdl::{CpRepeatReqCountApp, CpRepeatReqCountTrans};
-use crate::types::pdu_com_param::single::timing::{CpChangeSpeedTxDelay, CpCyclicRespTimeout, CpP2Max, CpP2Min, CpP3Func, CpP3Phys};
-use crate::types::pdu_com_param::single::unique::{CpCanPhysReqExtAddr, CpCanPhysReqFormat, CpCanPhysReqId, CpCanRespUudtExtAddr, CpCanRespUudtFormat, CpCanRespUudtId, CpEcuLayerShortName};
-use crate::types::pdu_com_param::stack::application::{RawCanApplicationStack};
+use crate::types::pdu_com_param::single::timing::{
+    CpChangeSpeedTxDelay, CpCyclicRespTimeout, CpP2Max, CpP2Min, CpP3Func, CpP3Phys,
+};
+use crate::types::pdu_com_param::single::unique::{
+    CpCanPhysReqExtAddr, CpCanPhysReqFormat, CpCanPhysReqId, CpCanRespUudtExtAddr,
+    CpCanRespUudtFormat, CpCanRespUudtId, CpEcuLayerShortName,
+};
 use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
+use crate::types::pdu_com_param::stack::application::RawCanApplicationStack;
 use crate::types::pdu_com_param::stack::physical::DwCanStack;
-use crate::types::pdu_com_param::stack::transport::{RawCanTransportStack};
-use crate::types::pdu_com_param::table::{ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable};
+use crate::types::pdu_com_param::stack::transport::RawCanTransportStack;
+use crate::types::pdu_com_param::table::{
+    ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
+};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// ISO 11898 RAW.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,7 +73,7 @@ impl RawCanStack {
             can_resp_uudt_id: CpCanRespUudtId(2024),
             repeat_req_count_trans: CpRepeatReqCountTrans::ZERO,
             send_remote_frame: CpSendRemoteFrame::DISABLE,
-            ecu_layer_short_name: CpEcuLayerShortName::empty()
+            ecu_layer_short_name: CpEcuLayerShortName::empty(),
         }
     }
 
@@ -92,10 +106,11 @@ impl Default for RawCanStack {
 
 impl ComParamDefinitionStack for RawCanStack {
     fn configure_from_serde_json_map(&mut self, map: &HashMap<String, serde_json::Value>) {
-        let mut value = serde_json::to_value(&self)
-            .expect("internal error: cannot serialize RawCanStack"); // infallible
+        let mut value =
+            serde_json::to_value(&self).expect("internal error: cannot serialize RawCanStack"); // infallible
 
-        let obj = value.as_object_mut()
+        let obj = value
+            .as_object_mut()
             .expect("internal error: cannot represent RawCanStack as map"); // infallible
 
         for (k, v) in map {
@@ -105,8 +120,8 @@ impl ComParamDefinitionStack for RawCanStack {
             obj.insert(k.clone(), v.clone());
         }
 
-        let new_self: RawCanStack = serde_json::from_value(value)
-            .expect("internal error: cannot deserialize RawCanStack"); // infallible
+        let new_self: RawCanStack =
+            serde_json::from_value(value).expect("internal error: cannot deserialize RawCanStack"); // infallible
 
         *self = new_self;
     }

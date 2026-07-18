@@ -1,9 +1,9 @@
 mod baudrate;
 mod bit_sample_point;
+mod can_baudrate_record;
 mod canfd_baudrate;
 mod canfd_bit_sample_point;
 mod canfd_sync_jump_width;
-mod can_baudrate_record;
 mod listen_only;
 mod samples_per_bit;
 mod sync_jump_width;

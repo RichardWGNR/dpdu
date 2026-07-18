@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use crate::types::pdu_com_param::single::bus_type::{
+    CpBaudrate, CpBitSamplePoint, CpCanBaudrateRecord, CpCanFdBaudrate, CpCanFdBitSamplePoint,
+    CpCanFdSyncJumpWidth, CpListenOnly, CpSamplesPerBit, CpSyncJumpWidth, CpTerminationType,
+};
 use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
 use crate::types::pdu_com_param::table::{
     ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
@@ -6,7 +9,7 @@ use crate::types::pdu_com_param::table::{
 use map_macro::hash_set;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::types::pdu_com_param::single::bus_type::{CpBaudrate, CpBitSamplePoint, CpCanBaudrateRecord, CpCanFdBaudrate, CpCanFdBitSamplePoint, CpCanFdSyncJumpWidth, CpListenOnly, CpSamplesPerBit, CpSyncJumpWidth, CpTerminationType};
+use std::collections::HashMap;
 
 /// DW can stack (ISO 11898-2).
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -53,12 +56,18 @@ impl DwCanStack {
         self
     }
 
-    pub fn set_canfd_bit_sample_point(&mut self, point: impl Into<CpCanFdBitSamplePoint>) -> &mut Self {
+    pub fn set_canfd_bit_sample_point(
+        &mut self,
+        point: impl Into<CpCanFdBitSamplePoint>,
+    ) -> &mut Self {
         self.canfd_bit_sample_point = point.into();
         self
     }
 
-    pub fn set_canfd_sync_jump_width(&mut self, width: impl Into<CpCanFdSyncJumpWidth>) -> &mut Self {
+    pub fn set_canfd_sync_jump_width(
+        &mut self,
+        width: impl Into<CpCanFdSyncJumpWidth>,
+    ) -> &mut Self {
         self.canfd_sync_jump_width = width.into();
         self
     }
@@ -96,10 +105,11 @@ impl DwCanStack {
 
 impl ComParamDefinitionStack for DwCanStack {
     fn configure_from_serde_json_map(&mut self, map: &HashMap<String, Value>) {
-        let mut value = serde_json::to_value(&self)
-            .expect("internal error: cannot serialize DwCanStack"); // infallible
+        let mut value =
+            serde_json::to_value(&self).expect("internal error: cannot serialize DwCanStack"); // infallible
 
-        let obj = value.as_object_mut()
+        let obj = value
+            .as_object_mut()
             .expect("internal error: cannot represent DwCanStack as map"); // infallible
 
         for (k, v) in map {
@@ -108,17 +118,14 @@ impl ComParamDefinitionStack for DwCanStack {
             }
             obj.insert(k.clone(), v.clone());
         }
-        
-        let new_self: DwCanStack = serde_json::from_value(value)
-            .expect("internal error: cannot deserialize DwCanStack"); // infallible
+
+        let new_self: DwCanStack =
+            serde_json::from_value(value).expect("internal error: cannot deserialize DwCanStack"); // infallible
 
         *self = new_self;
     }
 
     fn build_set(&self) -> ComParamDefinitionSet<ComParamDefinition> {
-        use crate::types::pdu_com_param::table::ComParamDefinition as Def;
-        use dpdu_api_types::PduPc::BusType;
-        
         ComParamDefinitionSet(hash_set! {
             // Bus type.
             self.baudrate.into(),

@@ -1,4 +1,22 @@
-use std::collections::HashMap;
+use crate::types::pdu_com_param::single::com::{
+    CpChangeSpeedCtrl, CpChangeSpeedMessage, CpChangeSpeedRate, CpChangeSpeedResCtrl,
+    CpEnablePerformanceTest, CpLoopback, CpStartMsgIndEnable, CpSwCanHighVoltage,
+    CpTransmitIndEnable,
+};
+use crate::types::pdu_com_param::single::err_hdl::{
+    CpRc21Completiontimeout, CpRc21Handling, CpRc21RequestTime, CpRc23Completiontimeout,
+    CpRc23Handling, CpRc23RequestTime, CpRc78Completiontimeout, CpRc78Handling, CpRcByteOffset,
+    CpRepeatReqCountApp, CpSuspendQueueOnError,
+};
+use crate::types::pdu_com_param::single::tester_present::{
+    CpTesterPresentAddrMode, CpTesterPresentExpNegResp, CpTesterPresentExpPosResp,
+    CpTesterPresentHandling, CpTesterPresentMessage, CpTesterPresentReqRsp,
+    CpTesterPresentSendType, CpTesterPresentTime,
+};
+use crate::types::pdu_com_param::single::timing::{
+    CpCanTransmissionTime, CpChangeSpeedTxDelay, CpCyclicRespTimeout, CpModifyTiming, CpP2Max,
+    CpP2Min, CpP2Star, CpP3Func, CpP3Phys, CpSessionTimingOverride,
+};
 use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
 use crate::types::pdu_com_param::table::{
     ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
@@ -6,10 +24,7 @@ use crate::types::pdu_com_param::table::{
 use map_macro::hash_set;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::types::pdu_com_param::single::com::{CpChangeSpeedCtrl, CpChangeSpeedMessage, CpChangeSpeedRate, CpChangeSpeedResCtrl, CpEnablePerformanceTest, CpLoopback, CpStartMsgIndEnable, CpSwCanHighVoltage, CpTransmitIndEnable};
-use crate::types::pdu_com_param::single::err_hdl::{CpRc21Completiontimeout, CpRc21Handling, CpRc21RequestTime, CpRc23Completiontimeout, CpRc23Handling, CpRc23RequestTime, CpRc78Completiontimeout, CpRc78Handling, CpRcByteOffset, CpRepeatReqCountApp, CpSuspendQueueOnError};
-use crate::types::pdu_com_param::single::tester_present::{CpTesterPresentAddrMode, CpTesterPresentExpNegResp, CpTesterPresentExpPosResp, CpTesterPresentHandling, CpTesterPresentMessage, CpTesterPresentReqRsp, CpTesterPresentSendType, CpTesterPresentTime};
-use crate::types::pdu_com_param::single::timing::{CpCanTransmissionTime, CpChangeSpeedTxDelay, CpCyclicRespTimeout, CpModifyTiming, CpP2Max, CpP2Min, CpP2Star, CpP3Func, CpP3Min, CpP3Phys, CpSessionTimingOverride};
+use std::collections::HashMap;
 
 /// UDS application stack (ISO 14229-3).
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -130,7 +145,10 @@ pub struct UdsStack {
 }
 
 impl UdsStack {
-    pub fn set_can_transmission_time(&mut self, value: impl Into<CpCanTransmissionTime>) -> &mut Self {
+    pub fn set_can_transmission_time(
+        &mut self,
+        value: impl Into<CpCanTransmissionTime>,
+    ) -> &mut Self {
         self.can_transmission_time = value.into();
         self
     }
@@ -140,7 +158,10 @@ impl UdsStack {
         self
     }
 
-    pub fn set_change_speed_message(&mut self, value: impl Into<CpChangeSpeedMessage>) -> &mut Self {
+    pub fn set_change_speed_message(
+        &mut self,
+        value: impl Into<CpChangeSpeedMessage>,
+    ) -> &mut Self {
         self.change_speed_message = value.into();
         self
     }
@@ -150,12 +171,18 @@ impl UdsStack {
         self
     }
 
-    pub fn set_change_speed_res_ctrl(&mut self, value: impl Into<CpChangeSpeedResCtrl>) -> &mut Self {
+    pub fn set_change_speed_res_ctrl(
+        &mut self,
+        value: impl Into<CpChangeSpeedResCtrl>,
+    ) -> &mut Self {
         self.change_speed_res_ctrl = value.into();
         self
     }
 
-    pub fn set_change_speed_tx_delay(&mut self, value: impl Into<CpChangeSpeedTxDelay>) -> &mut Self {
+    pub fn set_change_speed_tx_delay(
+        &mut self,
+        value: impl Into<CpChangeSpeedTxDelay>,
+    ) -> &mut Self {
         self.change_speed_tx_delay = value.into();
         self
     }
@@ -165,7 +192,10 @@ impl UdsStack {
         self
     }
 
-    pub fn set_enable_performance_test(&mut self, value: impl Into<CpEnablePerformanceTest>) -> &mut Self {
+    pub fn set_enable_performance_test(
+        &mut self,
+        value: impl Into<CpEnablePerformanceTest>,
+    ) -> &mut Self {
         self.enable_performance_test = value.into();
         self
     }
@@ -205,7 +235,10 @@ impl UdsStack {
         self
     }
 
-    pub fn set_rc21_completion_timeout(&mut self, value: impl Into<CpRc21Completiontimeout>) -> &mut Self {
+    pub fn set_rc21_completion_timeout(
+        &mut self,
+        value: impl Into<CpRc21Completiontimeout>,
+    ) -> &mut Self {
         self.rc21_completion_timeout = value.into();
         self
     }
@@ -220,7 +253,10 @@ impl UdsStack {
         self
     }
 
-    pub fn set_rc23_completion_timeout(&mut self, value: impl Into<CpRc23Completiontimeout>) -> &mut Self {
+    pub fn set_rc23_completion_timeout(
+        &mut self,
+        value: impl Into<CpRc23Completiontimeout>,
+    ) -> &mut Self {
         self.rc23_completion_timeout = value.into();
         self
     }
@@ -235,7 +271,10 @@ impl UdsStack {
         self
     }
 
-    pub fn set_rc78_completion_timeout(&mut self, value: impl Into<CpRc78Completiontimeout>) -> &mut Self {
+    pub fn set_rc78_completion_timeout(
+        &mut self,
+        value: impl Into<CpRc78Completiontimeout>,
+    ) -> &mut Self {
         self.rc78_completion_timeout = value.into();
         self
     }
@@ -260,12 +299,18 @@ impl UdsStack {
         self
     }
 
-    pub fn set_session_timing_override(&mut self, value: impl Into<CpSessionTimingOverride>) -> &mut Self {
+    pub fn set_session_timing_override(
+        &mut self,
+        value: impl Into<CpSessionTimingOverride>,
+    ) -> &mut Self {
         self.session_timing_override = value.into();
         self
     }
 
-    pub fn set_suspend_queue_on_error(&mut self, value: impl Into<CpSuspendQueueOnError>) -> &mut Self {
+    pub fn set_suspend_queue_on_error(
+        &mut self,
+        value: impl Into<CpSuspendQueueOnError>,
+    ) -> &mut Self {
         self.suspend_queue_on_error = value.into();
         self
     }
@@ -275,37 +320,58 @@ impl UdsStack {
         self
     }
 
-    pub fn set_tester_present_addr_mode(&mut self, value: impl Into<CpTesterPresentAddrMode>) -> &mut Self {
+    pub fn set_tester_present_addr_mode(
+        &mut self,
+        value: impl Into<CpTesterPresentAddrMode>,
+    ) -> &mut Self {
         self.tester_present_addr_mode = value.into();
         self
     }
 
-    pub fn set_tester_present_exp_neg_resp(&mut self, value: impl Into<CpTesterPresentExpNegResp>) -> &mut Self {
+    pub fn set_tester_present_exp_neg_resp(
+        &mut self,
+        value: impl Into<CpTesterPresentExpNegResp>,
+    ) -> &mut Self {
         self.tester_present_exp_neg_resp = value.into();
         self
     }
 
-    pub fn set_tester_present_exp_pos_resp(&mut self, value: impl Into<CpTesterPresentExpPosResp>) -> &mut Self {
+    pub fn set_tester_present_exp_pos_resp(
+        &mut self,
+        value: impl Into<CpTesterPresentExpPosResp>,
+    ) -> &mut Self {
         self.tester_present_exp_pos_resp = value.into();
         self
     }
 
-    pub fn set_tester_present_handling(&mut self, value: impl Into<CpTesterPresentHandling>) -> &mut Self {
+    pub fn set_tester_present_handling(
+        &mut self,
+        value: impl Into<CpTesterPresentHandling>,
+    ) -> &mut Self {
         self.tester_present_handling = value.into();
         self
     }
 
-    pub fn set_tester_present_message(&mut self, value: impl Into<CpTesterPresentMessage>) -> &mut Self {
+    pub fn set_tester_present_message(
+        &mut self,
+        value: impl Into<CpTesterPresentMessage>,
+    ) -> &mut Self {
         self.tester_present_message = value.into();
         self
     }
 
-    pub fn set_tester_present_req_rsp(&mut self, value: impl Into<CpTesterPresentReqRsp>) -> &mut Self {
+    pub fn set_tester_present_req_rsp(
+        &mut self,
+        value: impl Into<CpTesterPresentReqRsp>,
+    ) -> &mut Self {
         self.tester_present_req_rsp = value.into();
         self
     }
 
-    pub fn set_tester_present_send_type(&mut self, value: impl Into<CpTesterPresentSendType>) -> &mut Self {
+    pub fn set_tester_present_send_type(
+        &mut self,
+        value: impl Into<CpTesterPresentSendType>,
+    ) -> &mut Self {
         self.tester_present_send_type = value.into();
         self
     }
@@ -323,10 +389,11 @@ impl UdsStack {
 
 impl ComParamDefinitionStack for UdsStack {
     fn configure_from_serde_json_map(&mut self, map: &HashMap<String, Value>) {
-        let mut value = serde_json::to_value(&self)
-            .expect("internal error: cannot serialize UdsStack"); // infallible
+        let mut value =
+            serde_json::to_value(&self).expect("internal error: cannot serialize UdsStack"); // infallible
 
-        let obj = value.as_object_mut()
+        let obj = value
+            .as_object_mut()
             .expect("internal error: cannot represent UdsStack as map"); // infallible
 
         for (k, v) in map {
@@ -335,17 +402,14 @@ impl ComParamDefinitionStack for UdsStack {
             }
             obj.insert(k.clone(), v.clone());
         }
-        
-        let new_self: UdsStack = serde_json::from_value(value)
-            .expect("internal error: cannot deserialize UdsStack"); // infallible
+
+        let new_self: UdsStack =
+            serde_json::from_value(value).expect("internal error: cannot deserialize UdsStack"); // infallible
 
         *self = new_self;
     }
 
     fn build_set(&self) -> ComParamDefinitionSet<ComParamDefinition> {
-        use ComParamDefinition as Def;
-        use dpdu_api_types::PduPc::{Com, ErrHdl, TesterPresent as Tp, Timing as Time};
-
         ComParamDefinitionSet(hash_set! {
             // Timings.
             self.can_transmission_time.into(),

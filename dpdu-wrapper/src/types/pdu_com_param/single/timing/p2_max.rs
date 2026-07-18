@@ -1,7 +1,6 @@
+use crate::types::pdu_com_param::table::ComParamDefinition;
 use dpdu_api_types::PduPc;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use crate::types::pdu_com_param::single::timing::{CpCyclicRespTimeout, CpP3Func};
-use crate::types::pdu_com_param::table::ComParamDefinition;
 
 /// CP_P2Max.
 ///
@@ -14,7 +13,7 @@ use crate::types::pdu_com_param::table::ComParamDefinition;
 pub enum CpP2Max {
     Micros(u32),
     Millis(u32),
-    Secs(u32)
+    Secs(u32),
 }
 
 impl CpP2Max {
@@ -22,7 +21,7 @@ impl CpP2Max {
         match self {
             CpP2Max::Micros(v) => v.to_owned(),
             CpP2Max::Millis(v) => v.wrapping_mul(1000),
-            CpP2Max::Secs(v) => v.wrapping_mul(1000000)
+            CpP2Max::Secs(v) => v.wrapping_mul(1000000),
         }
     }
 }

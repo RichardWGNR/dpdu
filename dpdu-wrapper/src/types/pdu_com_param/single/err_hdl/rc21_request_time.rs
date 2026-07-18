@@ -1,7 +1,6 @@
+use crate::types::pdu_com_param::table::ComParamDefinition;
 use dpdu_api_types::PduPc;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use crate::types::pdu_com_param::single::err_hdl::{CpRc21Completiontimeout, CpRc23Completiontimeout};
-use crate::types::pdu_com_param::table::ComParamDefinition;
 
 /// CP_RC21RequestTime
 ///
@@ -14,7 +13,7 @@ use crate::types::pdu_com_param::table::ComParamDefinition;
 pub enum CpRc21RequestTime {
     Micros(u32),
     Millis(u32),
-    Secs(u32)
+    Secs(u32),
 }
 
 impl CpRc21RequestTime {
@@ -22,7 +21,7 @@ impl CpRc21RequestTime {
         match self {
             CpRc21RequestTime::Micros(v) => v.to_owned(),
             CpRc21RequestTime::Millis(v) => v.wrapping_mul(1000),
-            CpRc21RequestTime::Secs(v) => v.wrapping_mul(1000000)
+            CpRc21RequestTime::Secs(v) => v.wrapping_mul(1000000),
         }
     }
 }

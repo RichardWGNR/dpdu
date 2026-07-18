@@ -1,7 +1,6 @@
+use crate::types::pdu_com_param::table::ComParamDefinition;
 use dpdu_api_types::PduPc;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use crate::types::pdu_com_param::single::timing::{CpP2Max, CpP2Min};
-use crate::types::pdu_com_param::table::ComParamDefinition;
 
 /// CP_P2Star
 ///
@@ -15,7 +14,7 @@ use crate::types::pdu_com_param::table::ComParamDefinition;
 pub enum CpP2Star {
     Micros(u32),
     Millis(u32),
-    Secs(u32)
+    Secs(u32),
 }
 
 impl CpP2Star {
@@ -23,7 +22,7 @@ impl CpP2Star {
         match self {
             CpP2Star::Micros(v) => v.to_owned(),
             CpP2Star::Millis(v) => v.wrapping_mul(1000),
-            CpP2Star::Secs(v) => v.wrapping_mul(1000000)
+            CpP2Star::Secs(v) => v.wrapping_mul(1000000),
         }
     }
 }

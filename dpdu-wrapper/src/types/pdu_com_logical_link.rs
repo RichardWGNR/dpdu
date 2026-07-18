@@ -1,23 +1,21 @@
-use std::any::Any;
 use crate::api::{ApiError, ApiResult, PduApi};
-use crate::event_callback::event_callback;
+use crate::constants::COP_EVENTS_QUEUE_SIZE;
+use crate::error::{GeneralError, GeneralResult};
 use crate::handle_manager::PduHandleManager;
+use crate::types::pdu_com_param::table::{IntoPduComParam, MapTarget, PduComParamTable, SetTarget};
 use crate::types::pdu_com_primitive::{
     ComParamBuffer, ExpectedResponse, PduPrimitive, PduPrimitiveParams, ReceiveCycles,
     ResponseType, SendCycles, TransmitFlags,
 };
-use crate::types::pdu_event::{PduEvent, PduEventTarget};
+use crate::types::pdu_event::PduEvent;
 use crate::types::pdu_resource::{BusSource, ProtocolSource, TargetPin};
 use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
-use crate::types::pdu_vci::{PduVci, VciStatus};
-use crate::types::{
-    PduCllHandle, PduModuleHandle, PduObjectId, PduUniqueApiTag, PduUniqueCllTag, PduUniqueCopTag,
-};
+use crate::types::{PduCllHandle, PduModuleHandle, PduObjectId, PduUniqueCllTag, PduUniqueCopTag};
 use crate::utils::random_non_zero_usize;
-use crate::worker::{PduAsyncWorker, Query, WorkerError, WorkerResult};
+use crate::worker::{PduAsyncWorker, Query};
 use dpdu_api_types::{PduCopt, PduError, PduStatus};
 use parking_lot::Mutex as ParkingLotMutex;
-use rand::random;
+use std::any::Any;
 use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 use std::sync::{Arc, OnceLock, Weak};
@@ -27,9 +25,6 @@ use tokio::sync::Mutex as TokioMutex;
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 use tracing::{debug, error};
-use crate::constants::{CLL_EVENTS_QUEUE_SIZE, COP_EVENTS_QUEUE_SIZE};
-use crate::error::{GeneralError, GeneralResult};
-use crate::types::pdu_com_param::table::{ComParamDefinitionSet, IntoPduComParam, MapTarget, PduComParamTable, SetTarget};
 
 #[derive(Debug, Clone)]
 pub struct PduLogicalLink {
@@ -83,8 +78,7 @@ impl PduLogicalLink {
 
     pub fn blocking_get_status(&self) -> ApiResult<CllStatus> {
         let _sync_guard = self.sync.lock();
-        let target =
-            PduStatusTarget::LogicalLink(self.get_module_handle(), self.get_cll_handle());
+        let target = PduStatusTarget::LogicalLink(self.get_module_handle(), self.get_cll_handle());
         let result = self.api.pdu_get_status(&target)?;
         Ok(CllStatus(result))
     }
@@ -92,10 +86,8 @@ impl PduLogicalLink {
     pub async fn get_status(&self) -> GeneralResult<CllStatus> {
         match self.worker.get() {
             Some(worker) => {
-                let target = PduStatusTarget::LogicalLink(
-                    self.get_module_handle(),
-                    self.get_cll_handle(),
-                );
+                let target =
+                    PduStatusTarget::LogicalLink(self.get_module_handle(), self.get_cll_handle());
                 let result = worker.pdu_get_status(target).await?;
                 Ok(CllStatus(result))
             }
@@ -187,7 +179,7 @@ impl PduLogicalLink {
         cop_type: &PduCopt,
         data: &[u8],
         params: Option<&PduPrimitiveParams>,
-        events_queue_size: Option<usize>
+        events_queue_size: Option<usize>,
     ) -> GeneralResult<Arc<PduPrimitive>> {
         let _sync_guard = self.sync.lock();
 
@@ -247,7 +239,7 @@ impl PduLogicalLink {
         cop_type: &PduCopt,
         data: &[u8],
         params: Option<&PduPrimitiveParams>,
-        events_queue_size: Option<usize>
+        events_queue_size: Option<usize>,
     ) -> GeneralResult<Arc<PduPrimitive>> {
         let events_queue_size = events_queue_size.unwrap_or(COP_EVENTS_QUEUE_SIZE);
         match self.worker.get() {
@@ -312,13 +304,14 @@ impl PduLogicalLink {
                 let data = data.to_vec();
                 let params = params.cloned();
 
-                let thread =
-                    move || me.blocking_start_primitive(
+                let thread = move || {
+                    me.blocking_start_primitive(
                         &cop_type,
                         &data,
                         params.as_ref(),
-                        Some(events_queue_size)
-                    );
+                        Some(events_queue_size),
+                    )
+                };
 
                 let cop = spawn_blocking(thread).await.expect(
                     "internal error: ComLogicalLink::blocking_start_com_primitive() task panicked",
@@ -334,7 +327,7 @@ impl PduLogicalLink {
             &PduCopt::StartComm,
             &builder.data,
             Some(&builder.build()),
-            builder.events_queue_size
+            builder.events_queue_size,
         )
     }
 
@@ -343,8 +336,9 @@ impl PduLogicalLink {
             &PduCopt::StartComm,
             &builder.data,
             Some(&builder.build()),
-            builder.events_queue_size
-        ).await
+            builder.events_queue_size,
+        )
+        .await
     }
 
     pub fn blocking_stop_comm(&self, builder: StopComm) -> GeneralResult<Arc<PduPrimitive>> {
@@ -352,7 +346,7 @@ impl PduLogicalLink {
             &PduCopt::StopComm,
             &builder.data,
             Some(&builder.build()),
-            builder.events_queue_size
+            builder.events_queue_size,
         )
     }
 
@@ -361,8 +355,9 @@ impl PduLogicalLink {
             &PduCopt::StopComm,
             &builder.data,
             Some(&builder.build()),
-            builder.events_queue_size
-        ).await
+            builder.events_queue_size,
+        )
+        .await
     }
 
     pub fn blocking_send_recv(&self, builder: SendRecv) -> GeneralResult<Arc<PduPrimitive>> {
@@ -370,7 +365,7 @@ impl PduLogicalLink {
             &PduCopt::SendRecv,
             &builder.data,
             Some(&builder.build()),
-            builder.events_queue_size
+            builder.events_queue_size,
         )
     }
 
@@ -379,8 +374,9 @@ impl PduLogicalLink {
             &PduCopt::SendRecv,
             &builder.data,
             Some(&builder.build()),
-            builder.events_queue_size
-        ).await
+            builder.events_queue_size,
+        )
+        .await
     }
 
     pub fn blocking_update_param(&self) -> GeneralResult<Arc<PduPrimitive>> {
@@ -388,7 +384,8 @@ impl PduLogicalLink {
     }
 
     pub async fn update_param(&self) -> GeneralResult<Arc<PduPrimitive>> {
-        self.start_primitive(&PduCopt::UpdateParam, &[], None, None).await
+        self.start_primitive(&PduCopt::UpdateParam, &[], None, None)
+            .await
     }
 
     pub fn blocking_restore_param(&self) -> GeneralResult<Arc<PduPrimitive>> {
@@ -396,7 +393,8 @@ impl PduLogicalLink {
     }
 
     pub async fn restore_param(&self) -> GeneralResult<Arc<PduPrimitive>> {
-        self.start_primitive(&PduCopt::RestoreParam, &[], None, None).await
+        self.start_primitive(&PduCopt::RestoreParam, &[], None, None)
+            .await
     }
 
     pub fn blocking_set_com_params(&self, set_target: impl Into<SetTarget>) -> GeneralResult<()> {
@@ -408,28 +406,30 @@ impl PduLogicalLink {
                 for def in v.iter() {
                     let cp = match def.blocking_build(&self.api) {
                         Ok(v) => v,
-                        Err(GeneralError::ApiError(ApiError::PduError(PduError::ComParamNotSupported))) => {
+                        Err(GeneralError::ApiError(ApiError::PduError(
+                            PduError::ComParamNotSupported,
+                        ))) => {
                             continue;
-                        },
+                        }
                         Err(err) => {
                             return Err(err)?;
                         }
                     };
                     match self.api.pdu_set_com_param(h_mod, h_cll, &cp) {
-                        Ok(()) => {},
+                        Ok(()) => {}
                         Err(ApiError::PduError(PduError::ComParamNotSupported)) => {
                             continue;
-                        },
-                        Err(err) => Err(err)?
+                        }
+                        Err(err) => Err(err)?,
                     }
                 }
-            },
+            }
             SetTarget::ComParams(v) => {
                 for cp in v.iter() {
                     match self.api.pdu_set_com_param(h_mod, h_cll, cp) {
-                        Ok(()) => {},
-                        Err(ApiError::PduError(PduError::ComParamNotSupported)) => {},
-                        Err(err) => Err(err)?
+                        Ok(()) => {}
+                        Err(ApiError::PduError(PduError::ComParamNotSupported)) => {}
+                        Err(err) => Err(err)?,
                     }
                 }
             }
@@ -443,34 +443,38 @@ impl PduLogicalLink {
         let h_cll = self.get_cll_handle();
 
         match self.worker.get() {
-            Some(worker) => {
-                match set_target.into() {
-                    SetTarget::Definitions(v) => {
-                        for def in v.iter() {
-                            let cp = match def.build(worker.as_ref()).await {
-                                Ok(v) => v,
-                                Err(GeneralError::ApiError(ApiError::PduError(PduError::ComParamNotSupported))) => {
-                                    continue;
-                                },
-                                Err(err) => Err(err)?
-                            };
+            Some(worker) => match set_target.into() {
+                SetTarget::Definitions(v) => {
+                    for def in v.iter() {
+                        let cp = match def.build(worker.as_ref()).await {
+                            Ok(v) => v,
+                            Err(GeneralError::ApiError(ApiError::PduError(
+                                PduError::ComParamNotSupported,
+                            ))) => {
+                                continue;
+                            }
+                            Err(err) => Err(err)?,
+                        };
 
-                            match worker.pdu_set_com_param(h_mod, h_cll, cp).await {
-                                Ok(()) => {},
-                                Err(GeneralError::ApiError(ApiError::PduError(PduError::ComParamNotSupported))) => {
-                                    continue;
-                                },
-                                Err(err) => Err(err)?
+                        match worker.pdu_set_com_param(h_mod, h_cll, cp).await {
+                            Ok(()) => {}
+                            Err(GeneralError::ApiError(ApiError::PduError(
+                                PduError::ComParamNotSupported,
+                            ))) => {
+                                continue;
                             }
+                            Err(err) => Err(err)?,
                         }
-                    },
-                    SetTarget::ComParams(v) => {
-                        for cp in v.iter() {
-                            match worker.pdu_set_com_param(h_mod, h_cll, cp.clone()).await {
-                                Ok(()) => {},
-                                Err(GeneralError::ApiError(ApiError::PduError(PduError::ComParamNotSupported))) => {},
-                                Err(err) => Err(err)?
-                            }
+                    }
+                }
+                SetTarget::ComParams(v) => {
+                    for cp in v.iter() {
+                        match worker.pdu_set_com_param(h_mod, h_cll, cp.clone()).await {
+                            Ok(()) => {}
+                            Err(GeneralError::ApiError(ApiError::PduError(
+                                PduError::ComParamNotSupported,
+                            ))) => {}
+                            Err(err) => Err(err)?,
                         }
                     }
                 }
@@ -481,16 +485,19 @@ impl PduLogicalLink {
                 let set_target = set_target.into();
                 let thread = move || me.blocking_set_com_params(set_target);
 
-                spawn_blocking(thread)
-                    .await
-                    .expect("internal error: ComLogicalLink::blocking_set_com_params() task panicked")?;
+                spawn_blocking(thread).await.expect(
+                    "internal error: ComLogicalLink::blocking_set_com_params() task panicked",
+                )?;
             }
         }
 
         Ok(())
     }
 
-    pub fn blocking_set_unique_com_params_table(&self, map_target: impl Into<MapTarget>) -> GeneralResult<()> {
+    pub fn blocking_set_unique_com_params_table(
+        &self,
+        map_target: impl Into<MapTarget>,
+    ) -> GeneralResult<()> {
         let h_mod = self.get_module_handle();
         let h_cll = self.get_cll_handle();
 
@@ -505,8 +512,9 @@ impl PduLogicalLink {
                     }
                 }
 
-                self.api.pdu_set_unique_resp_id_table(h_mod, h_cll, &table)?;
-            },
+                self.api
+                    .pdu_set_unique_resp_id_table(h_mod, h_cll, &table)?;
+            }
             MapTarget::ComParams(v) => {
                 self.api.pdu_set_unique_resp_id_table(h_mod, h_cll, &v)?;
             }
@@ -515,28 +523,31 @@ impl PduLogicalLink {
         Ok(())
     }
 
-    pub async fn set_unique_com_params_table(&self, map_target: impl Into<MapTarget>) -> GeneralResult<()> {
+    pub async fn set_unique_com_params_table(
+        &self,
+        map_target: impl Into<MapTarget>,
+    ) -> GeneralResult<()> {
         let h_mod = self.get_module_handle();
         let h_cll = self.get_cll_handle();
 
         match self.worker.get() {
-            Some(worker) => {
-                match map_target.into() {
-                    MapTarget::Definitions(v) => {
-                        let mut table = PduComParamTable::with_capacity(v.len());
+            Some(worker) => match map_target.into() {
+                MapTarget::Definitions(v) => {
+                    let mut table = PduComParamTable::with_capacity(v.len());
 
-                        for (unique_id, set) in v.iter() {
-                            for def in set.iter() {
-                                let cp = def.build(worker.as_ref()).await?;
-                                table = table.add(unique_id.to_owned(), cp);
-                            }
+                    for (unique_id, set) in v.iter() {
+                        for def in set.iter() {
+                            let cp = def.build(worker.as_ref()).await?;
+                            table = table.add(unique_id.to_owned(), cp);
                         }
-
-                        worker.pdu_set_unique_resp_id_table(h_mod, h_cll, table).await?;
-                    },
-                    MapTarget::ComParams(v) => {
-                        worker.pdu_set_unique_resp_id_table(h_mod, h_cll, v).await?;
                     }
+
+                    worker
+                        .pdu_set_unique_resp_id_table(h_mod, h_cll, table)
+                        .await?;
+                }
+                MapTarget::ComParams(v) => {
+                    worker.pdu_set_unique_resp_id_table(h_mod, h_cll, v).await?;
                 }
             },
             None => {
@@ -666,7 +677,7 @@ impl CllCreateType {
         CllCreateType::ResourceData {
             bus: BusSource::dual_wire_can(),
             protocol: ProtocolSource::iso_11898_raw(),
-            pins: TargetPin::obd_dual_wire_can()
+            pins: TargetPin::obd_dual_wire_can(),
         }
     }
 
@@ -674,7 +685,7 @@ impl CllCreateType {
         CllCreateType::ResourceData {
             bus: BusSource::dual_wire_can(),
             protocol: ProtocolSource::uds_on_iso_tp(),
-            pins: TargetPin::obd_dual_wire_can()
+            pins: TargetPin::obd_dual_wire_can(),
         }
     }
 
@@ -682,7 +693,7 @@ impl CllCreateType {
         CllCreateType::ResourceData {
             bus: BusSource::dual_wire_can(),
             protocol: ProtocolSource::kwp_on_iso_tp(),
-            pins: TargetPin::obd_dual_wire_can()
+            pins: TargetPin::obd_dual_wire_can(),
         }
     }
 }
@@ -751,7 +762,7 @@ impl CllCreateFlags {
         Self {
             raw_mode: true,
             monitor_mode: true,
-            checksum_mode: false
+            checksum_mode: false,
         }
     }
 
@@ -937,7 +948,7 @@ pub struct StopComm {
 
     pub filters: Vec<ExpectedResponse>,
 
-    pub events_queue_size: Option<usize>
+    pub events_queue_size: Option<usize>,
 }
 
 impl StopComm {
@@ -1036,7 +1047,7 @@ pub struct SendRecv {
 
     pub delay: Duration,
 
-    pub events_queue_size: Option<usize>
+    pub events_queue_size: Option<usize>,
 }
 
 impl SendRecv {
@@ -1055,8 +1066,7 @@ impl SendRecv {
     }
 
     pub fn send_only(data: &[u8]) -> Self {
-        SendRecv::new(data)
-            .with_receive_cycles(ReceiveCycles::Normal(0))
+        SendRecv::new(data).with_receive_cycles(ReceiveCycles::Normal(0))
     }
 
     /// Use case.
@@ -1128,7 +1138,7 @@ impl CopParamsBuilder for SendRecv {
 
         if self.send_cycles.to_i32() == 0 {
             panic!("internal error: when PduCopt = SendRecv, send cycles must not be zero");
-        }// else if self.receive_cycles.to_i32() == 0 {
+        } // else if self.receive_cycles.to_i32() == 0 {
         //    panic!("internal error: when PduCopt = SendRecv, receive cycles must not be zero");
         //}
 

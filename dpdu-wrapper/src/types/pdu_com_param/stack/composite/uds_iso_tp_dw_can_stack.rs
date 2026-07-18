@@ -1,3 +1,35 @@
+use crate::types::pdu_com_param::single::bus_type::{
+    CpBaudrate, CpBitSamplePoint, CpCanBaudrateRecord, CpCanFdBaudrate, CpCanFdBitSamplePoint,
+    CpCanFdSyncJumpWidth, CpListenOnly, CpSamplesPerBit, CpSyncJumpWidth, CpTerminationType,
+};
+use crate::types::pdu_com_param::single::com::{
+    CpBlockSize, CpBlockSizeOverride, CpCanDataSizeOffset, CpCanFdTxMaxDataLength, CpCanFillerByte,
+    CpCanFillerByteHandling, CpCanFirstConsecutiveFrameValue, CpCanFuncReqExtAddr,
+    CpCanFuncReqFormat, CpCanFuncReqId, CpCanMaxNumWaitFrames, CpChangeSpeedCtrl,
+    CpChangeSpeedMessage, CpChangeSpeedRate, CpChangeSpeedResCtrl, CpEnablePerformanceTest,
+    CpLoopback, CpMaxFirstFrameDataLength, CpRequestAddrMode, CpSendRemoteFrame,
+    CpStartMsgIndEnable, CpSwCanHighVoltage, CpTransmitIndEnable,
+};
+use crate::types::pdu_com_param::single::err_hdl::{
+    CpRc21Completiontimeout, CpRc21Handling, CpRc21RequestTime, CpRc23Completiontimeout,
+    CpRc23Handling, CpRc23RequestTime, CpRc78Completiontimeout, CpRc78Handling, CpRcByteOffset,
+    CpRepeatReqCountApp, CpRepeatReqCountTrans, CpSuspendQueueOnError,
+};
+use crate::types::pdu_com_param::single::tester_present::{
+    CpTesterPresentAddrMode, CpTesterPresentExpNegResp, CpTesterPresentExpPosResp,
+    CpTesterPresentHandling, CpTesterPresentMessage, CpTesterPresentReqRsp,
+    CpTesterPresentSendType, CpTesterPresentTime,
+};
+use crate::types::pdu_com_param::single::timing::{
+    CpAr, CpAs, CpBr, CpBs, CpCanTransmissionTime, CpChangeSpeedTxDelay, CpCr, CpCs,
+    CpCyclicRespTimeout, CpModifyTiming, CpP2Max, CpP2Min, CpP2Star, CpP3Func, CpP3Phys,
+    CpSessionTimingOverride, CpStMin, CpStMinOverride,
+};
+use crate::types::pdu_com_param::single::unique::{
+    CpCanPhysReqExtAddr, CpCanPhysReqFormat, CpCanPhysReqId, CpCanRespUsdtExtAddr,
+    CpCanRespUsdtFormat, CpCanRespUsdtId, CpCanRespUudtExtAddr, CpCanRespUudtFormat,
+    CpCanRespUudtId, CpEcuLayerShortName,
+};
 use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
 use crate::types::pdu_com_param::stack::application::UdsStack;
 use crate::types::pdu_com_param::stack::physical::DwCanStack;
@@ -5,14 +37,8 @@ use crate::types::pdu_com_param::stack::transport::IsoTpStack;
 use crate::types::pdu_com_param::table::{
     ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
 };
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
-use crate::types::pdu_com_param::single::bus_type::{CpBaudrate, CpBitSamplePoint, CpCanBaudrateRecord, CpCanFdBaudrate, CpCanFdBitSamplePoint, CpCanFdSyncJumpWidth, CpListenOnly, CpSamplesPerBit, CpSyncJumpWidth, CpTerminationType};
-use crate::types::pdu_com_param::single::com::{CpBlockSize, CpBlockSizeOverride, CpCanDataSizeOffset, CpCanFdTxMaxDataLength, CpCanFillerByte, CpCanFillerByteHandling, CpCanFirstConsecutiveFrameValue, CpCanFuncReqExtAddr, CpCanFuncReqFormat, CpCanFuncReqId, CpCanMaxNumWaitFrames, CpChangeSpeedCtrl, CpChangeSpeedMessage, CpChangeSpeedRate, CpChangeSpeedResCtrl, CpEnablePerformanceTest, CpLoopback, CpMaxFirstFrameDataLength, CpRequestAddrMode, CpSendRemoteFrame, CpStartMsgIndEnable, CpSwCanHighVoltage, CpTransmitIndEnable};
-use crate::types::pdu_com_param::single::err_hdl::{CpRc21Completiontimeout, CpRc21Handling, CpRc21RequestTime, CpRc23Completiontimeout, CpRc23Handling, CpRc23RequestTime, CpRc78Completiontimeout, CpRc78Handling, CpRcByteOffset, CpRepeatReqCountApp, CpRepeatReqCountTrans, CpSuspendQueueOnError};
-use crate::types::pdu_com_param::single::tester_present::{CpTesterPresentAddrMode, CpTesterPresentExpNegResp, CpTesterPresentExpPosResp, CpTesterPresentHandling, CpTesterPresentMessage, CpTesterPresentReqRsp, CpTesterPresentSendType, CpTesterPresentTime};
-use crate::types::pdu_com_param::single::timing::{CpAr, CpAs, CpBr, CpBs, CpCanTransmissionTime, CpChangeSpeedTxDelay, CpCr, CpCs, CpCyclicRespTimeout, CpModifyTiming, CpP2Max, CpP2Min, CpP2Star, CpP3Func, CpP3Phys, CpSessionTimingOverride, CpStMin, CpStMinOverride};
-use crate::types::pdu_com_param::single::unique::{CpCanPhysReqExtAddr, CpCanPhysReqFormat, CpCanPhysReqId, CpCanRespUsdtExtAddr, CpCanRespUsdtFormat, CpCanRespUsdtId, CpCanRespUudtExtAddr, CpCanRespUudtFormat, CpCanRespUudtId, CpEcuLayerShortName};
+use std::collections::HashMap;
 
 /// Layers:
 ///   - Application: ISO 15765-3 (UDS)
@@ -229,7 +255,7 @@ impl UdsOnIsoTpOnDwCanStack {
                 samples_per_bit: CpSamplesPerBit::ONE_SAMPLE,
                 sync_jump_width: CpSyncJumpWidth(15),
                 termination_type: CpTerminationType::NO,
-            }
+            },
         }
     }
 }
@@ -249,7 +275,8 @@ impl ComParamDefinitionStack for UdsOnIsoTpOnDwCanStack {
         let mut value = serde_json::to_value(&self)
             .expect("internal error: cannot serialize UdsOnIsoTpOnDwCanStack"); // infallible
 
-        let obj = value.as_object_mut()
+        let obj = value
+            .as_object_mut()
             .expect("internal error: cannot represent UdsOnIsoTpOnDwCanStack as map"); // infallible
 
         for (k, v) in map {

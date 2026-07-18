@@ -1,7 +1,6 @@
+use crate::types::pdu_com_param::table::ComParamDefinition;
 use dpdu_api_types::PduPc;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use crate::types::pdu_com_param::single::timing::{CpP2Max, CpP2Star};
-use crate::types::pdu_com_param::table::ComParamDefinition;
 
 /// CP_P3Min
 ///
@@ -12,7 +11,7 @@ use crate::types::pdu_com_param::table::ComParamDefinition;
 pub enum CpP3Min {
     Micros(u32),
     Millis(u32),
-    Secs(u32)
+    Secs(u32),
 }
 
 impl CpP3Min {
@@ -20,7 +19,7 @@ impl CpP3Min {
         match self {
             CpP3Min::Micros(v) => v.to_owned(),
             CpP3Min::Millis(v) => v.wrapping_mul(1000),
-            CpP3Min::Secs(v) => v.wrapping_mul(1000000)
+            CpP3Min::Secs(v) => v.wrapping_mul(1000000),
         }
     }
 }

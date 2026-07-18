@@ -1,8 +1,6 @@
+use crate::types::pdu_com_param::table::ComParamDefinition;
 use dpdu_api_types::PduPc;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use crate::types::pdu_com_param::single::com::CpLoopback;
-use crate::types::pdu_com_param::single::timing::CpChangeSpeedTxDelay;
-use crate::types::pdu_com_param::table::ComParamDefinition;
 
 /// CP_CyclicRespTimeout
 ///
@@ -14,7 +12,7 @@ use crate::types::pdu_com_param::table::ComParamDefinition;
 pub enum CpCyclicRespTimeout {
     Micros(u32),
     Millis(u32),
-    Secs(u32)
+    Secs(u32),
 }
 
 impl CpCyclicRespTimeout {
@@ -22,7 +20,7 @@ impl CpCyclicRespTimeout {
         match self {
             CpCyclicRespTimeout::Micros(v) => v.to_owned(),
             CpCyclicRespTimeout::Millis(v) => v.wrapping_mul(1000),
-            CpCyclicRespTimeout::Secs(v) => v.wrapping_mul(1000000)
+            CpCyclicRespTimeout::Secs(v) => v.wrapping_mul(1000000),
         }
     }
 }

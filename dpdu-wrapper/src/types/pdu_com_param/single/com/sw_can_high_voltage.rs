@@ -1,9 +1,7 @@
+use crate::types::pdu_com_param::single::{deserialize_bool_from_u32, serialize_u32_from_bool};
+use crate::types::pdu_com_param::table::ComParamDefinition;
 use dpdu_api_types::PduPc;
 use serde::{Deserialize, Serialize};
-use crate::types::pdu_com_param::single::com::CpSendRemoteFrame;
-use crate::types::pdu_com_param::table::ComParamDefinition;
-use crate::types::pdu_com_param::single::{deserialize_bool_from_u32, serialize_u32_from_bool};
-use crate::types::pdu_com_param::single::tester_present::CpTesterPresentHandling;
 
 /// CP_SwCan_HighVoltage
 ///
@@ -16,7 +14,7 @@ use crate::types::pdu_com_param::single::tester_present::CpTesterPresentHandling
 pub struct CpSwCanHighVoltage(
     #[serde(deserialize_with = "deserialize_bool_from_u32")]
     #[serde(serialize_with = "serialize_u32_from_bool")]
-    pub bool
+    pub bool,
 );
 
 impl From<CpSwCanHighVoltage> for ComParamDefinition {
@@ -33,7 +31,6 @@ impl CpSwCanHighVoltage {
     pub const DISABLE: Self = Self(false);
     pub const ENABLE: Self = Self(true);
 }
-
 
 impl From<CpSwCanHighVoltage> for u32 {
     fn from(value: CpSwCanHighVoltage) -> Self {

@@ -1,4 +1,7 @@
-use crate::api::{ApiError, ApiResult, PduApi};
+use crate::AsyncRuntimeTarget;
+use crate::api::PduApi;
+use crate::constants::{CLL_EVENTS_QUEUE_SIZE, MODULE_EVENTS_QUEUE_SIZE};
+use crate::error::GeneralResult;
 use crate::event_callback::event_callback;
 use crate::handle_manager::PduHandleManager;
 use crate::types::pdu_com_logical_link::{CllCreateFlags, CllCreateType, PduLogicalLink};
@@ -7,21 +10,15 @@ use crate::types::pdu_module::PduModuleData;
 use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
 use crate::types::{PduModuleHandle, PduUniqueCllTag};
 use crate::utils::random_non_zero_usize;
-use crate::worker::{PduAsyncWorker, Query, WorkerResult};
-use dpdu_api_types::{PduError, PduStatus};
+use crate::worker::{PduAsyncWorker, Query};
+use dpdu_api_types::PduStatus;
 use parking_lot::Mutex;
-use rand::random;
 use regex::Regex;
-use std::collections::HashMap;
-use std::ffi::CString;
 use std::ops::Deref;
 use std::sync::{Arc, LazyLock, OnceLock, Weak};
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 use tracing::{debug, error};
-use crate::AsyncRuntimeTarget;
-use crate::constants::{CLL_EVENTS_QUEUE_SIZE, MODULE_EVENTS_QUEUE_SIZE};
-use crate::error::{GeneralError, GeneralResult};
 
 pub type VciList = Vec<Arc<PduVci>>;
 
@@ -34,12 +31,12 @@ pub struct PduVci {
     pub(crate) worker: OnceLock<Arc<PduAsyncWorker>>,
 
     pub(crate) module_data: PduModuleData,
-    
+
     pub(crate) event_tx: Arc<mpsc::Sender<PduEvent>>,
-    
+
     pub(crate) event_rx: Arc<mpsc::Receiver<PduEvent>>,
-    
-    pub(crate) sync: Arc<Mutex<()>>
+
+    pub(crate) sync: Arc<Mutex<()>>,
 }
 
 impl PduVci {
@@ -183,7 +180,10 @@ impl PduVci {
         }
     }
 
-    pub fn blocking_list(api: &Arc<PduApi>, events_queue_size: Option<usize>) -> GeneralResult<VciList> {
+    pub fn blocking_list(
+        api: &Arc<PduApi>,
+        events_queue_size: Option<usize>,
+    ) -> GeneralResult<VciList> {
         let modules = api.pdu_get_module_ids().inspect_err(|err| {
             error!("Failed to retrieve the list of communication modules: {err}");
         })?;
@@ -223,7 +223,7 @@ impl PduVci {
                 api.unique_tag,
                 module.h_mod,
                 Arc::downgrade(&tx),
-                Arc::downgrade(&vci)
+                Arc::downgrade(&vci),
             );
 
             list.push(vci);
@@ -234,24 +234,23 @@ impl PduVci {
 
     pub async fn list<'a>(
         runtime: impl Into<AsyncRuntimeTarget<'a>>,
-        events_queue_size: Option<usize>
+        events_queue_size: Option<usize>,
     ) -> GeneralResult<VciList> {
         let events_queue_size = events_queue_size.unwrap_or(MODULE_EVENTS_QUEUE_SIZE);
-        
+
         match runtime.into() {
             AsyncRuntimeTarget::Api(api) => {
                 let api = api.clone_arc();
-                let result = spawn_blocking(move || PduVci::blocking_list(&api, Some(events_queue_size)))
-                    .await
-                    .expect("internal error: PduVci::blocking_list() task panicked");
+                let result =
+                    spawn_blocking(move || PduVci::blocking_list(&api, Some(events_queue_size)))
+                        .await
+                        .expect("internal error: PduVci::blocking_list() task panicked");
                 Ok(result?)
             }
             AsyncRuntimeTarget::Worker(worker) => {
-                let modules = worker.pdu_get_module_ids()
-                    .await
-                    .inspect_err(|err| {
-                        error!("Failed to retrieve the list of communication modules: {err}");
-                    })?;
+                let modules = worker.pdu_get_module_ids().await.inspect_err(|err| {
+                    error!("Failed to retrieve the list of communication modules: {err}");
+                })?;
 
                 let mut list = Vec::with_capacity(modules.len());
 
@@ -287,14 +286,14 @@ impl PduVci {
                         worker.api.unique_tag,
                         module.h_mod,
                         Arc::downgrade(&tx),
-                        Arc::downgrade(&vci)
+                        Arc::downgrade(&vci),
                     );
 
                     list.push(vci);
                 }
 
                 Ok(list)
-            },
+            }
         }
     }
 
@@ -430,13 +429,14 @@ impl PduVci {
 
                 let create_type = create_type.to_owned();
                 let create_flags = create_flags.to_owned();
-                
-                let thread =
-                    move || me.blocking_create_logical_link(
+
+                let thread = move || {
+                    me.blocking_create_logical_link(
                         &create_type,
                         &create_flags,
-                        Some(events_queue_size)
-                    );
+                        Some(events_queue_size),
+                    )
+                };
 
                 let cll = spawn_blocking(thread).await.expect(
                     "internal error: PduVci::blocking_create_com_logical_link task panicked",
@@ -452,7 +452,10 @@ impl PduVci {
 
 impl Drop for PduVci {
     fn drop(&mut self) {
-        debug!(h_mod = self.get_module_handle(), "Disconnecting the PduVci via destructor...");
+        debug!(
+            h_mod = self.get_module_handle(),
+            "Disconnecting the PduVci via destructor..."
+        );
 
         match self.worker.get() {
             Some(worker) => {

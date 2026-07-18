@@ -1,7 +1,6 @@
+use crate::types::pdu_com_param::table::ComParamDefinition;
 use dpdu_api_types::PduPc;
 use serde::{Deserialize, Serialize};
-use crate::types::pdu_com_param::single::com::CpChangeSpeedRate;
-use crate::types::pdu_com_param::table::ComParamDefinition;
 
 /// CP_CanDataSizeOffset.
 ///
@@ -16,7 +15,7 @@ impl From<CpCanDataSizeOffset> for ComParamDefinition {
         ComParamDefinition {
             class: PduPc::Com,
             short_name: "CP_CanDataSizeOffset".to_string(),
-            variant: value.0.into()
+            variant: value.0.into(),
         }
     }
 }

@@ -1,8 +1,7 @@
+use crate::types::pdu_com_param::single::{deserialize_bool_from_u32, serialize_u32_from_bool};
+use crate::types::pdu_com_param::table::ComParamDefinition;
 use dpdu_api_types::PduPc;
 use serde::{Deserialize, Serialize};
-use crate::types::pdu_com_param::table::ComParamDefinition;
-use crate::types::pdu_com_param::single::{deserialize_bool_from_u32, serialize_u32_from_bool};
-use crate::types::pdu_com_param::single::com::CpLoopback;
 
 /// CP_EnablePerformanceTest
 ///
@@ -14,7 +13,7 @@ use crate::types::pdu_com_param::single::com::CpLoopback;
 pub struct CpEnablePerformanceTest(
     #[serde(deserialize_with = "deserialize_bool_from_u32")]
     #[serde(serialize_with = "serialize_u32_from_bool")]
-    pub bool
+    pub bool,
 );
 
 impl From<CpEnablePerformanceTest> for ComParamDefinition {
@@ -22,7 +21,7 @@ impl From<CpEnablePerformanceTest> for ComParamDefinition {
         ComParamDefinition {
             class: PduPc::Com,
             short_name: "CP_EnablePerformanceTest".to_string(),
-            variant: value.0.then(|| 1u32).unwrap_or(0).into()
+            variant: value.0.then(|| 1u32).unwrap_or(0).into(),
         }
     }
 }

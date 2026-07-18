@@ -1,7 +1,6 @@
+use crate::types::pdu_com_param::table::ComParamDefinition;
 use dpdu_api_types::PduPc;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use crate::types::pdu_com_param::single::err_hdl::CpRc78Completiontimeout;
-use crate::types::pdu_com_param::table::ComParamDefinition;
 
 /// CP_TesterPresentTime
 ///
@@ -13,7 +12,7 @@ use crate::types::pdu_com_param::table::ComParamDefinition;
 pub enum CpTesterPresentTime {
     Micros(u32),
     Millis(u32),
-    Secs(u32)
+    Secs(u32),
 }
 
 impl CpTesterPresentTime {
@@ -21,7 +20,7 @@ impl CpTesterPresentTime {
         match self {
             CpTesterPresentTime::Micros(v) => v.to_owned(),
             CpTesterPresentTime::Millis(v) => v.wrapping_mul(1000),
-            CpTesterPresentTime::Secs(v) => v.wrapping_mul(1000000)
+            CpTesterPresentTime::Secs(v) => v.wrapping_mul(1000000),
         }
     }
 }

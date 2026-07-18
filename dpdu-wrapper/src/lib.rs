@@ -1,14 +1,13 @@
 pub mod api;
+mod constants;
 pub mod error;
 mod event_callback;
 pub mod handle_manager;
 pub mod types;
 pub mod utils;
-pub mod worker;
-mod constants;
 mod vendor_specific;
+pub mod worker;
 
-use dpdu_api_types::{PduConstructFn, PduDestructFn};
 use crate::api::PduApi;
 use crate::worker::PduAsyncWorker;
 pub use libloading;

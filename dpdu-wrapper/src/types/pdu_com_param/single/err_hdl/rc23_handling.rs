@@ -1,8 +1,6 @@
+use crate::types::pdu_com_param::table::ComParamDefinition;
 use dpdu_api_types::PduPc;
 use serde::{Deserialize, Serialize};
-use crate::types::pdu_com_param::single::com::CpChangeSpeedRate;
-use crate::types::pdu_com_param::table::ComParamDefinition;
-use crate::types::pdu_com_param::single::{deserialize_bool_from_u32, serialize_u32_from_bool};
 
 /// CP_RC23Handling
 ///

@@ -1,5 +1,6 @@
 use crate::AsyncRuntimeTarget;
-use crate::api::{ApiResult, PduApi};
+use crate::api::PduApi;
+use crate::error::GeneralResult;
 use crate::types::PduUniqueRespIdentifier;
 use crate::types::pdu_com_param::{CpVariant, PduComParam};
 use crate::utils::ecu_name_to_unique_resp_id;
@@ -8,7 +9,6 @@ use dpdu_api_types::PduPc;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
-use crate::error::GeneralResult;
 
 pub type PduComParamSet = ComParamDefinitionSet<PduComParam>;
 
@@ -21,7 +21,7 @@ pub type PduComParamDefinitionTable = ComParamDefinitionTable<ComParamDefinition
 #[derive(Clone)]
 pub enum SetTarget {
     Definitions(PduComParamDefinitionSet),
-    ComParams(PduComParamSet)
+    ComParams(PduComParamSet),
 }
 
 impl From<PduComParamDefinitionSet> for SetTarget {
@@ -39,7 +39,7 @@ impl From<PduComParamSet> for SetTarget {
 #[derive(Clone)]
 pub enum MapTarget {
     Definitions(PduComParamDefinitionTable),
-    ComParams(PduComParamTable)
+    ComParams(PduComParamTable),
 }
 
 impl From<PduComParamDefinitionTable> for MapTarget {
@@ -53,7 +53,6 @@ impl From<PduComParamTable> for MapTarget {
         MapTarget::ComParams(value)
     }
 }
-
 
 #[derive(Clone, Default)]
 pub struct ComParamDefinitionSet<T>(pub HashSet<T>)

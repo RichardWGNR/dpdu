@@ -1,7 +1,7 @@
 use crate::types::pdu_com_logical_link::{CllCreateFlags, CllCreateType, PduCllData};
 use crate::types::pdu_com_param::PduComParam;
 use crate::types::pdu_com_param::table::PduComParamTable;
-use crate::types::pdu_com_primitive::{PduPrimitiveParams, PduCopData};
+use crate::types::pdu_com_primitive::{PduCopData, PduPrimitiveParams};
 use crate::types::pdu_error::{PduErrorData, PduLastErrorTarget};
 use crate::types::pdu_event::{PduEvent, PduEventTarget};
 use crate::types::pdu_io_ctl::{PduIoCtlCommand, PduIoCtlData, PduIoCtlTarget};
@@ -85,10 +85,10 @@ declare_worker_rpc! {
 
     VtIoCtlSendBreak
         => vt_io_ctl_send_break(h_mod: PduModuleHandle, h_cll: PduCllHandle) -> (),
-    
+
     VtIoCtlReadIgnitionSenseState
         => vt_io_ctl_read_ignition_sense_state(h_mod: PduModuleHandle, pin: Option<u32>) -> bool,
-    
+
     VtModuleDestructor
         => !_virtual(h_mod: PduModuleHandle) -> (),
 
@@ -97,7 +97,7 @@ declare_worker_rpc! {
 
     VtCopDestructor
         => !_virtual(h_mod: PduModuleHandle, h_cll: PduCllHandle, h_cop: PduCopHandle) -> (),
-    
+
     // Real D-PDU functions.
     PduCancelComPrimitive
         => pdu_cancel_com_primitive(

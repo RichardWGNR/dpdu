@@ -2,6 +2,7 @@ use crate::api::PduApi;
 use crate::types::pdu_com_logical_link::PduLogicalLink;
 use crate::types::pdu_com_primitive::PduPrimitive;
 use crate::types::pdu_event::PduEvent;
+use crate::types::pdu_vci::PduVci;
 use crate::types::{PduModuleHandle, PduUniqueApiTag, PduUniqueCllTag, PduUniqueCopTag};
 use parking_lot::RwLock;
 use std::collections::HashMap;
@@ -12,7 +13,6 @@ use std::thread::{sleep, spawn};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::warn;
-use crate::types::pdu_vci::PduVci;
 
 static MGR: LazyLock<Arc<PduHandleManager>> = LazyLock::new(|| PduHandleManager::new());
 static CONSTRUCTED: AtomicBool = AtomicBool::new(false);
@@ -69,34 +69,31 @@ impl PduHandleManager {
         me
     }
 
-    pub(crate) fn register_api(
-        api: &Arc<PduApi>,
-        tx: Weak<mpsc::Sender<PduEvent>>
-    ) {
+    pub(crate) fn register_api(api: &Arc<PduApi>, tx: Weak<mpsc::Sender<PduEvent>>) {
         let mut apis = MGR.apis.write();
-        apis.insert(api.unique_tag, HandleContainer {
-            reference: OnceLock::from(Arc::downgrade(api)),
-            event_tx: OnceLock::from(tx),
-            created_at: Instant::now(),
-        });
+        apis.insert(
+            api.unique_tag,
+            HandleContainer {
+                reference: OnceLock::from(Arc::downgrade(api)),
+                event_tx: OnceLock::from(tx),
+                created_at: Instant::now(),
+            },
+        );
     }
 
     pub(crate) fn lookup_api_reference(unique_id: PduUniqueApiTag) -> Option<Arc<PduApi>> {
         let apis = MGR.apis.read();
-        apis
-            .get(&unique_id)?
+        apis.get(&unique_id)?
             .reference
             .get()
             .and_then(Weak::upgrade)
     }
 
-    pub(crate) fn lookup_api_event_tx(unique_id: PduUniqueApiTag) -> Option<Arc<mpsc::Sender<PduEvent>>> {
+    pub(crate) fn lookup_api_event_tx(
+        unique_id: PduUniqueApiTag,
+    ) -> Option<Arc<mpsc::Sender<PduEvent>>> {
         let apis = MGR.apis.read();
-        apis
-            .get(&unique_id)?
-            .event_tx
-            .get()
-            .and_then(Weak::upgrade)
+        apis.get(&unique_id)?.event_tx.get().and_then(Weak::upgrade)
     }
 
     /// Returns the only one D-PDU API that is registered.
@@ -117,16 +114,14 @@ impl PduHandleManager {
         api_tag: PduUniqueApiTag,
         h_mod: PduModuleHandle,
         tx: Weak<mpsc::Sender<PduEvent>>,
-        vci: Weak<PduVci>
+        vci: Weak<PduVci>,
     ) {
         let mut mods = MGR.mods.write();
-        let module = mods
-            .entry((api_tag, h_mod))
-            .or_insert(HandleContainer {
-                reference: OnceLock::from(vci.clone()),
-                event_tx: OnceLock::from(tx.clone()),
-                created_at: Instant::now()
-            });
+        let module = mods.entry((api_tag, h_mod)).or_insert(HandleContainer {
+            reference: OnceLock::from(vci.clone()),
+            event_tx: OnceLock::from(tx.clone()),
+            created_at: Instant::now(),
+        });
 
         // Because the module IDs are not random.
         module.event_tx = OnceLock::from(tx);
@@ -135,7 +130,7 @@ impl PduHandleManager {
 
     pub(crate) fn lookup_module_reference(
         api_tag: PduUniqueApiTag,
-        h_mod: PduModuleHandle
+        h_mod: PduModuleHandle,
     ) -> Option<Arc<PduVci>> {
         let mods = MGR.mods.read();
         mods.get(&(api_tag, h_mod))?
@@ -146,7 +141,7 @@ impl PduHandleManager {
 
     pub(crate) fn lookup_module_event_tx(
         api_tag: PduUniqueApiTag,
-        h_mod: PduModuleHandle
+        h_mod: PduModuleHandle,
     ) -> Option<Arc<mpsc::Sender<PduEvent>>> {
         let mods = MGR.mods.read();
         mods.get(&(api_tag, h_mod))?

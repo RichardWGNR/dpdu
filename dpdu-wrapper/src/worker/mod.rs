@@ -1,8 +1,7 @@
 mod rpc;
 
-use crate::api::ApiError;
 use crate::api::PduApi;
-use crate::types::pdu_vci::PduVci;
+use crate::error::{GeneralError, GeneralResult};
 use crossbeam_channel::select;
 pub use rpc::Query;
 pub use rpc::Response;
@@ -10,8 +9,6 @@ use std::sync::{Arc, Weak};
 use std::thread::spawn;
 use tokio::sync::oneshot;
 use tracing::{info, warn};
-use crate::error::{GeneralError, GeneralResult};
-use crate::types::PduModuleHandle;
 
 pub type WorkerResult<T> = std::result::Result<T, WorkerError>;
 
@@ -41,7 +38,7 @@ impl PduAsyncWorker {
         let (cmd_tx, cmd_rx) = crossbeam_channel::unbounded();
 
         cmd_tx.send((Query::PduConstruct, None)).unwrap();
-        
+
         let worker = Arc::new_cyclic(|weak| PduAsyncWorker {
             me: weak.clone(),
             api: api.clone(),
@@ -103,7 +100,7 @@ impl PduAsyncWorker {
         macro_rules! map {
             ($expr:expr) => {
                 $expr.map_err(GeneralError::from)
-            }
+            };
         }
 
         loop {
@@ -120,7 +117,7 @@ impl PduAsyncWorker {
                             unreachable!("Unexpected command receive errror: {}", err);
                         }
                     };
-                    
+
                     let response = match query {
                         // Virtual functions.
                         Q::VtIoCtlReset => R::VtCllDestructor(map!(api.vt_io_ctl_reset())),
@@ -140,7 +137,7 @@ impl PduAsyncWorker {
                         Q::VtIoCtlGetCableId(h_mod) => R::VtIoCtlGetCableId(map!(api.vt_io_ctl_get_cable_id(h_mod))),
                         Q::VtIoCtlSendBreak(h_mod, h_cll) => R::VtIoCtlSendBreak(map!(api.vt_io_ctl_send_break(h_mod, h_cll))),
                         Q::VtIoCtlReadIgnitionSenseState(h_mod, pin) => R::VtIoCtlReadIgnitionSenseState(map!(api.vt_io_ctl_read_ignition_sense_state(h_mod, pin))),
-                        
+
                         Q::VtModuleDestructor(h_mod) => R::VtModuleDestructor(map!(api.vt_module_destructor(h_mod))),
                         Q::VtCllDestructor(h_mod, h_cll) => R::VtCllDestructor(map!(api.vt_cll_destructor(h_mod, h_cll))),
                         Q::VtCopDestructor(h_mod, h_cll, h_cop) => R::VtCopDestructor(map!(api.vt_cop_destructor(h_mod, h_cll, h_cop))),
@@ -194,7 +191,9 @@ impl PduAsyncWorker {
 
         self.request(query, Some(tx))?;
 
-        Ok(rx.await.map_err(|e| WorkerError::ChannelError(e.to_string()))?)
+        Ok(rx
+            .await
+            .map_err(|e| WorkerError::ChannelError(e.to_string()))?)
     }
 }
 

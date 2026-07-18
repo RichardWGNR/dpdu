@@ -1,13 +1,20 @@
-use std::collections::HashMap;
+use crate::types::pdu_com_param::single::com::{
+    CpCanFillerByte, CpCanFillerByteHandling, CpSendRemoteFrame,
+};
+use crate::types::pdu_com_param::single::err_hdl::CpRepeatReqCountTrans;
+use crate::types::pdu_com_param::single::unique::{
+    CpCanPhysReqExtAddr, CpCanPhysReqFormat, CpCanPhysReqId, CpCanRespUudtExtAddr,
+    CpCanRespUudtFormat, CpCanRespUudtId, CpEcuLayerShortName,
+};
+use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
+use crate::types::pdu_com_param::table::{
+    ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
+};
+use crate::utils::ecu_name_to_unique_resp_id;
 use map_macro::{hash_map_e, hash_set};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::types::pdu_com_param::single::com::{CpCanFillerByte, CpCanFillerByteHandling, CpSendRemoteFrame};
-use crate::types::pdu_com_param::single::err_hdl::CpRepeatReqCountTrans;
-use crate::types::pdu_com_param::single::unique::{CpCanPhysReqExtAddr, CpCanPhysReqFormat, CpCanPhysReqId, CpCanRespUudtExtAddr, CpCanRespUudtFormat, CpCanRespUudtId, CpEcuLayerShortName};
-use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
-use crate::types::pdu_com_param::table::{ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable};
-use crate::utils::ecu_name_to_unique_resp_id;
+use std::collections::HashMap;
 
 /// Raw CAN transport stack (ISO 11898-2).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,12 +59,18 @@ impl RawCanTransportStack {
         self
     }
 
-    pub fn set_can_filler_byte_handling(&mut self, status: impl Into<CpCanFillerByteHandling>) -> &mut Self {
+    pub fn set_can_filler_byte_handling(
+        &mut self,
+        status: impl Into<CpCanFillerByteHandling>,
+    ) -> &mut Self {
         self.can_filler_byte_handling = status.into();
         self
     }
 
-    pub fn set_can_phys_req_ext_addr(&mut self, value: impl Into<CpCanPhysReqExtAddr>) -> &mut Self {
+    pub fn set_can_phys_req_ext_addr(
+        &mut self,
+        value: impl Into<CpCanPhysReqExtAddr>,
+    ) -> &mut Self {
         self.can_phys_req_ext_addr = value.into();
         self
     }
@@ -72,12 +85,18 @@ impl RawCanTransportStack {
         self
     }
 
-    pub fn set_can_resp_uudt_ext_addr(&mut self, value: impl Into<CpCanRespUudtExtAddr>) -> &mut Self {
+    pub fn set_can_resp_uudt_ext_addr(
+        &mut self,
+        value: impl Into<CpCanRespUudtExtAddr>,
+    ) -> &mut Self {
         self.can_resp_uudt_ext_addr = value.into();
         self
     }
 
-    pub fn set_can_resp_uudt_format(&mut self, format: impl Into<CpCanRespUudtFormat>) -> &mut Self {
+    pub fn set_can_resp_uudt_format(
+        &mut self,
+        format: impl Into<CpCanRespUudtFormat>,
+    ) -> &mut Self {
         self.can_resp_uudt_format = format.into();
         self
     }
@@ -87,7 +106,10 @@ impl RawCanTransportStack {
         self
     }
 
-    pub fn set_repeat_req_count_trans(&mut self, value: impl Into<CpRepeatReqCountTrans>) -> &mut Self {
+    pub fn set_repeat_req_count_trans(
+        &mut self,
+        value: impl Into<CpRepeatReqCountTrans>,
+    ) -> &mut Self {
         self.repeat_req_count_trans = value.into();
         self
     }
@@ -108,7 +130,8 @@ impl ComParamDefinitionStack for RawCanTransportStack {
         let mut value = serde_json::to_value(&self)
             .expect("internal error: cannot serialize RawCanTransportStack"); // infallible
 
-        let obj = value.as_object_mut()
+        let obj = value
+            .as_object_mut()
             .expect("internal error: cannot represent RawCanTransportStack as map"); // infallible
 
         for (k, v) in map {
@@ -117,7 +140,7 @@ impl ComParamDefinitionStack for RawCanTransportStack {
             }
             obj.insert(k.clone(), v.clone());
         }
-        
+
         let new_self: RawCanTransportStack = serde_json::from_value(value)
             .expect("internal error: cannot deserialize RawCanTransportStack"); // infallible
 

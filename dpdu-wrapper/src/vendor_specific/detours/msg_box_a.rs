@@ -1,36 +1,39 @@
-use std::collections::HashSet;
-use std::ffi::{c_void, CStr};
-use std::sync::atomic::{Ordering};
-use std::sync::LazyLock;
 use parking_lot::RwLock;
 use retour::GenericDetour;
+use std::collections::HashSet;
+use std::ffi::{CStr, c_void};
+use std::sync::LazyLock;
 use tracing::error;
-use windows::core::{s, PCSTR};
 use windows::Win32::Foundation::HWND;
 use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
+use windows::core::{PCSTR, s};
 
-static CALLBACKS: LazyLock<RwLock<HashSet<MessageBoxACallback>>> = LazyLock::new(|| RwLock::default());
+static CALLBACKS: LazyLock<RwLock<HashSet<MessageBoxACallback>>> =
+    LazyLock::new(|| RwLock::default());
 
-type MessageBoxAFn = unsafe extern "system" fn(hwnd: HWND, text: PCSTR, caption: PCSTR, style: u32) -> i32;
+type MessageBoxAFn =
+    unsafe extern "system" fn(hwnd: HWND, text: PCSTR, caption: PCSTR, style: u32) -> i32;
 
 type MessageBoxACallback = fn(text: &str) -> bool;
 
 #[allow(non_snake_case)]
-unsafe extern "system"
-fn hookedMessageBoxA(hwnd: HWND, text: PCSTR, caption: PCSTR, style: u32) -> i32 {
+unsafe extern "system" fn hookedMessageBoxA(
+    hwnd: HWND,
+    text: PCSTR,
+    caption: PCSTR,
+    style: u32,
+) -> i32 {
     let detour = MESSAGE_BOX_A_DETOUR
         .as_ref()
         .expect("internal error: MessageBoxA detour is not initialized");
 
-    let call_trampoline = || -> i32 {
-        unsafe { detour.call(hwnd, text, caption, style) }
-    };
-    
+    let call_trampoline = || -> i32 { unsafe { detour.call(hwnd, text, caption, style) } };
+
     if !text.is_null() {
         let Ok(text) = unsafe { CStr::from_ptr(text.as_ptr() as _) }.to_str() else {
             return call_trampoline();
         };
-        
+
         let callbacks = CALLBACKS.read();
         for callback in callbacks.iter() {
             if callback(text) {
@@ -42,8 +45,8 @@ fn hookedMessageBoxA(hwnd: HWND, text: PCSTR, caption: PCSTR, style: u32) -> i32
     call_trampoline()
 }
 
-static MESSAGE_BOX_A_DETOUR: LazyLock<Result<GenericDetour<MessageBoxAFn>, String>> = LazyLock::new(|| {
-    unsafe {
+static MESSAGE_BOX_A_DETOUR: LazyLock<Result<GenericDetour<MessageBoxAFn>, String>> =
+    LazyLock::new(|| unsafe {
         let user32dll = LoadLibraryA(s!("user32.dll"))
             .map_err(|e| format!("LoadLibraryA(user32.dll) error: {}", e.message()))?;
 
@@ -55,8 +58,7 @@ static MESSAGE_BOX_A_DETOUR: LazyLock<Result<GenericDetour<MessageBoxAFn>, Strin
 
         GenericDetour::new(fn_rust_ptr, hookedMessageBoxA)
             .map_err(|e| format!("GenericDetour::new(): {}", e.to_string()))
-    }
-});
+    });
 
 pub(crate) fn hook_message_box_a() -> bool {
     match MESSAGE_BOX_A_DETOUR.as_ref() {
@@ -68,7 +70,7 @@ pub(crate) fn hook_message_box_a() -> bool {
                     return true;
                 }
             }
-        },
+        }
         Err(err) => {
             error!("MessageBoxA hook error: {err}");
         }

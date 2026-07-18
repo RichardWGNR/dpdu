@@ -14,15 +14,13 @@ pub(crate) unsafe extern "system-unwind" fn event_callback(
 ) {
     let api = match PduUniqueApiTag::new(p_api_tag as _) {
         Some(api_tag) => PduHandleManager::lookup_api_reference(api_tag),
-        None => PduHandleManager::get_single_api()
+        None => PduHandleManager::get_single_api(),
     };
 
     let Some(api) = api else {
         error!(
             api_tag = p_api_tag as usize,
-            h_mod,
-            h_cll,
-            "PDUEventCallback: there were no suitable APIs for the event"
+            h_mod, h_cll, "PDUEventCallback: there were no suitable APIs for the event"
         );
         return;
     };
@@ -34,9 +32,7 @@ pub(crate) unsafe extern "system-unwind" fn event_callback(
     while let Ok(Some(event)) = api.pdu_get_event_item(&event_target).inspect_err(|err| {
         error!(
             api_tag = api.get_unique_tag(),
-            h_mod,
-            h_cll,
-            "PDUEventCallback: error reading an event: {err}"
+            h_mod, h_cll, "PDUEventCallback: error reading an event: {err}"
         );
     }) {
         events.push(event);
@@ -48,31 +44,40 @@ pub(crate) unsafe extern "system-unwind" fn event_callback(
         match event.target {
             PduEventTarget::System => {
                 // System event.
-                let Some(api_event_tx) = PduHandleManager::lookup_api_event_tx(
-                    api.get_unique_tag()
-                )
+                let Some(api_event_tx) =
+                    PduHandleManager::lookup_api_event_tx(api.get_unique_tag())
                 else {
-                    warn!(h_mod, "PDUEventCallback: unable to lookup event_tx for the PduApi");
+                    warn!(
+                        h_mod,
+                        "PDUEventCallback: unable to lookup event_tx for the PduApi"
+                    );
                     return;
                 };
-                
+
                 if let Err(err) = api_event_tx.try_send(event) {
-                    warn!(h_mod, "PDUEventCallback: unable to deliver event to the PduApi: {err}");
+                    warn!(
+                        h_mod,
+                        "PDUEventCallback: unable to deliver event to the PduApi: {err}"
+                    );
                 }
             }
             PduEventTarget::Module(h_mod) => {
                 // Module event.
-                let Some(module_event_tx) = PduHandleManager::lookup_module_event_tx(
-                    api.get_unique_tag(),
-                    h_mod
-                )
+                let Some(module_event_tx) =
+                    PduHandleManager::lookup_module_event_tx(api.get_unique_tag(), h_mod)
                 else {
-                    warn!(h_mod, "PDUEventCallback: unable to lookup event_tx for the PduVci");
+                    warn!(
+                        h_mod,
+                        "PDUEventCallback: unable to lookup event_tx for the PduVci"
+                    );
                     return;
                 };
 
                 if let Err(err) = module_event_tx.try_send(event) {
-                    warn!(h_mod, "PDUEventCallback: unable to deliver event to the PduVci: {err}");
+                    warn!(
+                        h_mod,
+                        "PDUEventCallback: unable to deliver event to the PduVci: {err}"
+                    );
                 }
             }
             PduEventTarget::LogicalLink(_h_mod, h_cll) => {

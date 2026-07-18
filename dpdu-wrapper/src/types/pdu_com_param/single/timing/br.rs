@@ -1,6 +1,6 @@
+use crate::types::pdu_com_param::table::ComParamDefinition;
 use dpdu_api_types::PduPc;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use crate::types::pdu_com_param::table::ComParamDefinition;
 
 /// CP_Br.
 ///
@@ -11,7 +11,7 @@ use crate::types::pdu_com_param::table::ComParamDefinition;
 pub enum CpBr {
     Micros(u32),
     Millis(u32),
-    Secs(u32)
+    Secs(u32),
 }
 
 impl CpBr {
@@ -21,7 +21,7 @@ impl CpBr {
         match self {
             Self::Micros(v) => v.to_owned(),
             Self::Millis(v) => v.wrapping_mul(1000),
-            Self::Secs(v) => v.wrapping_mul(1000000)
+            Self::Secs(v) => v.wrapping_mul(1000000),
         }
     }
 }

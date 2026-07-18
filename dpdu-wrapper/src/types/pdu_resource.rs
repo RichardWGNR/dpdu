@@ -83,12 +83,12 @@ impl BusSource {
                         func,
                         result,
                         &format!("Unable to lookup bus type by name: {name}"),
-                        None
+                        None,
                     );
                     return Err(result)?;
                 };
                 id
-            },
+            }
         })
     }
 }
@@ -160,12 +160,12 @@ impl ProtocolSource {
                         func,
                         result,
                         &format!("Unable to lookup protocol by name: {name}"),
-                        None
+                        None,
                     );
                     return Err(result)?;
                 };
                 id
-            },
+            }
         })
     }
 }
@@ -251,8 +251,14 @@ pub struct TargetPin {
 impl TargetPin {
     pub fn obd_dual_wire_can() -> Vec<TargetPin> {
         vec![
-            TargetPin { num_on_vci: 6, pin_type: PinSource::Name("HI".into()) },
-            TargetPin { num_on_vci: 14, pin_type: PinSource::Name("LOW".into()) }
+            TargetPin {
+                num_on_vci: 6,
+                pin_type: PinSource::Name("HI".into()),
+            },
+            TargetPin {
+                num_on_vci: 14,
+                pin_type: PinSource::Name("LOW".into()),
+            },
         ]
     }
 }

@@ -1,7 +1,7 @@
-use dpdu_api_types::PduPc;
-use serde::{Deserialize, Serialize};
 use crate::types::pdu_com_param::single::{deserialize_bool_from_u32, serialize_u32_from_bool};
 use crate::types::pdu_com_param::table::ComParamDefinition;
+use dpdu_api_types::PduPc;
+use serde::{Deserialize, Serialize};
 
 /// CP_ChangeSpeedCtrl
 ///
@@ -13,7 +13,7 @@ use crate::types::pdu_com_param::table::ComParamDefinition;
 pub struct CpChangeSpeedCtrl(
     #[serde(deserialize_with = "deserialize_bool_from_u32")]
     #[serde(serialize_with = "serialize_u32_from_bool")]
-    pub bool
+    pub bool,
 );
 
 impl From<CpChangeSpeedCtrl> for ComParamDefinition {
@@ -21,7 +21,7 @@ impl From<CpChangeSpeedCtrl> for ComParamDefinition {
         ComParamDefinition {
             class: PduPc::Com,
             short_name: "CP_ChangeSpeedCtrl".to_string(),
-            variant: (if value.0 { 1 } else { 0 } as u32).into()
+            variant: (if value.0 { 1 } else { 0 } as u32).into(),
         }
     }
 }

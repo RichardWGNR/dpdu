@@ -1,4 +1,5 @@
-use crate::api::{PduApi};
+use crate::api::PduApi;
+use crate::error::{GeneralError, GeneralResult};
 use crate::types::pdu_event::{PduErrorEvent, PduEvent, PduEventData};
 use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
 use crate::types::{PduCllHandle, PduCopHandle, PduModuleHandle, PduUniqueCopTag};
@@ -13,7 +14,6 @@ use tokio::sync::Mutex as TokioMutex;
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 use tracing::{debug, error};
-use crate::error::{GeneralError, GeneralResult};
 
 pub type CopResult<T> = std::result::Result<T, CopError>;
 

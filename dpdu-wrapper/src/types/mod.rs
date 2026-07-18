@@ -13,7 +13,7 @@ pub mod pdu_vci;
 pub mod pdu_version;
 
 use std::collections::HashMap;
-use std::num::{NonZeroU32, NonZeroUsize};
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 pub use dpdu_api_types as core;
