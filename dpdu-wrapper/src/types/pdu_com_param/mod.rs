@@ -17,7 +17,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 use tokio::task::spawn_blocking;
 use tracing::warn;
-use crate::error::GeneralResult;
+use crate::error::{GeneralError, GeneralResult};
 
 /// With the current design, this structure cannot be created directly. It can only be constructed
 /// via the [`from_*`] methods. This is done to prevent panics when calling [PduApi::set_com_param()].
@@ -65,6 +65,18 @@ impl PduComParam {
         variant: impl Into<CpVariant>,
     ) -> GeneralResult<PduComParam> {
         let sn = short_name.into();
+
+        let id = match api.pdu_get_object_id(PduObjt::ComParam, &sn) {
+            Ok(v) => v,
+            Err(ApiError::PduError(PduError::InvalidParameters)) => {
+                warn!("Unsupported comparam: {sn}");
+                return Err(PduError::ComParamNotSupported)?;
+            },
+            Err(err) => {
+                return Err(err)?;
+            }
+        };
+
         let Some(id) = api.pdu_get_object_id(PduObjt::ComParam, &sn)? else {
             warn!("Unsupported comparam: {sn}");
             return Err(PduError::ComParamNotSupported)?;
@@ -88,19 +100,33 @@ impl PduComParam {
         variant: impl Into<CpVariant>,
     ) -> GeneralResult<PduComParam> {
         let sn = short_name.into();
+        let variant = variant.into();
         let id = match runtime.into() {
             AsyncRuntimeTarget::Worker(worker) => {
-                worker.pdu_get_object_id(PduObjt::ComParam, &sn).await?
+                worker.pdu_get_object_id(PduObjt::ComParam, &sn).await
             }
             AsyncRuntimeTarget::Api(api) => {
                 let api = api.clone_arc();
                 let name = sn.to_owned();
-                let task = move || api.pdu_get_object_id(PduObjt::ComParam, &name);
-                spawn_blocking(task)
+
+                let task = move || {
+                    Self::blocking_from_short_name(&api, &name, class, variant)
+                };
+
+                return spawn_blocking(task)
                     .await
-                    .expect(
-                        "internal error: PduComParam::blocking_from_short_name() task panicked"
-                    )?
+                    .expect("internal error: PduComParam::blocking_from_short_name() task panicked");
+            }
+        };
+
+        let id = match id {
+            Ok(v) => v,
+            Err(GeneralError::ApiError(ApiError::PduError(PduError::InvalidParameters))) => {
+                warn!("Unsupported comparam: {sn}");
+                return Err(PduError::ComParamNotSupported)?;
+            },
+            Err(err) => {
+                return Err(err)?;
             }
         };
 

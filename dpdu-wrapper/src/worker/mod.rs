@@ -41,7 +41,7 @@ impl PduAsyncWorker {
         let (cmd_tx, cmd_rx) = crossbeam_channel::unbounded();
 
         cmd_tx.send((Query::PduConstruct, None)).unwrap();
-
+        
         let worker = Arc::new_cyclic(|weak| PduAsyncWorker {
             me: weak.clone(),
             api: api.clone(),

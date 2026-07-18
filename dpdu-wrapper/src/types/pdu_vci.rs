@@ -1,4 +1,4 @@
-use crate::api::{ApiResult, PduApi};
+use crate::api::{ApiError, ApiResult, PduApi};
 use crate::event_callback::event_callback;
 use crate::handle_manager::PduHandleManager;
 use crate::types::pdu_com_logical_link::{CllCreateFlags, CllCreateType, PduLogicalLink};
@@ -8,7 +8,7 @@ use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
 use crate::types::{PduModuleHandle, PduUniqueCllTag};
 use crate::utils::random_non_zero_usize;
 use crate::worker::{PduAsyncWorker, Query, WorkerResult};
-use dpdu_api_types::PduStatus;
+use dpdu_api_types::{PduError, PduStatus};
 use parking_lot::Mutex;
 use rand::random;
 use regex::Regex;
@@ -21,7 +21,7 @@ use tokio::task::spawn_blocking;
 use tracing::{debug, error};
 use crate::AsyncRuntimeTarget;
 use crate::constants::{CLL_EVENTS_QUEUE_SIZE, MODULE_EVENTS_QUEUE_SIZE};
-use crate::error::GeneralResult;
+use crate::error::{GeneralError, GeneralResult};
 
 pub type VciList = Vec<Arc<PduVci>>;
 
@@ -205,10 +205,19 @@ impl PduVci {
                 sync: Arc::default(),
             });
 
-            api.pdu_register_event_callback(
+            /* TODO: Register after connect
+            match api.pdu_register_event_callback(
                 &PduEventTarget::Module(module.h_mod),
                 Some(event_callback)
-            )?;
+            ) {
+                Ok(_) => {},
+                Err(ApiError::PduError(PduError::ModuleNotConnected)) => {
+                    continue;
+                },
+                Err(e) => {
+                    return Err(e)?;
+                }
+            }*/
 
             PduHandleManager::register_module(
                 api.unique_tag,
@@ -260,10 +269,19 @@ impl PduVci {
                         sync: Arc::default(),
                     });
 
-                    worker.pdu_register_event_callback(
+                    /* TODO: Register after connect
+                    match worker.pdu_register_event_callback(
                         PduEventTarget::Module(module.h_mod),
                         Some(event_callback)
-                    ).await?;
+                    ).await {
+                        Ok(_) => {},
+                        Err(GeneralError::ApiError(ApiError::PduError(PduError::ModuleNotConnected))) => {
+                            continue;
+                        },
+                        Err(e) => {
+                            return Err(e)?;
+                        }
+                    }*/
 
                     PduHandleManager::register_module(
                         worker.api.unique_tag,

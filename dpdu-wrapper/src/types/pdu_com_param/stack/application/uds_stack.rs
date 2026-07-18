@@ -1,396 +1,345 @@
+use std::collections::HashMap;
 use crate::types::pdu_com_param::stack::ComParamDefinitionStack;
 use crate::types::pdu_com_param::table::{
     ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
 };
-use dpdu_api_types::ParamStructSessionTiming;
-use dpdu_wrapper_support::impl_configure_from_serde_json_map_for_com_param_stack;
 use map_macro::hash_set;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use crate::types::pdu_com_param::single::com::{CpChangeSpeedCtrl, CpChangeSpeedMessage, CpChangeSpeedRate, CpChangeSpeedResCtrl, CpEnablePerformanceTest, CpLoopback, CpStartMsgIndEnable, CpSwCanHighVoltage, CpTransmitIndEnable};
+use crate::types::pdu_com_param::single::err_hdl::{CpRc21Completiontimeout, CpRc21Handling, CpRc21RequestTime, CpRc23Completiontimeout, CpRc23Handling, CpRc23RequestTime, CpRc78Completiontimeout, CpRc78Handling, CpRcByteOffset, CpRepeatReqCountApp, CpSuspendQueueOnError};
+use crate::types::pdu_com_param::single::tester_present::{CpTesterPresentAddrMode, CpTesterPresentExpNegResp, CpTesterPresentExpPosResp, CpTesterPresentHandling, CpTesterPresentMessage, CpTesterPresentReqRsp, CpTesterPresentSendType, CpTesterPresentTime};
+use crate::types::pdu_com_param::single::timing::{CpCanTransmissionTime, CpChangeSpeedTxDelay, CpCyclicRespTimeout, CpModifyTiming, CpP2Max, CpP2Min, CpP2Star, CpP3Func, CpP3Min, CpP3Phys, CpSessionTimingOverride};
 
-/// Стек возможных коммуникационных параметров для протокола приложения UDS (ISO 14229-3).
-///
-/// Описания возможных параметров сгенерированы ChatGpt!
-#[derive(Clone, Debug)]
+/// UDS application stack (ISO 14229-3).
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UdsStack {
-    /// CP_CanTransmissionTime
-    ///
-    /// Определяет время передачи в сети CAN (Controller Area Network).
-    /// Он указывает на продолжительность, необходимую для передачи сообщения или передачи
-    /// определенной единицы данных по сети CAN.
-    pub can_transmission_time: u32,
+    #[serde(rename = "CP_CanTransmissionTime")]
+    pub can_transmission_time: CpCanTransmissionTime,
 
-    /// CP_ChangeSpeedCtrl
-    ///
-    /// Определяет, включен ли контроль изменения скорости передачи данных. Этот параметр
-    /// указывает, будет ли система управлять изменением скорости передачи данных, например, в
-    /// зависимости от текущих условий сети или других факторов.
-    pub change_speed_ctrl: u32,
+    #[serde(rename = "CP_ChangeSpeedCtrl")]
+    pub change_speed_ctrl: CpChangeSpeedCtrl,
 
-    /// CP_ChangeSpeedMessage
-    ///
-    /// Определяет сообщение, которое будет отправлено при изменении скорости передачи данных.
-    /// Этот параметр указывает байтовую последовательность или данные, которые должны быть
-    /// переданы для изменения скорости передачи в системе, например, в случае изменения режима
-    /// работы интерфейса или канала связи.
-    pub change_speed_message: Vec<u8>,
+    #[serde(rename = "CP_ChangeSpeedMessage")]
+    pub change_speed_message: CpChangeSpeedMessage,
 
-    /// CP_ChangeSpeedRate
-    ///
-    /// Определяет скорость изменения передачи данных. Этот параметр указывает, на какую
-    /// скорость будет изменена передача данных, например, в процессе изменения условий сети или
-    /// в ответ на запрос о изменении скорости работы канала связи.
-    pub change_speed_rate: u32,
+    #[serde(rename = "CP_ChangeSpeedRate")]
+    pub change_speed_rate: CpChangeSpeedRate,
 
-    pub change_speed_res_ctrl: u32,
+    #[serde(rename = "CP_ChangeSpeedResCtrl")]
+    pub change_speed_res_ctrl: CpChangeSpeedResCtrl,
 
-    /// CP_ChangeSpeedTxDelay
-    ///
-    /// Определяет задержку передачи данных при изменении скорости. Этот параметр указывает
-    /// время задержки, которое должно быть соблюдено перед началом передачи данных после
-    /// изменения скорости. Используется для корректного синхронизирования передачи при переходе
-    /// на новую скорость.
-    pub change_speed_tx_delay: u32,
+    #[serde(rename = "CP_ChangeSpeedTxDelay")]
+    pub change_speed_tx_delay: CpChangeSpeedTxDelay,
 
-    /// CP_CyclicRespTimeout
-    ///
-    /// Определяет таймаут для ожидания циклического ответа в системе CAN или протоколе UDS
-    /// (Unified Diagnostic Services). Этот таймаут указывает максимальное время, в течение
-    /// которого система ожидает получения ответа на запрос или команду, прежде чем будет
-    /// предпринята следующая попытка или выполнены действия в случае его отсутствия.
-    pub cyclic_resp_timeout: u32,
+    #[serde(rename = "CP_CyclicRespTimeout")]
+    pub cyclic_resp_timeout: CpCyclicRespTimeout,
 
-    /// CP_EnablePerformanceTest
-    ///
-    /// Специальный параметр, используемый для включения или отключения измерения
-    /// производительности канала связи между диагностическим приложением и ECU (или между
-    /// приложением и VCI).
-    pub enable_performance_test: u32,
+    #[serde(rename = "CP_EnablePerformanceTest")]
+    pub enable_performance_test: CpEnablePerformanceTest,
 
-    /// CP_Loopback
-    ///
-    /// Определяет, активирован ли режим петли (loopback) для передачи данных. Этот параметр
-    /// указывает, будет ли система работать в режиме петли, при котором отправленные данные
-    /// немедленно возвращаются обратно, что используется для тестирования и диагностики канала
-    /// передачи данных или устройства.
-    pub loopback: u32,
+    #[serde(rename = "CP_Loopback")]
+    pub loopback: CpLoopback,
 
-    /// CP_ModifyTiming
-    ///
-    /// Используется для изменения стандартных таймингов в системе. Определяет, нужно ли
-    /// модифицировать параметры времени, такие как время отклика или время передачи данных.
-    /// При ненулевом значении активирует изменение временных интервалов в процессе передачи
-    /// сообщений, например, в системе CAN или UDS.
-    pub modify_timing: u32,
+    #[serde(rename = "CP_ModifyTiming")]
+    pub modify_timing: CpModifyTiming,
 
-    /// CP_P2Max
-    ///
-    /// Определяет максимальное время второго этапа (P2) в протоколе UDS. Это время, которое
-    /// система будет ожидать для завершения второго этапа обмена данными после отправки первого
-    /// этапа. Может использоваться для настройки времени ожидания в случае, если система работает
-    /// в условиях ограниченной скорости передачи или высокой нагрузки.
-    pub p2_max: u32,
+    #[serde(rename = "CP_P2Max")]
+    pub p2_max: CpP2Max,
 
-    /// CP_P2Min
-    ///
-    /// Минимальное время, через которое тестер (диагностическая программа) может ожидать ответ
-    /// от ECU после отправки запроса.
-    pub p2_min: u32,
+    #[serde(rename = "CP_P2Min")]
+    pub p2_min: CpP2Min,
 
-    /// CP_P2Star
-    ///
-    /// Определяет максимальное время для второго этапа (P2*) в протоколе UDS, которое может быть
-    /// увеличено в случае, если обмен данными между устройствами занимает больше времени. Этот
-    /// параметр используется для настройки времени ожидания, когда система должна ожидать
-    /// завершение второго этапа передачи данных, даже если процесс занимает больше времени, чем
-    /// обычно.
-    pub p2_star: u32,
+    #[serde(rename = "CP_P2Star")]
+    pub p2_star: CpP2Star,
 
-    /// CP_P3Func
-    ///
-    /// Определяет время третьего этапа (P3) в функциональном режиме UDS. Этот параметр указывает
-    /// максимальное время, которое система ожидает для завершения обработки запроса в случае,
-    /// если устройство не может завершить операцию в более короткий срок. Обычно используется
-    /// для операций, которые требуют длительной обработки, таких как программирование или сложные
-    /// диагностики.
-    pub p3_func: u32,
+    #[serde(rename = "CP_P3Func")]
+    pub p3_func: CpP3Func,
 
-    /// CP_P3Phys
-    ///
-    /// Определяет время третьего этапа (P3) в физическом режиме UDS. Этот параметр указывает
-    /// максимальное время, которое система ожидает для завершения операции в физическом режиме
-    /// обмена данными, если устройство не может выполнить операцию быстрее. Он используется для
-    /// операций, которые могут потребовать больше времени из-за физической задержки или сложности
-    /// обработки данных.
-    pub p3_phys: u32,
+    #[serde(rename = "CP_P3Phys")]
+    pub p3_phys: CpP3Phys,
 
-    /// CP_RC21CompletionTimeout
-    ///
-    /// Определяет время ожидания завершения обработки запроса для ошибки RC21. Этот параметр
-    /// указывает максимальное время, которое система будет ожидать для завершения обработки
-    /// операции, связанной с ошибкой RC21, прежде чем считать операцию неудавшейся и перейти к
-    /// следующей.
-    pub rc21_completion_timeout: u32,
+    #[serde(rename = "CP_RC21CompletionTimeout")]
+    pub rc21_completion_timeout: CpRc21Completiontimeout,
 
-    /// CP_RC21Handling
-    ///
-    /// Определяет способ обработки ошибки RC21 в системе. Этот параметр указывает, как система
-    /// будет реагировать на ошибку RC21, например, какой метод или процедура будет использована
-    /// для устранения или обработки ошибки. Может включать действия, такие как повторная попытка
-    /// запроса, переход в безопасное состояние или выполнение других предустановленных операций.
-    pub rc21_handling: u32,
+    #[serde(rename = "CP_RC21Handling")]
+    pub rc21_handling: CpRc21Handling,
 
-    /// CP_RC21RequestTime
-    ///
-    /// Определяет время ожидания запроса для ошибки RC21. Этот параметр указывает максимальное
-    /// время, которое система будет ожидать перед тем, как начать обработку или предпринять
-    /// действия в случае возникновения ошибки RC21. Используется для контроля времени, в течение
-    /// которого система будет пытаться выполнить запрос, прежде чем считать его неудавшимся.
-    pub rc21_request_time: u32,
+    #[serde(rename = "CP_RC21RequestTime")]
+    pub rc21_request_time: CpRc21RequestTime,
 
-    /// CP_RC23CompletionTimeout
-    ///
-    /// Определяет время ожидания завершения обработки запроса для ошибки RC23. Этот параметр
-    /// указывает максимальное время, которое система будет ожидать для завершения операции,
-    /// связанной с ошибкой RC23, прежде чем считать операцию неудавшейся и перейти к следующей.
-    pub rc23_completion_timeout: u32,
+    #[serde(rename = "CP_RC23CompletionTimeout")]
+    pub rc23_completion_timeout: CpRc23Completiontimeout,
 
-    /// CP_RC23Handling
-    ///
-    /// Определяет способ обработки ошибки RC23 в системе. Этот параметр указывает, как система
-    /// будет реагировать на ошибку RC23, например, что делать в случае её возникновения: повторить
-    /// попытку, перейти в безопасное состояние или выполнить другие действия в соответствии с
-    /// заранее заданной логикой обработки ошибок.
-    pub rc23_handling: u32,
+    #[serde(rename = "CP_RC23Handling")]
+    pub rc23_handling: CpRc23Handling,
 
-    /// CP_RC23RequestTime
-    ///
-    /// Определяет время ожидания запроса для ошибки RC23. Этот параметр указывает максимальное
-    /// время, в течение которого система будет пытаться выполнить запрос или операцию, связанный
-    /// с ошибкой RC23, прежде чем считать его неудавшимся и перейти к следующей попытке или
-    /// операции.
-    pub rc23_request_time: u32,
+    #[serde(rename = "CP_RC23RequestTime")]
+    pub rc23_request_time: CpRc23RequestTime,
 
-    /// CP_RC78CompletionTimeout
-    ///
-    /// Определяет время ожидания завершения обработки запроса для ошибки RC78. Этот параметр
-    /// указывает максимальное время, которое система будет ожидать для завершения операции,
-    /// связанной с ошибкой RC78, прежде чем считать операцию неудавшейся и перейти к следующей.
-    pub rc78_completion_timeout: u32,
+    #[serde(rename = "CP_RC78CompletionTimeout")]
+    pub rc78_completion_timeout: CpRc78Completiontimeout,
 
-    /// CP_RC78Handling
-    ///
-    /// Определяет способ обработки ошибки RC78 в системе. Этот параметр указывает, как система
-    /// будет реагировать на ошибку RC78, например, что делать в случае её возникновения: повторить
-    /// запрос, использовать альтернативные методы или выполнить другие действия в зависимости от
-    /// конфигурации обработки ошибок.
-    pub rc78_handling: u32,
+    #[serde(rename = "CP_RC78Handling")]
+    pub rc78_handling: CpRc78Handling,
 
-    /// CP_RCByteOffset
-    ///
-    /// Определяет смещение байта для ошибки RC в системе. Этот параметр указывает, с какого
-    /// байта следует начинать обработку данных или сообщений, связанных с ошибкой RC.
-    /// Используется для корректной обработки ошибок, когда необходимо указать точку начала в
-    /// передаваемых данных.
-    pub rc_byte_offset: u32,
+    #[serde(rename = "CP_RCByteOffset")]
+    pub rc_byte_offset: CpRcByteOffset,
 
-    /// CP_RepeatReqCountApp
-    ///
-    /// Определяет количество повторных попыток запроса для приложения в случае неудачи.
-    /// Этот параметр указывает, сколько раз система будет повторно пытаться выполнить запрос,
-    /// если предыдущие попытки не увенчались успехом, прежде чем считать операцию окончательно
-    /// неудавшейся.
-    pub repeat_req_count_app: u32,
+    #[serde(rename = "CP_RepeatReqCountApp")]
+    pub repeat_req_count_app: CpRepeatReqCountApp,
 
-    /// CP_SessionTimingOverride
-    ///
-    /// Определяет переопределение таймингов сессии. Этот параметр позволяет изменить стандартные
-    /// временные параметры, связанные с сессиями, например, время ожидания или время отклика
-    /// для различных этапов диагностики. Используется для настройки таймингов в зависимости от
-    /// требований конкретной системы или приложения.
-    pub session_timing_override: Vec<ParamStructSessionTiming>,
+    #[serde(rename = "CP_SessionTimingOverride")]
+    pub session_timing_override: CpSessionTimingOverride,
 
-    /// CP_StartMsgIndEnable
-    ///
-    /// Определяет, включена ли индикаторная передача стартового сообщения. Этот параметр
-    /// указывает, будет ли система отправлять специальное сообщение или сигнал при старте
-    /// определенной операции или процесса. Используется для уведомления системы или других
-    /// устройств о начале выполнения задачи или передачи данных.
-    pub start_msg_ind_enable: u32,
+    #[serde(rename = "CP_StartMsgIndEnable")]
+    pub start_msg_ind_enable: CpStartMsgIndEnable,
 
-    /// CP_SuspendQueueOnError
-    ///
-    /// Определяет, нужно ли при ошибке приостанавливать очередь сообщений. Этот параметр
-    /// указывает, будет ли система приостанавливать обработку дальнейших сообщений в очереди,
-    /// если возникает ошибка, например, при обработке запроса или передачи данных. Используется
-    /// для предотвращения отправки последующих сообщений, пока ошибка не будет устранена.
-    pub suspend_queue_on_error: u32,
+    #[serde(rename = "CP_SuspendQueueOnError")]
+    pub suspend_queue_on_error: CpSuspendQueueOnError,
 
-    /// CP_SwCan_HighVoltage
-    ///
-    /// Определяет наличие или отсутствие высокого напряжения для шины SWCAN. Этот параметр
-    /// указывает, используется ли высокое напряжение для работы с шиной SWCAN (Single Wire CAN).
-    /// Обычно такой параметр применяется для конфигурации интерфейсов, поддерживающих работу с
-    /// высоким напряжением на шине передачи данных.
-    pub sw_can_high_voltage: u32,
+    #[serde(rename = "CP_SwCan_HighVoltage")]
+    pub sw_can_high_voltage: CpSwCanHighVoltage,
 
-    /// CP_TesterPresentAddrMode
-    ///
-    /// Определяет режим адресации для запроса о присутствии тестера. Этот параметр указывает,
-    /// как будет осуществляться адресация при отправке запроса на присутствие диагностического
-    /// устройства (тестера) в сети. Могут быть использованы различные режимы, такие как адресация
-    /// по физическому или логическому адресу устройства.
-    pub tester_present_addr_mode: u32,
+    #[serde(rename = "CP_TesterPresentAddrMode")]
+    pub tester_present_addr_mode: CpTesterPresentAddrMode,
 
-    /// CP_TesterPresentExpNegResp
-    ///
-    /// Определяет ожидаемый отрицательный ответ от тестера на запрос о его присутствии.
-    /// Этот параметр указывает байтовую последовательность, которая должна быть получена,
-    /// если тестер не присутствует или не отвечает на запрос о его наличии в сети.
-    pub tester_present_exp_neg_resp: Vec<u8>,
+    #[serde(rename = "CP_TesterPresentExpNegResp")]
+    pub tester_present_exp_neg_resp: CpTesterPresentExpNegResp,
 
-    /// CP_TesterPresentExpPosResp
-    ///
-    /// Определяет ожидаемый положительный ответ от тестера на запрос о его присутствии. Этот
-    /// параметр указывает байтовую последовательность, которая должна быть получена в случае
-    /// успешного подтверждения присутствия диагностического устройства (тестера) в сети.
-    pub tester_present_exp_pos_resp: Vec<u8>,
+    #[serde(rename = "CP_TesterPresentExpPosResp")]
+    pub tester_present_exp_pos_resp: CpTesterPresentExpPosResp,
 
-    /// CP_TesterPresentHandling
-    ///
-    /// Определяет способ обработки запроса на наличие тестера. Этот параметр указывает, как
-    /// система будет реагировать на запрос о присутствии диагностического устройства (тестера).
-    /// Может включать действия, такие как отправка подтверждения о наличии тестера, игнорирование
-    /// запроса или выполнение других операций в зависимости от конфигурации системы.
-    pub tester_present_handling: u32,
+    #[serde(rename = "CP_TesterPresentHandling")]
+    pub tester_present_handling: CpTesterPresentHandling,
 
-    /// CP_TesterPresentMessage
-    ///
-    /// Определяет сообщение, которое система будет отправлять при запросе о присутствии тестера.
-    /// Этот параметр указывает конкретные данные или байтовую последовательность, которые будут
-    /// переданы в ответ на запрос о присутствии диагностического устройства (тестера) в сети.
-    pub tester_present_message: Vec<u8>,
+    #[serde(rename = "CP_TesterPresentMessage")]
+    pub tester_present_message: CpTesterPresentMessage,
 
-    /// CP_TesterPresentReqRsp
-    ///
-    /// Определяет, будет ли система отправлять ответ на запрос о присутствии тестера. Этот
-    /// параметр указывает, нужно ли системе отвечать на запросы о присутствии диагностического
-    /// устройства (тестера) в сети. Значение может указывать на включение или выключение ответа,
-    /// в зависимости от конфигурации работы системы с диагностическими устройствами.
-    pub tester_present_req_rsp: u32,
+    #[serde(rename = "CP_TesterPresentReqRsp")]
+    pub tester_present_req_rsp: CpTesterPresentReqRsp,
 
-    /// CP_TesterPresentSendType
-    ///
-    /// Определяет тип сообщения, которое система будет отправлять при запросе о присутствии
-    /// тестера. Этот параметр указывает, какой формат или тип данных будет использоваться для
-    /// ответа на запрос о присутствии диагностического устройства (тестера), например, стандартный
-    /// или расширенный тип сообщения.
-    pub tester_present_send_type: u32,
+    #[serde(rename = "CP_TesterPresentSendType")]
+    pub tester_present_send_type: CpTesterPresentSendType,
 
-    /// CP_TesterPresentTime
-    ///
-    /// Определяет время, в течение которого система будет ожидать присутствие тестера. Этот
-    /// параметр указывает максимальное время, в течение которого система будет ожидать ответа
-    /// от диагностического устройства (тестера) после запроса на его присутствие.
-    pub tester_present_time: u32,
+    #[serde(rename = "CP_TesterPresentTime")]
+    pub tester_present_time: CpTesterPresentTime,
 
-    /// CP_TransmitIndEnable
-    ///
-    /// Определяет, включена ли индикаторная передача сообщений. Этот параметр указывает,
-    /// будет ли система отправлять индикаторы или уведомления о начале передачи данных.
-    /// Используется для уведомления системы или других устройств о начале или успешном завершении
-    /// передачи сообщений.
-    pub transmit_ind_enable: u32,
+    #[serde(rename = "CP_TransmitIndEnable")]
+    pub transmit_ind_enable: CpTransmitIndEnable,
 }
 
-impl Default for UdsStack {
-    fn default() -> Self {
-        Self {
-            can_transmission_time: 100000,
-            change_speed_ctrl: 0,
-            change_speed_message: vec![],
-            change_speed_rate: 0,
-            change_speed_res_ctrl: 0,
-            change_speed_tx_delay: 0,
-            cyclic_resp_timeout: 0,
-            enable_performance_test: 0,
-            loopback: 0,
-            modify_timing: 0,
+impl UdsStack {
+    pub fn set_can_transmission_time(&mut self, value: impl Into<CpCanTransmissionTime>) -> &mut Self {
+        self.can_transmission_time = value.into();
+        self
+    }
 
-            p2_max: 150000,
-            p2_min: 0,
-            p2_star: 5050000,
-            p3_func: 50000,
-            p3_phys: 50000,
+    pub fn set_change_speed_ctrl(&mut self, value: impl Into<CpChangeSpeedCtrl>) -> &mut Self {
+        self.change_speed_ctrl = value.into();
+        self
+    }
 
-            rc21_completion_timeout: 1300000,
-            rc21_handling: 0,
-            rc21_request_time: 10000,
-            rc23_completion_timeout: 0,
-            rc23_handling: 0,
-            rc23_request_time: 0,
-            rc78_completion_timeout: 25_000_000,
-            rc78_handling: 2,
-            rc_byte_offset: 0xFFFFFFFF,
+    pub fn set_change_speed_message(&mut self, value: impl Into<CpChangeSpeedMessage>) -> &mut Self {
+        self.change_speed_message = value.into();
+        self
+    }
 
-            repeat_req_count_app: 0,
-            session_timing_override: vec![],
-            start_msg_ind_enable: 0,
-            suspend_queue_on_error: 0,
-            sw_can_high_voltage: 0,
+    pub fn set_change_speed_rate(&mut self, value: impl Into<CpChangeSpeedRate>) -> &mut Self {
+        self.change_speed_rate = value.into();
+        self
+    }
 
-            tester_present_addr_mode: 0,
-            tester_present_exp_neg_resp: vec![],
-            tester_present_exp_pos_resp: vec![],
-            tester_present_handling: 1,
-            tester_present_message: vec![0x3E, 0x80],
-            tester_present_req_rsp: 0,
-            tester_present_send_type: 0,
-            tester_present_time: 2_000_000,
+    pub fn set_change_speed_res_ctrl(&mut self, value: impl Into<CpChangeSpeedResCtrl>) -> &mut Self {
+        self.change_speed_res_ctrl = value.into();
+        self
+    }
 
-            transmit_ind_enable: 0,
-        }
+    pub fn set_change_speed_tx_delay(&mut self, value: impl Into<CpChangeSpeedTxDelay>) -> &mut Self {
+        self.change_speed_tx_delay = value.into();
+        self
+    }
+
+    pub fn set_cyclic_resp_timeout(&mut self, value: impl Into<CpCyclicRespTimeout>) -> &mut Self {
+        self.cyclic_resp_timeout = value.into();
+        self
+    }
+
+    pub fn set_enable_performance_test(&mut self, value: impl Into<CpEnablePerformanceTest>) -> &mut Self {
+        self.enable_performance_test = value.into();
+        self
+    }
+
+    pub fn set_loopback(&mut self, value: impl Into<CpLoopback>) -> &mut Self {
+        self.loopback = value.into();
+        self
+    }
+
+    pub fn set_modify_timing(&mut self, value: impl Into<CpModifyTiming>) -> &mut Self {
+        self.modify_timing = value.into();
+        self
+    }
+
+    pub fn set_p2_max(&mut self, value: impl Into<CpP2Max>) -> &mut Self {
+        self.p2_max = value.into();
+        self
+    }
+
+    pub fn set_p2_min(&mut self, value: impl Into<CpP2Min>) -> &mut Self {
+        self.p2_min = value.into();
+        self
+    }
+
+    pub fn set_p2_star(&mut self, value: impl Into<CpP2Star>) -> &mut Self {
+        self.p2_star = value.into();
+        self
+    }
+
+    pub fn set_p3_func(&mut self, value: impl Into<CpP3Func>) -> &mut Self {
+        self.p3_func = value.into();
+        self
+    }
+
+    pub fn set_p3_phys(&mut self, value: impl Into<CpP3Phys>) -> &mut Self {
+        self.p3_phys = value.into();
+        self
+    }
+
+    pub fn set_rc21_completion_timeout(&mut self, value: impl Into<CpRc21Completiontimeout>) -> &mut Self {
+        self.rc21_completion_timeout = value.into();
+        self
+    }
+
+    pub fn set_rc21_handling(&mut self, value: impl Into<CpRc21Handling>) -> &mut Self {
+        self.rc21_handling = value.into();
+        self
+    }
+
+    pub fn set_rc21_request_time(&mut self, value: impl Into<CpRc21RequestTime>) -> &mut Self {
+        self.rc21_request_time = value.into();
+        self
+    }
+
+    pub fn set_rc23_completion_timeout(&mut self, value: impl Into<CpRc23Completiontimeout>) -> &mut Self {
+        self.rc23_completion_timeout = value.into();
+        self
+    }
+
+    pub fn set_rc23_handling(&mut self, value: impl Into<CpRc23Handling>) -> &mut Self {
+        self.rc23_handling = value.into();
+        self
+    }
+
+    pub fn set_rc23_request_time(&mut self, value: impl Into<CpRc23RequestTime>) -> &mut Self {
+        self.rc23_request_time = value.into();
+        self
+    }
+
+    pub fn set_rc78_completion_timeout(&mut self, value: impl Into<CpRc78Completiontimeout>) -> &mut Self {
+        self.rc78_completion_timeout = value.into();
+        self
+    }
+
+    pub fn set_rc78_handling(&mut self, value: impl Into<CpRc78Handling>) -> &mut Self {
+        self.rc78_handling = value.into();
+        self
+    }
+
+    pub fn set_rc_byte_offset(&mut self, value: impl Into<CpRcByteOffset>) -> &mut Self {
+        self.rc_byte_offset = value.into();
+        self
+    }
+
+    pub fn set_repeat_req_count_app(&mut self, value: impl Into<CpRepeatReqCountApp>) -> &mut Self {
+        self.repeat_req_count_app = value.into();
+        self
+    }
+
+    pub fn set_start_msg_ind_enable(&mut self, value: impl Into<CpStartMsgIndEnable>) -> &mut Self {
+        self.start_msg_ind_enable = value.into();
+        self
+    }
+
+    pub fn set_session_timing_override(&mut self, value: impl Into<CpSessionTimingOverride>) -> &mut Self {
+        self.session_timing_override = value.into();
+        self
+    }
+
+    pub fn set_suspend_queue_on_error(&mut self, value: impl Into<CpSuspendQueueOnError>) -> &mut Self {
+        self.suspend_queue_on_error = value.into();
+        self
+    }
+
+    pub fn set_sw_can_high_voltage(&mut self, value: impl Into<CpSwCanHighVoltage>) -> &mut Self {
+        self.sw_can_high_voltage = value.into();
+        self
+    }
+
+    pub fn set_tester_present_addr_mode(&mut self, value: impl Into<CpTesterPresentAddrMode>) -> &mut Self {
+        self.tester_present_addr_mode = value.into();
+        self
+    }
+
+    pub fn set_tester_present_exp_neg_resp(&mut self, value: impl Into<CpTesterPresentExpNegResp>) -> &mut Self {
+        self.tester_present_exp_neg_resp = value.into();
+        self
+    }
+
+    pub fn set_tester_present_exp_pos_resp(&mut self, value: impl Into<CpTesterPresentExpPosResp>) -> &mut Self {
+        self.tester_present_exp_pos_resp = value.into();
+        self
+    }
+
+    pub fn set_tester_present_handling(&mut self, value: impl Into<CpTesterPresentHandling>) -> &mut Self {
+        self.tester_present_handling = value.into();
+        self
+    }
+
+    pub fn set_tester_present_message(&mut self, value: impl Into<CpTesterPresentMessage>) -> &mut Self {
+        self.tester_present_message = value.into();
+        self
+    }
+
+    pub fn set_tester_present_req_rsp(&mut self, value: impl Into<CpTesterPresentReqRsp>) -> &mut Self {
+        self.tester_present_req_rsp = value.into();
+        self
+    }
+
+    pub fn set_tester_present_send_type(&mut self, value: impl Into<CpTesterPresentSendType>) -> &mut Self {
+        self.tester_present_send_type = value.into();
+        self
+    }
+
+    pub fn set_tester_present_time(&mut self, value: impl Into<CpTesterPresentTime>) -> &mut Self {
+        self.tester_present_time = value.into();
+        self
+    }
+
+    pub fn set_transmit_ind_enable(&mut self, value: impl Into<CpTransmitIndEnable>) -> &mut Self {
+        self.transmit_ind_enable = value.into();
+        self
     }
 }
 
 impl ComParamDefinitionStack for UdsStack {
-    impl_configure_from_serde_json_map_for_com_param_stack! {
-        CP_CanTransmissionTime: u32,
-        CP_ChangeSpeedCtrl: u32,
-        CP_ChangeSpeedMessage: Vec<u8>,
-        CP_ChangeSpeedRate: u32,
-        CP_ChangeSpeedResCtrl: u32,
-        CP_ChangeSpeedTxDelay: u32,
-        CP_CyclicRespTimeout: u32,
-        CP_EnablePerformanceTest: u32,
-        CP_Loopback: u32,
-        CP_ModifyTiming: u32,
-        CP_P2Max: u32,
-        CP_P2Min: u32,
-        CP_P2Star: u32,
-        CP_P3Func: u32,
-        CP_P3Phys: u32,
-        CP_RC21CompletionTimeout: u32,
-        CP_RC21Handling: u32,
-        CP_RC21RequestTime: u32,
-        CP_RC23CompletionTimeout: u32,
-        CP_RC23Handling: u32,
-        CP_RC23RequestTime: u32,
-        CP_RC78CompletionTimeout: u32,
-        CP_RC78Handling: u32,
-        CP_RCByteOffset: u32,
-        CP_RepeatReqCountApp: u32,
-        // CP_SessionTimingOverride
-        CP_StartMsgIndEnable: u32,
-        CP_SuspendQueueOnError: u32,
-        CP_SwCan_HighVoltage: u32,
-        CP_TesterPresentAddrMode: u32,
-        CP_TesterPresentExpNegResp: Vec<u8>,
-        CP_TesterPresentExpPosResp: Vec<u8>,
-        CP_TesterPresentHandling: u32,
-        CP_TesterPresentMessage: Vec<u8>,
-        CP_TesterPresentReqRsp: u32,
-        CP_TesterPresentSendType: u32,
-        CP_TesterPresentTime: u32,
-        CP_TransmitIndEnable: u32,
+    fn configure_from_serde_json_map(&mut self, map: &HashMap<String, Value>) {
+        let mut value = serde_json::to_value(&self)
+            .expect("internal error: cannot serialize UdsStack"); // infallible
+
+        let obj = value.as_object_mut()
+            .expect("internal error: cannot represent UdsStack as map"); // infallible
+
+        for (k, v) in map {
+            if !obj.contains_key(k) {
+                continue;
+            }
+            obj.insert(k.clone(), v.clone());
+        }
+        
+        let new_self: UdsStack = serde_json::from_value(value)
+            .expect("internal error: cannot deserialize UdsStack"); // infallible
+
+        *self = new_self;
     }
 
     fn build_set(&self) -> ComParamDefinitionSet<ComParamDefinition> {
@@ -399,49 +348,49 @@ impl ComParamDefinitionStack for UdsStack {
 
         ComParamDefinitionSet(hash_set! {
             // Timings.
-            Def::new(Time, "CP_CanTransmissionTime", self.can_transmission_time),
-            Def::new(Time, "CP_CyclicRespTimeout", self.cyclic_resp_timeout),
-            Def::new(Time, "CP_ModifyTiming", self.modify_timing),
-            Def::new(Time, "CP_P2Max", self.p2_max),
-            Def::new(Time, "CP_P2Min", self.p2_min),
-            Def::new(Time, "CP_P2Star", self.p2_star),
-            Def::new(Time, "CP_P3Func", self.p3_func),
-            Def::new(Time, "CP_P3Phys", self.p3_phys),
-            Def::new(Time, "CP_ChangeSpeedTxDelay", self.change_speed_tx_delay),
-            Def::new(Time, "CP_SessionTimingOverride", self.session_timing_override.clone()),
+            self.can_transmission_time.into(),
+            self.cyclic_resp_timeout.into(),
+            self.modify_timing.into(),
+            self.p2_max.into(),
+            self.p2_min.into(),
+            self.p2_star.into(),
+            self.p3_func.into(),
+            self.p3_phys.into(),
+            self.change_speed_tx_delay.into(),
+            self.session_timing_override.clone().into(),
 
             // Error handling.
-            Def::new(ErrHdl, "CP_RC21CompletionTimeout", self.rc21_completion_timeout),
-            Def::new(ErrHdl, "CP_RC21Handling", self.rc21_handling),
-            Def::new(ErrHdl, "CP_RC21RequestTime", self.rc21_request_time),
-            Def::new(ErrHdl, "CP_RC23CompletionTimeout", self.rc23_completion_timeout),
-            Def::new(ErrHdl, "CP_RC23Handling", self.rc23_handling),
-            Def::new(ErrHdl, "CP_RC23RequestTime", self.rc23_request_time),
-            Def::new(ErrHdl, "CP_RC78CompletionTimeout", self.rc78_completion_timeout),
-            Def::new(ErrHdl, "CP_RC78Handling", self.rc78_handling),
-            Def::new(ErrHdl, "CP_RCByteOffset", self.rc_byte_offset),
-            Def::new(ErrHdl, "CP_RepeatReqCountApp", self.repeat_req_count_app),
-            Def::new(ErrHdl, "CP_SuspendQueueOnError", self.suspend_queue_on_error),
+            self.rc21_completion_timeout.into(),
+            self.rc21_handling.into(),
+            self.rc21_request_time.into(),
+            self.rc23_completion_timeout.into(),
+            self.rc23_handling.into(),
+            self.rc23_request_time.into(),
+            self.rc78_completion_timeout.into(),
+            self.rc78_handling.into(),
+            self.rc_byte_offset.into(),
+            self.repeat_req_count_app.into(),
+            self.suspend_queue_on_error.into(),
 
             // Com.
-            Def::new(Com, "CP_ChangeSpeedCtrl", self.change_speed_ctrl),
-            Def::new(Com, "CP_ChangeSpeedMessage", self.change_speed_message.clone()),
-            Def::new(Com, "CP_ChangeSpeedRate", self.change_speed_rate),
-            Def::new(Com, "CP_StartMsgIndEnable", self.start_msg_ind_enable),
-            Def::new(Com, "CP_SwCan_HighVoltage", self.sw_can_high_voltage),
-            Def::new(Com, "CP_TransmitIndEnable", self.transmit_ind_enable),
-            Def::new(Com, "CP_ChangeSpeedResCtrl", self.change_speed_res_ctrl),
-            Def::new(Com, "CP_EnablePerformanceTest", self.enable_performance_test),
+            self.change_speed_ctrl.into(),
+            self.change_speed_message.clone().into(),
+            self.change_speed_rate.into(),
+            self.start_msg_ind_enable.into(),
+            self.sw_can_high_voltage.into(),
+            self.transmit_ind_enable.into(),
+            self.change_speed_res_ctrl.into(),
+            self.enable_performance_test.into(),
 
             // Tester present.
-            Def::new(Tp, "CP_TesterPresentAddrMode", self.tester_present_addr_mode),
-            Def::new(Tp, "CP_TesterPresentExpNegResp", self.tester_present_exp_neg_resp.clone()),
-            Def::new(Tp, "CP_TesterPresentExpPosResp", self.tester_present_exp_pos_resp.clone()),
-            Def::new(Tp, "CP_TesterPresentHandling", self.tester_present_handling),
-            Def::new(Tp, "CP_TesterPresentMessage", self.tester_present_message.clone()),
-            Def::new(Tp, "CP_TesterPresentReqRsp", self.tester_present_req_rsp),
-            Def::new(Tp, "CP_TesterPresentSendType", self.tester_present_send_type),
-            Def::new(Tp, "CP_TesterPresentTime", self.tester_present_time),
+            self.tester_present_addr_mode.into(),
+            self.tester_present_exp_neg_resp.clone().into(),
+            self.tester_present_exp_pos_resp.clone().into(),
+            self.tester_present_handling.into(),
+            self.tester_present_message.clone().into(),
+            self.tester_present_req_rsp.into(),
+            self.tester_present_send_type.into(),
+            self.tester_present_time.into(),
         })
     }
 

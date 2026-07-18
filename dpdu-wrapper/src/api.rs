@@ -641,7 +641,7 @@ impl PduApi {
 
         trace!(func = FUNC, object_id, "D-PDU API Call Return");
 
-        if object_id != PDU_HANDLE_UNDEF {
+        if object_id != PDU_ID_UNDEF {
             Ok(Some(object_id))
         } else {
             Ok(None)

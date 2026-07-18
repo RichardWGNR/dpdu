@@ -1,8 +1,14 @@
 use dpdu_api_types::PduPc;
+use serde::{Deserialize, Serialize};
 use crate::types::pdu_com_param::single::unique::CpCanPhysReqFormat;
 use crate::types::pdu_com_param::table::ComParamDefinition;
 
-#[derive(Debug, Copy, Clone)]
+/// CP_CanPhysReqId
+///
+/// Specifies the CAN identifier (ID) of the message used for transmitting
+/// physical diagnostic requests. This parameter defines the CAN frame ID
+/// assigned to outgoing request messages sent to the ECU.
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct CpCanPhysReqId(pub u32);
 
 impl From<CpCanPhysReqId> for ComParamDefinition {
@@ -18,5 +24,11 @@ impl From<CpCanPhysReqId> for ComParamDefinition {
 impl From<CpCanPhysReqId> for u32 {
     fn from(value: CpCanPhysReqId) -> Self {
         value.0
+    }
+}
+
+impl From<u32> for CpCanPhysReqId {
+    fn from(value: u32) -> Self {
+        Self(value)
     }
 }

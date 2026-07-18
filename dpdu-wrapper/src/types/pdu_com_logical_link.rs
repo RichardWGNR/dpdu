@@ -406,10 +406,20 @@ impl PduLogicalLink {
         match set_target.into() {
             SetTarget::Definitions(v) => {
                 for def in v.iter() {
-                    let cp = def.blocking_build(&self.api)?;
+                    let cp = match def.blocking_build(&self.api) {
+                        Ok(v) => v,
+                        Err(GeneralError::ApiError(ApiError::PduError(PduError::ComParamNotSupported))) => {
+                            continue;
+                        },
+                        Err(err) => {
+                            return Err(err)?;
+                        }
+                    };
                     match self.api.pdu_set_com_param(h_mod, h_cll, &cp) {
                         Ok(()) => {},
-                        Err(ApiError::PduError(PduError::ComParamNotSupported)) => {},
+                        Err(ApiError::PduError(PduError::ComParamNotSupported)) => {
+                            continue;
+                        },
                         Err(err) => Err(err)?
                     }
                 }
@@ -437,10 +447,19 @@ impl PduLogicalLink {
                 match set_target.into() {
                     SetTarget::Definitions(v) => {
                         for def in v.iter() {
-                            let cp = def.build(worker.as_ref()).await?;
+                            let cp = match def.build(worker.as_ref()).await {
+                                Ok(v) => v,
+                                Err(GeneralError::ApiError(ApiError::PduError(PduError::ComParamNotSupported))) => {
+                                    continue;
+                                },
+                                Err(err) => Err(err)?
+                            };
+
                             match worker.pdu_set_com_param(h_mod, h_cll, cp).await {
                                 Ok(()) => {},
-                                Err(GeneralError::ApiError(ApiError::PduError(PduError::ComParamNotSupported))) => {},
+                                Err(GeneralError::ApiError(ApiError::PduError(PduError::ComParamNotSupported))) => {
+                                    continue;
+                                },
                                 Err(err) => Err(err)?
                             }
                         }

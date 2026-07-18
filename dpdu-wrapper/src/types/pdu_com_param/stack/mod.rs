@@ -2,6 +2,8 @@ use crate::types::pdu_com_param::table::{
     ComParamDefinition, ComParamDefinitionSet, ComParamDefinitionTable,
 };
 use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
 
 pub mod application;
 pub mod composite;
