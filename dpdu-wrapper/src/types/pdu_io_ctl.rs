@@ -143,7 +143,7 @@ impl DerefMut for IoCtlByteArray {
 pub enum PduIoCtlTarget {
     System,
     Module(PduModuleHandle),
-    ComLogicalLink(PduModuleHandle, PduCllHandle),
+    LogicalLink(PduModuleHandle, PduCllHandle),
 }
 
 impl PduIoCtlTarget {
@@ -155,21 +155,21 @@ impl PduIoCtlTarget {
         matches!(self, PduIoCtlTarget::Module(..))
     }
 
-    pub fn is_com_logical_link(&self) -> bool {
-        matches!(self, PduIoCtlTarget::ComLogicalLink(..))
+    pub fn is_logical_link(&self) -> bool {
+        matches!(self, PduIoCtlTarget::LogicalLink(..))
     }
 
     pub fn get_module_handle(&self) -> Option<PduModuleHandle> {
         match self {
             PduIoCtlTarget::Module(h_mod) => Some(h_mod.clone()),
-            PduIoCtlTarget::ComLogicalLink(h_mod, ..) => Some(h_mod.clone()),
+            PduIoCtlTarget::LogicalLink(h_mod, ..) => Some(h_mod.clone()),
             _ => None,
         }
     }
 
     pub fn get_cll_handle(&self) -> Option<PduCllHandle> {
         match self {
-            PduIoCtlTarget::ComLogicalLink(_, h_cll) => Some(h_cll.clone()),
+            PduIoCtlTarget::LogicalLink(_, h_cll) => Some(h_cll.clone()),
             _ => None,
         }
     }

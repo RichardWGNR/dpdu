@@ -1,5 +1,6 @@
 pub mod stack;
 pub mod table;
+pub mod single;
 
 use crate::AsyncRuntimeTarget;
 use crate::api::{ApiError, ApiResult, PduApi};
@@ -16,6 +17,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
 use tokio::task::spawn_blocking;
 use tracing::warn;
+use crate::error::GeneralResult;
 
 /// With the current design, this structure cannot be created directly. It can only be constructed
 /// via the [`from_*`] methods. This is done to prevent panics when calling [PduApi::set_com_param()].
@@ -61,7 +63,7 @@ impl PduComParam {
         short_name: impl Into<String>,
         class: PduPc,
         variant: impl Into<CpVariant>,
-    ) -> ApiResult<PduComParam> {
+    ) -> GeneralResult<PduComParam> {
         let sn = short_name.into();
         let Some(id) = api.pdu_get_object_id(PduObjt::ComParam, &sn)? else {
             warn!("Unsupported comparam: {sn}");
@@ -84,13 +86,13 @@ impl PduComParam {
         short_name: impl Into<String>,
         class: PduPc,
         variant: impl Into<CpVariant>,
-    ) -> WorkerResult<PduComParam> {
+    ) -> GeneralResult<PduComParam> {
         let sn = short_name.into();
         let id = match runtime.into() {
-            AsyncRuntimeTarget::Async(worker) => {
+            AsyncRuntimeTarget::Worker(worker) => {
                 worker.pdu_get_object_id(PduObjt::ComParam, &sn).await?
             }
-            AsyncRuntimeTarget::Sync(api) => {
+            AsyncRuntimeTarget::Api(api) => {
                 let api = api.clone_arc();
                 let name = sn.to_owned();
                 let task = move || api.pdu_get_object_id(PduObjt::ComParam, &name);

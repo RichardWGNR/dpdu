@@ -3,12 +3,12 @@ use crate::api::{ApiResult, PduApi};
 use crate::types::PduUniqueRespIdentifier;
 use crate::types::pdu_com_param::{CpVariant, PduComParam};
 use crate::utils::ecu_name_to_unique_resp_id;
-use crate::worker::WorkerResult;
 use async_trait::async_trait;
 use dpdu_api_types::PduPc;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
+use crate::error::GeneralResult;
 
 pub type PduComParamSet = ComParamDefinitionSet<PduComParam>;
 
@@ -170,26 +170,26 @@ mod sealed {
 
 #[async_trait]
 pub trait IntoPduComParam: sealed::Sealed + Eq + Hash {
-    fn blocking_build(&self, api: &PduApi) -> ApiResult<PduComParam>;
+    fn blocking_build(&self, api: &PduApi) -> GeneralResult<PduComParam>;
 
     async fn build<'a>(
         &self,
         runtime: impl Into<AsyncRuntimeTarget<'a>> + Send,
-    ) -> WorkerResult<PduComParam>;
+    ) -> GeneralResult<PduComParam>;
 }
 
 impl sealed::Sealed for PduComParam {}
 
 #[async_trait]
 impl IntoPduComParam for PduComParam {
-    fn blocking_build(&self, _api: &PduApi) -> ApiResult<PduComParam> {
+    fn blocking_build(&self, _api: &PduApi) -> GeneralResult<PduComParam> {
         Ok(self.clone())
     }
 
     async fn build<'a>(
         &self,
         _runtime: impl Into<AsyncRuntimeTarget<'a>> + Send,
-    ) -> WorkerResult<PduComParam> {
+    ) -> GeneralResult<PduComParam> {
         Ok(self.clone())
     }
 }
@@ -235,7 +235,7 @@ impl sealed::Sealed for ComParamDefinition {}
 
 #[async_trait]
 impl IntoPduComParam for ComParamDefinition {
-    fn blocking_build(&self, api: &PduApi) -> ApiResult<PduComParam> {
+    fn blocking_build(&self, api: &PduApi) -> GeneralResult<PduComParam> {
         PduComParam::blocking_from_short_name(
             api,
             &self.short_name,
@@ -247,7 +247,7 @@ impl IntoPduComParam for ComParamDefinition {
     async fn build<'a>(
         &self,
         runtime: impl Into<AsyncRuntimeTarget<'a>> + Send,
-    ) -> WorkerResult<PduComParam> {
+    ) -> GeneralResult<PduComParam> {
         PduComParam::from_short_name(runtime, &self.short_name, self.class, self.variant.clone())
             .await
     }

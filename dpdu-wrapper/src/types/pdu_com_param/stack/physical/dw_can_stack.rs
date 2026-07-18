@@ -8,7 +8,6 @@ use map_macro::hash_set;
 /// Стек возможных коммуникационных параметров для физического протокола DW CAN (ISO 11898-2).
 ///
 /// Описания возможных параметров сгенерированы ChatGpt!
-#[non_exhaustive]
 #[derive(Clone, Debug)]
 pub struct DwCanStack {
     /// CP_Baudrate.
@@ -121,28 +120,28 @@ impl Default for DwCanStack {
 }
 
 impl DwCanStack {
-    pub fn with_baudrate(mut self, rate: u32) -> Self {
-        self.baudrate = rate;
+    pub fn with_baudrate(mut self, rate: impl Into<u32>) -> Self {
+        self.baudrate = rate.into();
         self
     }
 
-    pub fn with_canfd_baudate(mut self, rate: u32) -> Self {
-        self.canfd_baudrate = rate;
+    pub fn with_canfd_baudate(mut self, rate: impl Into<u32>) -> Self {
+        self.canfd_baudrate = rate.into();
         self
     }
 
-    pub fn with_canfd_bit_sample_point(mut self, point: u32) -> Self {
-        self.canfd_bit_sample_point = point;
+    pub fn with_canfd_bit_sample_point(mut self, point: impl Into<u32>) -> Self {
+        self.canfd_bit_sample_point = point.into();
         self
     }
 
-    pub fn with_canfd_sync_jump_width(mut self, width: u32) -> Self {
-        self.canfd_sync_jump_width = width;
+    pub fn with_canfd_sync_jump_width(mut self, width: impl Into<u32>) -> Self {
+        self.canfd_sync_jump_width = width.into();
         self
     }
 
-    pub fn with_bit_sample_point(mut self, point: u32) -> Self {
-        self.bit_sample_point = point;
+    pub fn with_bit_sample_point(mut self, point: impl Into<u32>) -> Self {
+        self.bit_sample_point = point.into();
         self
     }
 
@@ -156,18 +155,18 @@ impl DwCanStack {
         self
     }
 
-    pub fn with_samples_per_bit(mut self, samples: u32) -> Self {
-        self.samples_per_bit = samples;
+    pub fn with_samples_per_bit(mut self, samples: impl Into<u32>) -> Self {
+        self.samples_per_bit = samples.into();
         self
     }
 
-    pub fn with_sync_jump_width(mut self, width: u32) -> Self {
-        self.sync_jump_width = width;
+    pub fn with_sync_jump_width(mut self, width: impl Into<u32>) -> Self {
+        self.sync_jump_width = width.into();
         self
     }
 
-    pub fn with_termination_type(mut self, typ: u32) -> Self {
-        self.termination_type = typ;
+    pub fn with_termination_type(mut self, typ: impl Into<u32>) -> Self {
+        self.termination_type = typ.into();
         self
     }
 }

@@ -12,6 +12,7 @@ use std::thread::{sleep, spawn};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::warn;
+use crate::types::pdu_vci::PduVci;
 
 static MGR: LazyLock<Arc<PduHandleManager>> = LazyLock::new(|| PduHandleManager::new());
 static CONSTRUCTED: AtomicBool = AtomicBool::new(false);
@@ -19,7 +20,8 @@ static CONSTRUCTED: AtomicBool = AtomicBool::new(false);
 /// Singleton PDU handle manager.
 #[derive(Debug)]
 pub struct PduHandleManager {
-    apis: RwLock<HashMap<PduUniqueApiTag, Weak<PduApi>>>,
+    apis: RwLock<HashMap<PduUniqueApiTag, HandleContainer<PduApi>>>,
+    mods: RwLock<HashMap<(PduUniqueApiTag, PduModuleHandle), HandleContainer<PduVci>>>,
     clls: RwLock<HashMap<(PduUniqueApiTag, PduUniqueCllTag), HandleContainer<PduLogicalLink>>>,
     cops: RwLock<HashMap<(PduUniqueApiTag, PduUniqueCopTag), HandleContainer<PduPrimitive>>>,
 }
@@ -40,6 +42,7 @@ impl PduHandleManager {
 
         let me = Arc::new(Self {
             apis: RwLock::default(),
+            mods: Default::default(),
             clls: RwLock::default(),
             cops: RwLock::default(),
         });
@@ -66,14 +69,34 @@ impl PduHandleManager {
         me
     }
 
-    pub(crate) fn register_api(api: &Arc<PduApi>) {
+    pub(crate) fn register_api(
+        api: &Arc<PduApi>,
+        tx: Weak<mpsc::Sender<PduEvent>>
+    ) {
         let mut apis = MGR.apis.write();
-        apis.insert(api.unique_tag, Arc::downgrade(api));
+        apis.insert(api.unique_tag, HandleContainer {
+            reference: OnceLock::from(Arc::downgrade(api)),
+            event_tx: OnceLock::from(tx),
+            created_at: Instant::now(),
+        });
     }
 
-    pub(crate) fn lookup_api(unique_id: PduUniqueApiTag) -> Option<Arc<PduApi>> {
+    pub(crate) fn lookup_api_reference(unique_id: PduUniqueApiTag) -> Option<Arc<PduApi>> {
         let apis = MGR.apis.read();
-        apis.get(&unique_id)?.upgrade()
+        apis
+            .get(&unique_id)?
+            .reference
+            .get()
+            .and_then(Weak::upgrade)
+    }
+
+    pub(crate) fn lookup_api_event_tx(unique_id: PduUniqueApiTag) -> Option<Arc<mpsc::Sender<PduEvent>>> {
+        let apis = MGR.apis.read();
+        apis
+            .get(&unique_id)?
+            .event_tx
+            .get()
+            .and_then(Weak::upgrade)
     }
 
     /// Returns the only one D-PDU API that is registered.
@@ -84,7 +107,52 @@ impl PduHandleManager {
         if apis.len() != 1 {
             return None;
         }
-        apis.iter().next().and_then(|(_, api)| api.upgrade())
+        apis.iter()
+            .next()
+            .and_then(|(_, api)| api.reference.get())
+            .and_then(Weak::upgrade)
+    }
+
+    pub(crate) fn register_module(
+        api_tag: PduUniqueApiTag,
+        h_mod: PduModuleHandle,
+        tx: Weak<mpsc::Sender<PduEvent>>,
+        vci: Weak<PduVci>
+    ) {
+        let mut mods = MGR.mods.write();
+        let module = mods
+            .entry((api_tag, h_mod))
+            .or_insert(HandleContainer {
+                reference: OnceLock::from(vci.clone()),
+                event_tx: OnceLock::from(tx.clone()),
+                created_at: Instant::now()
+            });
+
+        // Because the module IDs are not random.
+        module.event_tx = OnceLock::from(tx);
+        module.reference = OnceLock::from(vci);
+    }
+
+    pub(crate) fn lookup_module_reference(
+        api_tag: PduUniqueApiTag,
+        h_mod: PduModuleHandle
+    ) -> Option<Arc<PduVci>> {
+        let mods = MGR.mods.read();
+        mods.get(&(api_tag, h_mod))?
+            .reference
+            .get()
+            .and_then(Weak::upgrade)
+    }
+
+    pub(crate) fn lookup_module_event_tx(
+        api_tag: PduUniqueApiTag,
+        h_mod: PduModuleHandle
+    ) -> Option<Arc<mpsc::Sender<PduEvent>>> {
+        let mods = MGR.mods.read();
+        mods.get(&(api_tag, h_mod))?
+            .event_tx
+            .get()
+            .and_then(Weak::upgrade)
     }
 
     pub(crate) fn register_cll(
@@ -207,11 +275,15 @@ impl PduHandleManager {
 
             {
                 let mut apis = me.apis.write();
-                apis.retain(|_, cop| cop.strong_count() > 0);
+                apis.retain(|_, handle| Self::retain_handle_containers(&now, handle));
                 if apis.capacity() > apis.len() * 2 {
                     // Release resources back to the system.
                     apis.shrink_to_fit();
                 }
+            }
+            {
+                let mut mods = me.mods.write();
+                mods.retain(|_, handle| Self::retain_handle_containers(&now, handle));
             }
             {
                 let mut clls = me.clls.write();

@@ -2,7 +2,7 @@ use crate::api::{ApiResult, PduApi};
 use crate::event_callback::event_callback;
 use crate::handle_manager::PduHandleManager;
 use crate::types::pdu_com_logical_link::{CllCreateFlags, CllCreateType, PduLogicalLink};
-use crate::types::pdu_event::PduEventTarget;
+use crate::types::pdu_event::{PduEvent, PduEventTarget};
 use crate::types::pdu_module::PduModuleData;
 use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
 use crate::types::{PduModuleHandle, PduUniqueCllTag};
@@ -19,6 +19,9 @@ use std::sync::{Arc, LazyLock, OnceLock, Weak};
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 use tracing::{debug, error};
+use crate::AsyncRuntimeTarget;
+use crate::constants::{CLL_EVENTS_QUEUE_SIZE, MODULE_EVENTS_QUEUE_SIZE};
+use crate::error::GeneralResult;
 
 pub type VciList = Vec<Arc<PduVci>>;
 
@@ -30,17 +33,16 @@ pub struct PduVci {
 
     pub(crate) worker: OnceLock<Arc<PduAsyncWorker>>,
 
-    pub(crate) module_data: Arc<PduModuleData>,
-
-    pub(crate) sync: Arc<Mutex<()>>,
-    //pub(crate) clls_tags: Arc<Vec<CString>>,
-
-    //pub(crate) clls: Arc<Mutex<HashMap<String, Arc<ComLogicalLink>>>>
+    pub(crate) module_data: PduModuleData,
+    
+    pub(crate) event_tx: Arc<mpsc::Sender<PduEvent>>,
+    
+    pub(crate) event_rx: Arc<mpsc::Receiver<PduEvent>>,
+    
+    pub(crate) sync: Arc<Mutex<()>>
 }
 
 impl PduVci {
-    const DEFAULT_CLL_EVENT_QUEUE_SIZE: usize = 4096;
-
     pub(crate) fn set_worker(&self, worker: Arc<PduAsyncWorker>) {
         let _ = self.worker.set(worker);
     }
@@ -52,7 +54,7 @@ impl PduVci {
     pub fn get_name(&self) -> Option<&String> {
         self.module_data.vendor_module_name.as_ref()
     }
-    
+
     pub fn get_additional_info(&self) -> Option<&String> {
         self.module_data.vendor_additional_info.as_ref()
     }
@@ -92,14 +94,14 @@ impl PduVci {
             .expect("internal error: Vci self-reference is no longer valid")
     }
 
-    pub fn blocking_get_status(&self) -> ApiResult<VciStatus> {
+    pub fn blocking_get_status(&self) -> GeneralResult<VciStatus> {
         let _sync_guard = self.sync.lock();
         let target = PduStatusTarget::Module(self.module_data.h_mod);
         let result = self.api.pdu_get_status(&target)?;
         Ok(VciStatus(result))
     }
-    
-    pub async fn get_status(&self) -> WorkerResult<VciStatus> {
+
+    pub async fn get_status(&self) -> GeneralResult<VciStatus> {
         match self.worker.get() {
             Some(worker) => {
                 let target = PduStatusTarget::Module(self.module_data.h_mod);
@@ -107,20 +109,16 @@ impl PduVci {
                 Ok(VciStatus(result))
             }
             None => {
-                debug!(
-                    h_mod = self.module_data.h_mod,
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
                 let me = self.take_me_expect();
                 let result = spawn_blocking(move || me.blocking_get_status())
                     .await
-                    .expect("internal error: Vci::blocking_get_status() task panicked")?;
+                    .expect("internal error: PduVci::blocking_get_status() task panicked")?;
                 Ok(result)
             }
         }
     }
 
-    pub fn blocking_connect(&self) -> ApiResult<bool> {
+    pub fn blocking_connect(&self) -> GeneralResult<bool> {
         let status = self.blocking_get_status()?;
         if !status.is_available_for_connection() {
             return Ok(false);
@@ -131,7 +129,7 @@ impl PduVci {
         Ok(true)
     }
 
-    pub async fn connect(&self) -> WorkerResult<bool> {
+    pub async fn connect(&self) -> GeneralResult<bool> {
         match self.worker.get() {
             Some(worker) => {
                 let status = self.get_status().await?;
@@ -142,20 +140,16 @@ impl PduVci {
                 Ok(true)
             }
             None => {
-                debug!(
-                    h_mod = self.module_data.h_mod,
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
                 let me = self.take_me_expect();
                 let result = spawn_blocking(move || me.blocking_connect())
                     .await
-                    .expect("internal error: Vci::blocking_connect() task panicked")?;
+                    .expect("internal error: PduVci::blocking_connect() task panicked")?;
                 Ok(result)
             }
         }
     }
 
-    pub fn blocking_disconnect(&self) -> ApiResult<bool> {
+    pub fn blocking_disconnect(&self) -> GeneralResult<bool> {
         let status = self.blocking_get_status()?;
         if !status.is_connected() {
             return Ok(false);
@@ -167,7 +161,7 @@ impl PduVci {
         Ok(true)
     }
 
-    pub async fn disconnect(&self) -> WorkerResult<bool> {
+    pub async fn disconnect(&self) -> GeneralResult<bool> {
         match self.worker.get() {
             Some(worker) => {
                 let status = self.get_status().await?;
@@ -180,68 +174,109 @@ impl PduVci {
                 Ok(true)
             }
             None => {
-                debug!(
-                    h_mod = self.module_data.h_mod,
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
                 let me = self.take_me_expect();
                 let result = spawn_blocking(move || me.blocking_disconnect())
                     .await
-                    .expect("internal error: Vci::blocking_disconnect() task panicked")?;
+                    .expect("internal error: PduVci::blocking_disconnect() task panicked")?;
                 Ok(result)
             }
         }
     }
 
-    pub fn blocking_list(api: &Arc<PduApi>) -> ApiResult<VciList> {
+    pub fn blocking_list(api: &Arc<PduApi>, events_queue_size: Option<usize>) -> GeneralResult<VciList> {
         let modules = api.pdu_get_module_ids().inspect_err(|err| {
             error!("Failed to retrieve the list of communication modules: {err}");
         })?;
 
+        let events_queue_size = events_queue_size.unwrap_or(MODULE_EVENTS_QUEUE_SIZE);
         let mut list = Vec::with_capacity(modules.len());
 
         for module in modules.iter() {
-            /*
-            let Ok(_) = api.pdu_register_event_callback(
-                &PduEventTarget::Module(module.h_mod),
-                Some(event_callback),
-            ) else {
-                continue;
-            };*/
+            let (tx, rx) = mpsc::channel(events_queue_size);
+            let tx = Arc::new(tx);
 
-            list.push(Arc::new_cyclic(|weak| PduVci {
+            let vci = Arc::new_cyclic(|weak| PduVci {
                 me: weak.clone(),
                 api: api.clone(),
                 worker: OnceLock::default(),
-                module_data: Arc::new(module.clone()),
+                module_data: module.clone(),
+                event_tx: tx.clone(),
+                event_rx: Arc::new(rx),
                 sync: Arc::default(),
-            }));
+            });
+
+            api.pdu_register_event_callback(
+                &PduEventTarget::Module(module.h_mod),
+                Some(event_callback)
+            )?;
+
+            PduHandleManager::register_module(
+                api.unique_tag,
+                module.h_mod,
+                Arc::downgrade(&tx),
+                Arc::downgrade(&vci)
+            );
+
+            list.push(vci);
         }
 
         Ok(list)
     }
 
-    pub async fn list<'a>(resolver: ListResolver<'a>) -> WorkerResult<VciList> {
-        match resolver {
-            ListResolver::Api(api) => {
-                debug!(
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
-                let api = api.clone();
-                let result = spawn_blocking(move || PduVci::blocking_list(&api))
+    pub async fn list<'a>(
+        runtime: impl Into<AsyncRuntimeTarget<'a>>,
+        events_queue_size: Option<usize>
+    ) -> GeneralResult<VciList> {
+        let events_queue_size = events_queue_size.unwrap_or(MODULE_EVENTS_QUEUE_SIZE);
+        
+        match runtime.into() {
+            AsyncRuntimeTarget::Api(api) => {
+                let api = api.clone_arc();
+                let result = spawn_blocking(move || PduVci::blocking_list(&api, Some(events_queue_size)))
                     .await
-                    .expect("internal error: Vci::blocking_list() task panicked");
+                    .expect("internal error: PduVci::blocking_list() task panicked");
                 Ok(result?)
             }
-            ListResolver::Worker(worker) => Ok(worker
-                .get_vci_list()
-                .await?
-                .into_iter()
-                .map(|vci| {
-                    vci.set_worker(worker.clone());
-                    vci
-                })
-                .collect::<Vec<_>>()),
+            AsyncRuntimeTarget::Worker(worker) => {
+                let modules = worker.pdu_get_module_ids()
+                    .await
+                    .inspect_err(|err| {
+                        error!("Failed to retrieve the list of communication modules: {err}");
+                    })?;
+
+                let mut list = Vec::with_capacity(modules.len());
+
+                for module in modules.iter() {
+                    let (tx, rx) = mpsc::channel(events_queue_size);
+                    let tx = Arc::new(tx);
+
+                    let vci = Arc::new_cyclic(|weak| PduVci {
+                        me: weak.clone(),
+                        api: worker.api.clone(),
+                        worker: OnceLock::default(),
+                        module_data: module.clone(),
+                        event_tx: tx.clone(),
+                        event_rx: Arc::new(rx),
+                        sync: Arc::default(),
+                    });
+
+                    worker.pdu_register_event_callback(
+                        PduEventTarget::Module(module.h_mod),
+                        Some(event_callback)
+                    ).await?;
+
+                    PduHandleManager::register_module(
+                        worker.api.unique_tag,
+                        module.h_mod,
+                        Arc::downgrade(&tx),
+                        Arc::downgrade(&vci)
+                    );
+
+                    list.push(vci);
+                }
+
+                Ok(list)
+            },
         }
     }
 
@@ -249,11 +284,13 @@ impl PduVci {
         &self,
         create_type: &CllCreateType,
         create_flags: &CllCreateFlags,
-    ) -> ApiResult<Arc<PduLogicalLink>> {
+        events_queue_size: Option<usize>,
+    ) -> GeneralResult<Arc<PduLogicalLink>> {
         let _sync_guard = self.sync.lock();
 
+        let events_queue_size = events_queue_size.unwrap_or(CLL_EVENTS_QUEUE_SIZE);
         let unique_tag: PduUniqueCllTag = random_non_zero_usize();
-        let (tx, rx) = mpsc::channel(Self::DEFAULT_CLL_EVENT_QUEUE_SIZE);
+        let (tx, rx) = mpsc::channel(events_queue_size);
         let tx = Arc::new(tx);
 
         // Register event tx for unique tag.
@@ -270,7 +307,7 @@ impl PduVci {
             create_flags,
             Some(unique_tag),
         )?;
-        
+
         let event_target = PduEventTarget::LogicalLink(self.get_module_handle(), cll_data.h_cll);
         let register_result = self
             .api
@@ -309,11 +346,13 @@ impl PduVci {
         &self,
         create_type: &CllCreateType,
         create_flags: &CllCreateFlags,
-    ) -> WorkerResult<Arc<PduLogicalLink>> {
+        events_queue_size: Option<usize>,
+    ) -> GeneralResult<Arc<PduLogicalLink>> {
+        let events_queue_size = events_queue_size.unwrap_or(CLL_EVENTS_QUEUE_SIZE);
         match self.worker.get() {
             Some(worker) => {
                 let unique_tag: PduUniqueCllTag = random_non_zero_usize();
-                let (tx, rx) = mpsc::channel(Self::DEFAULT_CLL_EVENT_QUEUE_SIZE);
+                let (tx, rx) = mpsc::channel(events_queue_size);
                 let tx = Arc::new(tx);
 
                 // Register event tx for unique tag.
@@ -369,19 +408,20 @@ impl PduVci {
                 Ok(cll)
             }
             None => {
-                debug!(
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
                 let me = self.take_me_expect();
 
                 let create_type = create_type.to_owned();
                 let create_flags = create_flags.to_owned();
-
+                
                 let thread =
-                    move || me.blocking_create_logical_link(&create_type, &create_flags);
+                    move || me.blocking_create_logical_link(
+                        &create_type,
+                        &create_flags,
+                        Some(events_queue_size)
+                    );
 
                 let cll = spawn_blocking(thread).await.expect(
-                    "internal error: Vci::blocking_create_com_logical_link task panicked",
+                    "internal error: PduVci::blocking_create_com_logical_link task panicked",
                 )?;
 
                 Ok(cll)
@@ -394,13 +434,7 @@ impl PduVci {
 
 impl Drop for PduVci {
     fn drop(&mut self) {
-        // There is no need to disconnect all `ComLogicalLink`s created by this VCI,
-        // as `PduModuleDisconnect` disconnects them automatically.
-
-        debug!(
-            h_mod = self.get_module_handle(),
-            "Disconnecting the Vci via destructor..."
-        );
+        debug!(h_mod = self.get_module_handle(), "Disconnecting the PduVci via destructor...");
 
         match self.worker.get() {
             Some(worker) => {
@@ -410,16 +444,12 @@ impl Drop for PduVci {
                     Err(err) => {
                         error!(
                             h_mod = self.get_module_handle(),
-                            "Error when disconnecting the module via destructor: {err}"
+                            "Error when disconnecting the PduVci via destructor: {err}"
                         );
                     }
                 }
             }
             None => {
-                debug!(
-                    h_mod = self.get_module_handle(),
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
                 let api = self.api.clone();
                 let h_mod = self.get_module_handle();
                 std::thread::spawn(move || api.vt_module_destructor(h_mod));
@@ -462,23 +492,5 @@ impl VciStatus {
 
     pub fn is_status_not_ready(&self) -> bool {
         matches!(self.status_code, PduStatus::ModstNotReady)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum ListResolver<'a> {
-    Api(&'a Arc<PduApi>),
-    Worker(&'a Arc<PduAsyncWorker>),
-}
-
-impl<'a> From<&'a Arc<PduApi>> for ListResolver<'a> {
-    fn from(value: &'a Arc<PduApi>) -> Self {
-        ListResolver::Api(value)
-    }
-}
-
-impl<'a> From<&'a Arc<PduAsyncWorker>> for ListResolver<'a> {
-    fn from(value: &'a Arc<PduAsyncWorker>) -> Self {
-        ListResolver::Worker(value)
     }
 }

@@ -1,8 +1,8 @@
-use crate::api::{ApiResult, PduApi};
+use crate::api::{PduApi};
 use crate::types::pdu_event::{PduErrorEvent, PduEvent, PduEventData};
 use crate::types::pdu_status::{PduStatusData, PduStatusTarget};
 use crate::types::{PduCllHandle, PduCopHandle, PduModuleHandle, PduUniqueCopTag};
-use crate::worker::{PduAsyncWorker, Query, WorkerResult};
+use crate::worker::{PduAsyncWorker, Query};
 use dpdu_api_types::{PduCopt, PduStatus};
 use parking_lot::Mutex as ParkingLotMutex;
 use std::ops::{Bound, Deref, RangeBounds};
@@ -13,6 +13,7 @@ use tokio::sync::Mutex as TokioMutex;
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 use tracing::{debug, error};
+use crate::error::{GeneralError, GeneralResult};
 
 pub type CopResult<T> = std::result::Result<T, CopError>;
 
@@ -48,6 +49,12 @@ pub enum InternalCopError {
 
     #[error("invalid cop event type: {}", .0.data.as_str())]
     InvalidEventTypeError(PduEvent),
+}
+
+impl From<InternalCopError> for GeneralError {
+    fn from(value: InternalCopError) -> Self {
+        GeneralError::CopError(CopError::InternalError(value))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -112,7 +119,7 @@ impl PduPrimitive {
             .expect("internal error: ComPrimitive self-reference is no longer valid")
     }
 
-    pub fn blocking_get_status(&self) -> ApiResult<CopStatus> {
+    pub fn blocking_get_status(&self) -> GeneralResult<CopStatus> {
         let _sync_guard = self.pdu_sync.lock();
         let target = PduStatusTarget::Primitive(
             self.get_module_handle(),
@@ -123,7 +130,7 @@ impl PduPrimitive {
         Ok(CopStatus(result))
     }
 
-    pub async fn get_status(&self) -> WorkerResult<CopStatus> {
+    pub async fn get_status(&self) -> GeneralResult<CopStatus> {
         let h_mod = self.get_module_handle();
         let h_cll = self.get_cll_handle();
         let h_cop = self.get_cop_handle();
@@ -135,13 +142,6 @@ impl PduPrimitive {
                 Ok(CopStatus(result))
             }
             None => {
-                debug!(
-                    h_mod,
-                    h_cll,
-                    h_cop,
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
-
                 let me = self.take_me_expect();
                 let result = spawn_blocking(move || me.blocking_get_status())
                     .await
@@ -152,7 +152,7 @@ impl PduPrimitive {
         }
     }
 
-    pub fn blocking_cancel(&self) -> ApiResult<()> {
+    pub fn blocking_cancel(&self) -> GeneralResult<()> {
         let _sync_guard = self.pdu_sync.lock();
         let result = self
             .api
@@ -165,7 +165,7 @@ impl PduPrimitive {
         Ok(())
     }
 
-    pub async fn cancel(&self) -> WorkerResult<()> {
+    pub async fn cancel(&self) -> GeneralResult<()> {
         let h_mod = self.get_module_handle();
         let h_cll = self.get_cll_handle();
         let h_cop = self.get_cop_handle();
@@ -177,13 +177,6 @@ impl PduPrimitive {
                 Ok(())
             }
             None => {
-                debug!(
-                    h_mod,
-                    h_cll,
-                    h_cop,
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
-
                 let me = self.take_me_expect();
 
                 spawn_blocking(move || me.blocking_cancel())
@@ -265,7 +258,7 @@ impl PduPrimitive {
         events: &mut CopEvents,
         rx: &mut mpsc::Receiver<PduEvent>,
         event: &PduEvent,
-    ) -> CopResult<StopReceive> {
+    ) -> GeneralResult<StopReceive> {
         match &event.data {
             PduEventData::Status(status) => {
                 let status = &status.0;
@@ -282,7 +275,7 @@ impl PduPrimitive {
             PduEventData::Error(data) => {
                 self.mark_as_dead();
                 rx.close();
-                return Err(CopError::CopError(data.to_owned()));
+                return Err(CopError::CopError(data.to_owned()))?;
             }
             PduEventData::Result(..) => {
                 events.store_event(event.to_owned());
@@ -298,11 +291,11 @@ impl PduPrimitive {
     /// Только если
     /// - cop_type = SendRecv || cop_type == StartComm
     /// - receive_cycles = 1.
-    pub fn blocking_get_single_result(&self) -> CopResult<Vec<u8>> {
+    pub fn blocking_get_single_result(&self) -> GeneralResult<Vec<u8>> {
         let _event_sync = self.event_sync.blocking_lock();
 
         self.assert_dead()?;
-        self.assert_type(&[PduCopt::StartComm, PduCopt::SendRecv])?;
+        self.assert_type(&[PduCopt::StartComm, PduCopt::SendRecv, PduCopt::StopComm])?;
         self.assert_receive_cycles(1..=1)?;
 
         let mut rx = self.event_rx.blocking_lock();
@@ -321,11 +314,11 @@ impl PduPrimitive {
         Ok(events.get_data())
     }
 
-    pub async fn get_single_result(&self) -> CopResult<Vec<u8>> {
+    pub async fn get_single_result(&self) -> GeneralResult<Vec<u8>> {
         let _event_sync = self.event_sync.lock().await;
 
         self.assert_dead()?;
-        self.assert_type(&[PduCopt::StartComm, PduCopt::SendRecv])?;
+        self.assert_type(&[PduCopt::StartComm, PduCopt::SendRecv, PduCopt::StopComm])?;
         self.assert_receive_cycles(1..=1)?;
 
         let mut rx = self.event_rx.lock().await;
@@ -350,7 +343,7 @@ impl PduPrimitive {
         events: &mut CopEvents,
         rx: &mut mpsc::Receiver<PduEvent>,
         event: &PduEvent,
-    ) -> CopResult<StopReceive> {
+    ) -> GeneralResult<StopReceive> {
         let events_len_before = events.0.len();
 
         let stop_receive = self.handle_single_receive_cycle(events, rx, event)?;
@@ -367,11 +360,11 @@ impl PduPrimitive {
         Ok(false)
     }
 
-    pub fn blocking_get_next_result(&self) -> CopResult<Vec<u8>> {
+    pub fn blocking_get_next_result(&self) -> GeneralResult<Vec<u8>> {
         let _event_sync = self.event_sync.blocking_lock();
 
         self.assert_dead()?;
-        self.assert_type(&[PduCopt::StartComm, PduCopt::SendRecv])?;
+        self.assert_type(&[PduCopt::StartComm, PduCopt::SendRecv, PduCopt::StopComm])?;
         self.assert_receive_cycles(-2..)?;
 
         let mut rx = self.event_rx.blocking_lock();
@@ -390,11 +383,11 @@ impl PduPrimitive {
         Ok(events.get_data())
     }
 
-    pub async fn get_next_result(&self) -> CopResult<Vec<u8>> {
+    pub async fn get_next_result(&self) -> GeneralResult<Vec<u8>> {
         let _event_sync = self.event_sync.lock();
 
         self.assert_dead()?;
-        self.assert_type(&[PduCopt::StartComm, PduCopt::SendRecv])?;
+        self.assert_type(&[PduCopt::StartComm, PduCopt::SendRecv, PduCopt::StopComm])?;
         self.assert_receive_cycles(-2..)?;
 
         let mut rx = self.event_rx.lock().await;
@@ -427,7 +420,7 @@ impl Drop for PduPrimitive {
 
         debug!(
             h_mod,
-            h_cll, h_cop, "Cancelling the PduComPrimitive via destructor..."
+            h_cll, h_cop, "Cancelling the PduPrimitive via destructor..."
         );
 
         match self.worker.get() {
@@ -440,18 +433,12 @@ impl Drop for PduPrimitive {
                             h_mod,
                             h_cll,
                             h_cop,
-                            "Error when cancelling the PduComPrimitive via destructor: {err}"
+                            "Error when cancelling the PduPrimitive via destructor: {err}"
                         );
                     }
                 }
             }
             None => {
-                debug!(
-                    h_mod,
-                    h_cll,
-                    h_cop,
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
                 let api = self.api.clone();
                 spawn(move || api.vt_cop_destructor(h_mod, h_cll, h_cop));
             }

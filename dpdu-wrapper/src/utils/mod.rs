@@ -12,6 +12,7 @@ use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::ptr;
 use std::ptr::NonNull;
+use std::sync::Arc;
 
 /// Converts a nullable C string to `Option<String>`.
 ///

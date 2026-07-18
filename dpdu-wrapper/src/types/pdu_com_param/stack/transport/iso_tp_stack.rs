@@ -379,7 +379,8 @@ impl ComParamDefinitionStack for IsoTpStack {
         CP_RequestAddrMode: u32,
         CP_SendRemoteFrame: u32,
         CP_StMin: u32,
-        CP_StMinOverride: u32
+        CP_StMinOverride: u32,
+        CP_EcuLayerShortName: String
     }
 
     fn build_set(&self) -> ComParamDefinitionSet<ComParamDefinition> {

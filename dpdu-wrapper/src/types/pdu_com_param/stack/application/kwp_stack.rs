@@ -5,7 +5,6 @@ use crate::types::pdu_com_param::table::{
 use dpdu_wrapper_support::impl_configure_from_serde_json_map_for_com_param_stack;
 use map_macro::hash_set;
 
-#[non_exhaustive]
 #[derive(Clone, Debug)]
 pub struct KwpStack {
     /// CP_ChangeSpeedCtrl
@@ -373,6 +372,7 @@ impl ComParamDefinitionStack for KwpStack {
             Def::new(Time, "CP_P2Min", self.p2_min),
             Def::new(Time, "CP_P2Star", self.p2_star),
             Def::new(Time, "CP_P3Min", self.p3_min),
+            Def::new(Time, "CP_ChangeSpeedTxDelay", self.change_speed_tx_delay),
 
             // Error handling.
             Def::new(ErrHdl, "CP_RC21CompletionTimeout", self.rc21_completion_timeout),
@@ -392,7 +392,6 @@ impl ComParamDefinitionStack for KwpStack {
             Def::new(Com, "CP_ChangeSpeedMessage", self.change_speed_message.clone()),
             Def::new(Com, "CP_ChangeSpeedRate", self.change_speed_rate),
             Def::new(Com, "CP_ChangeSpeedResCtrl", self.change_speed_res_ctrl),
-            Def::new(Com, "CP_ChangeSpeedTxDelay", self.change_speed_tx_delay),
             Def::new(Com, "CP_EnablePerformanceTest", self.enable_performance_test),
             Def::new(Com, "CP_Loopback", self.loopback),
             Def::new(Com, "CP_StartMsgIndEnable", self.start_msg_ind_enable),

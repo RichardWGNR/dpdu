@@ -29,22 +29,7 @@ use crate::types::{
 use crate::utils::module_description::{PduModuleDescription, PduModuleDescriptionError};
 use crate::utils::root_file::Mvci;
 use crate::utils::{c_str, random_non_zero_usize, take_slice_ptr, PhantomRef};
-use dpdu_api_types::{
-    CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData,
-    InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData,
-    ModuleData, ModuleItem, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem,
-    ParamLongFieldData, ParamStructAccessTiming, ParamStructFieldData, ParamStructSessionTiming,
-    PduCancelComPrimitiveFn, PduConnectFn, PduConstructFn, PduCopt, PduCpst,
-    PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn,
-    PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetConflictingResourcesFn,
-    PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceIdsFn,
-    PduGetResourceStatusFn, PduGetStatusFn, PduGetTimestampFn, PduGetUniqueRespIdTableFn,
-    PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduModuleConnectFn,
-    PduModuleDisconnectFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn,
-    PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PduUnlockResourceFn, PinData,
-    ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData,
-};
-use rand::random;
+use dpdu_api_types::{CopCtrlData, EcuUniqueRespData, ErrorData, EventCallbackFn, EventItem, ExpRespData, FlagData, InfoData, IoByteArrayData, IoEventQueuePropertyData, IoFilterData, IoProgVoltageData, ModuleData, ModuleItem, PDU_HANDLE_UNDEF, PDU_ID_UNDEF, ParamByteFieldData, ParamItem, ParamLongFieldData, ParamStructAccessTiming, ParamStructFieldData, ParamStructSessionTiming, PduCancelComPrimitiveFn, PduConnectFn, PduConstructFn, PduCopt, PduCpst, PduCreateComLogicalLinkFn, PduDestroyComLogicalLinkFn, PduDestroyItemFn, PduDestructFn, PduDisconnectFn, PduError, PduErrorEvt, PduGetComParamFn, PduGetConflictingResourcesFn, PduGetEventItemFn, PduGetLastErrorFn, PduGetModuleIdsFn, PduGetObjectIdFn, PduGetResourceIdsFn, PduGetResourceStatusFn, PduGetStatusFn, PduGetTimestampFn, PduGetUniqueRespIdTableFn, PduGetVersionFn, PduIoctlFn, PduIt, PduItem, PduLockResourceFn, PduModuleConnectFn, PduModuleDisconnectFn, PduObjt, PduPc, PduPt, PduRegisterCallbackFn, PduSetComParamFn, PduSetUniqueRespIdTableFn, PduStartComPrimitiveFn, PduStatus, PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem, UniqueRespIdTableItem, VersionData, PduQueueMode};
 use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::ffi::{CString, c_void};
@@ -52,10 +37,12 @@ use std::mem::{ManuallyDrop, MaybeUninit};
 use std::num::NonZeroUsize;
 use std::ptr::NonNull;
 use std::sync::{Arc, OnceLock, Weak};
-use std::thread::spawn;
 use std::{ptr, slice};
-use std::any::type_name;
-use tracing::{debug, error, event, info, trace, warn, Level};
+use tokio::sync::mpsc;
+use tracing::{debug, error, info, trace, warn, Level};
+use crate::constants::API_EVENTS_QUEUE_SIZE;
+use crate::error::{GeneralError};
+use crate::vendor_specific::wrap_pdu_call;
 
 pub type ApiResult<T> = Result<T, ApiError>;
 
@@ -69,6 +56,57 @@ pub enum ApiError {
 
     #[error("module description error: {0}")]
     MdfError(#[from] PduModuleDescriptionError),
+}
+
+impl From<PduError> for GeneralError {
+    fn from(value: PduError) -> Self {
+        GeneralError::ApiError(ApiError::PduError(value))
+    }
+}
+
+impl From<libloading::Error> for GeneralError {
+    fn from(value: libloading::Error) -> Self {
+        GeneralError::ApiError(ApiError::FfiError(value))
+    }
+}
+
+impl From<PduModuleDescriptionError> for GeneralError {
+    fn from(value: PduModuleDescriptionError) -> Self {
+        GeneralError::ApiError(ApiError::MdfError(value))
+    }
+}
+
+#[derive(Debug)]
+struct ApiSymbols {
+    cancel_primitive: PduCancelComPrimitiveFn,
+    connect: PduConnectFn,
+    construct: PduConstructFn,
+    create_logical_link: PduCreateComLogicalLinkFn,
+    destruct: PduDestructFn,
+    destroy_logical_link: PduDestroyComLogicalLinkFn,
+    destroy_item: PduDestroyItemFn,
+    disconnect: PduDisconnectFn,
+    get_com_param: PduGetComParamFn,
+    get_conflicting_resources: PduGetConflictingResourcesFn,
+    get_event_item: PduGetEventItemFn,
+    get_last_error: PduGetLastErrorFn,
+    get_module_ids: PduGetModuleIdsFn,
+    get_object_id: PduGetObjectIdFn,
+    get_resource_ids: PduGetResourceIdsFn,
+    get_resource_status: PduGetResourceStatusFn,
+    get_status: PduGetStatusFn,
+    get_timestamp: PduGetTimestampFn,
+    get_unique_resp_id_table: PduGetUniqueRespIdTableFn,
+    get_version: PduGetVersionFn,
+    io_ctl: PduIoctlFn,
+    lock_resource: PduLockResourceFn,
+    module_connect: PduModuleConnectFn,
+    module_disconnect: PduModuleDisconnectFn,
+    register_event_callback: PduRegisterCallbackFn,
+    set_com_param: PduSetComParamFn,
+    set_unique_resp_id_table: PduSetUniqueRespIdTableFn,
+    start_primitive: PduStartComPrimitiveFn,
+    unlock_resource: PduUnlockResourceFn
 }
 
 #[derive(Debug)]
@@ -85,7 +123,13 @@ pub struct PduApi {
 
     pub module_description: Option<PduModuleDescription>,
 
+    pub(crate) event_tx: Arc<mpsc::Sender<PduEvent>>,
+
+    pub event_rx: Arc<mpsc::Receiver<PduEvent>>,
+
     mvci: Option<Mvci>,
+
+    symbols: ApiSymbols,
 }
 
 impl PduApi {
@@ -95,21 +139,59 @@ impl PduApi {
         library_file: Option<PduLibraryPath>,
         module_description: Option<PduModuleDescription>,
         mvci: Option<Mvci>,
-    ) -> Arc<Self> {
-        let tag = random_non_zero_usize();
+    ) -> ApiResult<Arc<Self>> {
+        let symbols = unsafe {
+            ApiSymbols {
+                cancel_primitive: *library.get(b"PDUCancelComPrimitive")?,
+                connect: *library.get(b"PDUConnect")?,
+                construct: *library.get(b"PDUConstruct")?,
+                create_logical_link: *library.get(b"PDUCreateComLogicalLink")?,
+                destruct: *library.get(b"PDUDestruct")?,
+                destroy_logical_link: *library.get(b"PDUDestroyComLogicalLink")?,
+                destroy_item: *library.get(b"PDUDestroyItem")?,
+                disconnect: *library.get(b"PDUDisconnect")?,
+                get_com_param: *library.get(b"PDUGetComParam")?,
+                get_conflicting_resources: *library.get(b"PDUGetConflictingResources")?,
+                get_event_item: *library.get(b"PDUGetEventItem")?,
+                get_last_error: *library.get(b"PDUGetLastError")?,
+                get_module_ids: *library.get(b"PDUGetModuleIds")?,
+                get_object_id: *library.get(b"PDUGetObjectId")?,
+                get_resource_ids: *library.get(b"PDUGetResourceIds")?,
+                get_resource_status: *library.get(b"PDUGetResourceStatus")?,
+                get_status: *library.get(b"PDUGetStatus")?,
+                get_timestamp: *library.get(b"PDUGetTimestamp")?,
+                get_unique_resp_id_table: *library.get(b"PDUGetUniqueRespIdTable")?,
+                get_version: *library.get(b"PDUGetVersion")?,
+                io_ctl: *library.get(b"PDUIoCtl")?,
+                lock_resource: *library.get(b"PDULockResource")?,
+                module_connect: *library.get(b"PDUModuleConnect")?,
+                module_disconnect: *library.get(b"PDUModuleDisconnect")?,
+                register_event_callback: *library.get(b"PDURegisterEventCallback")?,
+                set_com_param: *library.get(b"PDUSetComParam")?,
+                set_unique_resp_id_table: *library.get(b"PDUSetUniqueRespIdTable")?,
+                start_primitive: *library.get(b"PDUStartComPrimitive")?,
+                unlock_resource: *library.get(b"PDUUnlockResource")?,
+            }
+        };
+
+        let (tx, rx) = mpsc::channel(API_EVENTS_QUEUE_SIZE);
+        let tx = Arc::new(tx);
         let result = Arc::new_cyclic(|me| Self {
             me: me.clone(),
             pdu_options: options,
-            unique_tag: tag,
+            unique_tag: random_non_zero_usize(),
             library,
             library_file,
             module_description,
+            event_tx: tx.clone(),
+            event_rx: Arc::new(rx),
             mvci,
+            symbols,
         });
 
-        PduHandleManager::register_api(&result);
+        PduHandleManager::register_api(&result, Arc::downgrade(&tx));
 
-        result
+        Ok(result)
     }
 
     pub fn from_mvci(mvci: &Mvci, options: PduOptions) -> ApiResult<Arc<Self>> {
@@ -120,13 +202,13 @@ impl PduApi {
             .map(|v| PduModuleDescription::parse_from_xml_file(v))
             .transpose()?;
 
-        Ok(PduApi::new(
+        PduApi::new(
             options,
             library,
             Some(mvci.library_file.clone()),
             mdf,
             Some(mvci.clone()),
-        ))
+        )
     }
 
     pub fn from_library_path(
@@ -137,13 +219,13 @@ impl PduApi {
         let library_file = library_file.into();
         let library = unsafe { libloading::Library::new(&library_file)? };
 
-        Ok(PduApi::new(
+        PduApi::new(
             options,
             library,
             Some(library_file),
             module_description,
             None,
-        ))
+        )
     }
 
     pub fn from_library(
@@ -151,13 +233,13 @@ impl PduApi {
         options: PduOptions,
         module_description: Option<PduModuleDescription>,
     ) -> ApiResult<Arc<Self>> {
-        Ok(PduApi::new(
+        PduApi::new(
             options,
             library,
             None,
             module_description,
             None,
-        ))
+        )
     }
 
     pub fn get_unique_tag(&self) -> PduUniqueApiTag {
@@ -229,25 +311,6 @@ impl PduApi {
             .expect("internal error: unable to upgrade the Weak<PduApi> pointer") // infallible
     }
 
-    fn get_pdu_function<F>(&self, name: &[u8]) -> ApiResult<libloading::Symbol<'_, F>> {
-        // SAFETY:
-        // The caller must ensure that the requested symbol exists and that its
-        // signature matches the D-PDU API specification.
-        let result = unsafe { self.library.get(name) };
-
-        match result {
-            Ok(v) => Ok(v),
-            Err(err) => {
-                let function = String::from_utf8_lossy(name).into_owned();
-                error!(
-                    function,
-                    "Unable to take a pointer to the D-PDU API function: {err}"
-                );
-                Err(err)?
-            }
-        }
-    }
-
     pub fn pdu_construct(&self) -> ApiResult<()> {
         const FUNC: &'static str = "PDUConstruct";
         self.log_api_call(FUNC);
@@ -277,11 +340,11 @@ impl PduApi {
         );
 
         let options_str = CString::new(options_str).expect("CString::new() failed");
-        let construct_fn = self.get_pdu_function::<PduConstructFn>(FUNC.as_bytes())?;
-        let result = construct_fn(
+        let construct_fn = self.symbols.construct;
+        let result = wrap_pdu_call(FUNC, || construct_fn(
             options_str.as_ptr() as _,
             self.unique_tag.get() as *const PduUniqueApiTag as _,
-        );
+        ));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -295,7 +358,7 @@ impl PduApi {
         const FUNC: &'static str = "PDUDestruct";
         self.log_api_call(FUNC);
 
-        let destruct_fn = self.get_pdu_function::<PduDestructFn>(FUNC.as_bytes())?;
+        let destruct_fn = self.symbols.destruct;
 
         match destruct_fn() {
             PduError::StatusNoError | PduError::PduApiNotConstructed => Ok(()),
@@ -320,8 +383,8 @@ impl PduApi {
             return Ok(());
         }
 
-        let destroy_item_fn = self.get_pdu_function::<PduDestroyItemFn>(FUNC.as_bytes())?;
-        let result = destroy_item_fn(item_ptr);
+        let destroy_item_fn = self.symbols.destroy_item;
+        let result = wrap_pdu_call(FUNC, || destroy_item_fn(item_ptr));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -342,8 +405,8 @@ impl PduApi {
 
         let mut item_ptr: *mut EventItem = ptr::null_mut();
 
-        let get_event_item_fn = self.get_pdu_function::<PduGetEventItemFn>(FUNC.as_bytes())?;
-        let result = get_event_item_fn(h_mod, h_cll, &mut item_ptr);
+        let get_event_item_fn = self.symbols.get_event_item;
+        let result = wrap_pdu_call(FUNC, || get_event_item_fn(h_mod, h_cll, &mut item_ptr));
 
         match result {
             PduError::StatusNoError | PduError::EventQueueEmpty => {}
@@ -493,8 +556,8 @@ impl PduApi {
 
         let mut version_data = VersionData::default();
 
-        let get_version_fn = self.get_pdu_function::<PduGetVersionFn>(FUNC.as_bytes())?;
-        let result = get_version_fn(h_mod, &mut version_data);
+        let get_version_fn = self.symbols.get_version;
+        let result = wrap_pdu_call(FUNC, || get_version_fn(h_mod, &mut version_data));
 
         trace!(
             func = FUNC,
@@ -560,8 +623,12 @@ impl PduApi {
         let short_name = CString::new(short_name).expect("CString::new() failed");
         let mut object_id: MaybeUninit<u32> = MaybeUninit::uninit();
 
-        let get_object_id_fn = self.get_pdu_function::<PduGetObjectIdFn>(FUNC.as_bytes())?;
-        let result = get_object_id_fn(object, short_name.as_ptr() as _, object_id.as_mut_ptr());
+        let get_object_id_fn = self.symbols.get_object_id;
+        let result = wrap_pdu_call(FUNC, || get_object_id_fn(
+            object,
+            short_name.as_ptr() as _,
+            object_id.as_mut_ptr()
+        ));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -614,8 +681,13 @@ impl PduApi {
         };
 
         let mut item_ptr: *mut ParamItem = ptr::null_mut();
-        let get_com_param_fn = self.get_pdu_function::<PduGetComParamFn>(FUNC.as_bytes())?;
-        let result = get_com_param_fn(h_mod, h_cll, id, &mut item_ptr);
+        let get_com_param_fn = self.symbols.get_com_param;
+        let result = wrap_pdu_call(FUNC, || get_com_param_fn(
+            h_mod,
+            h_cll,
+            id,
+            &mut item_ptr
+        ));
 
         trace!(
             func = FUNC,
@@ -821,8 +893,8 @@ impl PduApi {
             "D-PDU API Call Args"
         );
 
-        let set_com_param_fn = self.get_pdu_function::<PduSetComParamFn>(FUNC.as_bytes())?;
-        let result = set_com_param_fn(h_mod, h_cll, &item as *const _ as _);
+        let set_com_param_fn = self.symbols.set_com_param;
+        let result = wrap_pdu_call(FUNC, || set_com_param_fn(h_mod, h_cll, &item as *const _ as _));
 
         if !result.is_success() {
             return match result {
@@ -927,9 +999,8 @@ impl PduApi {
             "D-PDU API Call Args"
         );
 
-        let set_unique_resp_id_table_fn =
-            self.get_pdu_function::<PduSetUniqueRespIdTableFn>(FUNC.as_bytes())?;
-        let result = set_unique_resp_id_table_fn(h_mod, h_cll, &table as *const _ as _);
+        let set_unique_resp_id_table_fn = self.symbols.set_unique_resp_id_table;
+        let result = wrap_pdu_call(FUNC, || set_unique_resp_id_table_fn(h_mod, h_cll, &table as *const _ as _));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -989,11 +1060,8 @@ impl PduApi {
 
         trace!(func = FUNC, h_mod, h_cll, "D-PDU API Call Args");
 
-        let register_event_callback_fn =
-            self.get_pdu_function::<PduRegisterCallbackFn>(FUNC.as_bytes())?;
-
-        let result =
-            register_event_callback_fn(h_mod, h_cll, unsafe { std::mem::transmute(callback) });
+        let register_event_callback_fn = self.symbols.register_event_callback;
+        let result = wrap_pdu_call(FUNC, || register_event_callback_fn(h_mod, h_cll, unsafe { std::mem::transmute(callback) }));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -1027,8 +1095,7 @@ impl PduApi {
         );
 
         let mut cop_handle: MaybeUninit<PduCopHandle> = MaybeUninit::uninit();
-        let start_com_primitive_fn =
-            self.get_pdu_function::<PduStartComPrimitiveFn>(FUNC.as_bytes())?;
+        let start_com_primitive_fn = self.symbols.start_primitive;
 
         let result = match cop_type {
             PduCopt::UpdateParam | PduCopt::RestoreParam => {
@@ -1055,7 +1122,7 @@ impl PduApi {
                     "D-PDU API Call Args"
                 );
 
-                start_com_primitive_fn(
+                wrap_pdu_call(FUNC, || start_com_primitive_fn(
                     h_mod,
                     h_cll,
                     cop_type,
@@ -1064,7 +1131,7 @@ impl PduApi {
                     ptr::null_mut(), // cop ctrl data
                     tag as *mut _,   // tag
                     cop_handle.as_mut_ptr(),
-                )
+                ))
             }
             _ => {
                 let params = params.expect(&format!(
@@ -1151,7 +1218,7 @@ impl PduApi {
                     "D-PDU API Call Args"
                 );
 
-                start_com_primitive_fn(
+                wrap_pdu_call(FUNC, || start_com_primitive_fn(
                     h_mod,
                     h_cll,
                     cop_type,
@@ -1160,7 +1227,7 @@ impl PduApi {
                     &cop_ctrl_data as *const _ as _,
                     tag as *mut _, // tag
                     cop_handle.as_mut_ptr(),
-                )
+                ))
             }
         };
 
@@ -1287,7 +1354,6 @@ impl PduApi {
             },
         };
 
-        // TODO : heap corruption
         let input_data_ptr: *const c_void = data
             .as_ref()
             .map(|v| v.to_pdu_data_item().p_data as _)
@@ -1302,14 +1368,14 @@ impl PduApi {
             "D-PDU API Call Args"
         );
 
-        let io_ctl_fn = self.get_pdu_function::<PduIoctlFn>(FUNC.as_bytes())?;
-        let result = io_ctl_fn(
+        let io_ctl_fn = self.symbols.io_ctl;
+        let result = wrap_pdu_call(FUNC, || io_ctl_fn(
             h_mod,
             h_cll,
             object_id,
             input_data_ptr as _,
             &mut output_data_ptr,
-        );
+        ));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -1373,11 +1439,14 @@ impl PduApi {
 
         let mut module_list_item_ptr = ptr::null_mut();
 
-        let get_module_ids_fn = self.get_pdu_function::<PduGetModuleIdsFn>(FUNC.as_bytes())?;
-        let result = get_module_ids_fn(&mut module_list_item_ptr);
+        let get_module_ids_fn = self.symbols.get_module_ids;
+        let result = wrap_pdu_call(FUNC, || get_module_ids_fn(&mut module_list_item_ptr));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
+            if !module_list_item_ptr.is_null() {
+                self.pdu_destroy_item(module_list_item_ptr as _)?;
+            }
             return Err(result)?;
         }
 
@@ -1461,15 +1530,15 @@ impl PduApi {
         let mut timestamp: MaybeUninit<u32> = MaybeUninit::uninit();
         let mut extra_info: MaybeUninit<u32> = MaybeUninit::uninit();
 
-        let get_status_fn = self.get_pdu_function::<PduGetStatusFn>(FUNC.as_bytes())?;
-        let result = get_status_fn(
+        let get_status_fn = self.symbols.get_status;
+        let result = wrap_pdu_call(FUNC, || get_status_fn(
             h_mod,
             h_cll,
             h_cop,
             status_code.as_mut_ptr() as _,
             timestamp.as_mut_ptr(),
             extra_info.as_mut_ptr(),
-        );
+        ));
 
         if !result.is_success() {
             return match result {
@@ -1519,7 +1588,7 @@ impl PduApi {
             Err(ApiError::PduError(PduError::InvalidHandle)) => {
                 let result = PduError::InvalidHandle;
                 self.log_api_call_fail("PDUGetStatus", result);
-                Err(ApiError::PduError(result))
+                Err(ApiError::PduError(result))?
             },
             Err(err) => Err(err)
         }
@@ -1552,19 +1621,18 @@ impl PduApi {
 
         let mut cll_handle: MaybeUninit<PduCllHandle> = MaybeUninit::uninit();
 
-        let create_com_logical_link_fn =
-            self.get_pdu_function::<PduCreateComLogicalLinkFn>(FUNC.as_bytes())?;
+        let create_com_logical_link_fn = self.symbols.create_logical_link;
         let result = match &create_type {
             CllCreateType::ResourceId(v) => {
                 trace!(func = FUNC, resource_id = v, "D-PDU API Call Args");
-                create_com_logical_link_fn(
+                wrap_pdu_call(FUNC, || create_com_logical_link_fn(
                     h_mod,
                     ptr::null_mut(),
                     v.clone(),
                     tag as *mut _,
                     cll_handle.as_mut_ptr(),
                     &flag_data as *const FlagData as _,
-                )
+                ))
             }
             CllCreateType::ResourceData {
                 bus,
@@ -1594,14 +1662,14 @@ impl PduApi {
                     "D-PDU API Call Args"
                 );
 
-                create_com_logical_link_fn(
+                wrap_pdu_call(FUNC, || create_com_logical_link_fn(
                     h_mod,
                     &rsc_data as *const RscData as _,
                     PDU_ID_UNDEF,
                     tag as *mut _,
                     cll_handle.as_mut_ptr(),
                     &flag_data as *const FlagData as _,
-                )
+                ))
             }
         };
 
@@ -1632,10 +1700,8 @@ impl PduApi {
 
         trace!(func = FUNC, h_mod, h_cll, "D-PDU API Call Args");
 
-        let destroy_fn =
-            self.get_pdu_function::<PduDestroyComLogicalLinkFn>(b"PDUDestroyComLogicalLink")?;
-
-        let result = destroy_fn(h_mod, h_cll);
+        let destroy_fn = self.symbols.destroy_logical_link;
+        let result = wrap_pdu_call(FUNC, || destroy_fn(h_mod, h_cll));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -1668,15 +1734,15 @@ impl PduApi {
             "D-PDU API Call Args"
         );
 
-        let get_last_error_fn = self.get_pdu_function::<PduGetLastErrorFn>(FUNC.as_bytes())?;
-        let result = get_last_error_fn(
+        let get_last_error_fn = self.symbols.get_last_error;
+        let result = wrap_pdu_call(FUNC, || get_last_error_fn(
             h_mod,
             h_cll,
             error_code.as_mut_ptr() as _,
             h_cop.as_mut_ptr(),
             timestamp.as_mut_ptr(),
             extra_info_code.as_mut_ptr(),
-        );
+        ));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -1760,9 +1826,8 @@ impl PduApi {
             "D-PDU API Call Args"
         );
 
-        let get_resource_status_fn =
-            self.get_pdu_function::<PduGetResourceStatusFn>(FUNC.as_bytes())?;
-        let result = get_resource_status_fn(&mut item);
+        let get_resource_status_fn = self.symbols.get_resource_status;
+        let result = wrap_pdu_call(FUNC, || get_resource_status_fn(&mut item));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -1818,8 +1883,8 @@ impl PduApi {
 
         trace!(func = FUNC, h_mod, h_cll, "D-PDU API Call Args");
 
-        let connect_fn = self.get_pdu_function::<PduConnectFn>(FUNC.as_bytes())?;
-        let result = connect_fn(h_mod, h_cll);
+        let connect_fn = self.symbols.connect;
+        let result = wrap_pdu_call(FUNC, || connect_fn(h_mod, h_cll));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -1835,8 +1900,8 @@ impl PduApi {
 
         trace!(func = FUNC, h_mod, h_cll, "D-PDU API Call Args");
 
-        let connect_fn = self.get_pdu_function::<PduDisconnectFn>(FUNC.as_bytes())?;
-        let result = connect_fn(h_mod, h_cll);
+        let disconnect_fn = self.symbols.disconnect;
+        let result = wrap_pdu_call(FUNC, || disconnect_fn(h_mod, h_cll));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -1867,8 +1932,8 @@ impl PduApi {
             "D-PDU API Call Args"
         );
 
-        let lock_resource_fn = self.get_pdu_function::<PduLockResourceFn>(FUNC.as_bytes())?;
-        let result = lock_resource_fn(h_mod, h_cll, mask_data);
+        let lock_resource_fn = self.symbols.lock_resource;
+        let result = wrap_pdu_call(FUNC, || lock_resource_fn(h_mod, h_cll, mask_data));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -1899,8 +1964,8 @@ impl PduApi {
             "D-PDU API Call Args"
         );
 
-        let lock_resource_fn = self.get_pdu_function::<PduUnlockResourceFn>(FUNC.as_bytes())?;
-        let result = lock_resource_fn(h_mod, h_cll, mask_data);
+        let lock_resource_fn = self.symbols.unlock_resource;
+        let result = wrap_pdu_call(FUNC, || lock_resource_fn(h_mod, h_cll, mask_data));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -1910,14 +1975,16 @@ impl PduApi {
         Ok(())
     }
 
+
+
     pub fn pdu_module_connect(&self, h_mod: PduModuleHandle) -> ApiResult<()> {
         const FUNC: &'static str = "PDUModuleConnect";
         self.log_api_call(FUNC);
 
         trace!(func = FUNC, h_mod, "D-PDU API Call Args");
 
-        let module_connect_fn = self.get_pdu_function::<PduModuleConnectFn>(FUNC.as_bytes())?;
-        let result = module_connect_fn(h_mod);
+        let module_connect_fn = self.symbols.module_connect;
+        let result = wrap_pdu_call(FUNC, || module_connect_fn(h_mod));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -1935,9 +2002,8 @@ impl PduApi {
 
         trace!(func = FUNC, h_mod, "D-PDU API Call Args");
 
-        let module_disconnect_fn =
-            self.get_pdu_function::<PduModuleDisconnectFn>(FUNC.as_bytes())?;
-        let result = module_disconnect_fn(h_mod);
+        let module_disconnect_fn = self.symbols.module_disconnect;
+        let result = wrap_pdu_call(FUNC, || module_disconnect_fn(h_mod));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -1958,9 +2024,8 @@ impl PduApi {
 
         trace!(func = FUNC, h_mod, h_cll, h_cop, "D-PDU API Call Args");
 
-        let cancel_com_primitive_fn =
-            self.get_pdu_function::<PduCancelComPrimitiveFn>(FUNC.as_bytes())?;
-        let result = cancel_com_primitive_fn(h_mod, h_cll, h_cop);
+        let cancel_com_primitive_fn = self.symbols.cancel_primitive;
+        let result = wrap_pdu_call(FUNC, || cancel_com_primitive_fn(h_mod, h_cll, h_cop));
 
         if !result.is_success() {
             match result {
@@ -1988,7 +2053,7 @@ impl PduApi {
             Err(ApiError::PduError(PduError::InvalidHandle)) => {
                 let result = PduError::InvalidHandle;
                 self.log_api_call_fail("PDUCancelComPrimitive", result);
-                Err(ApiError::PduError(result))
+                Err(ApiError::PduError(result))?
             },
             Err(err) => Err(err)
         }
@@ -2006,7 +2071,7 @@ impl PduApi {
 
         let mut module_names: Vec<CString> = vec![];
         let mut module_infos: Vec<CString> = vec![];
-
+        
         let module_items = modules
             .iter()
             .map(|m| {
@@ -2055,13 +2120,12 @@ impl PduApi {
             "D-PDU API Call Args"
         );
 
-        let get_conflicting_resources_fn =
-            self.get_pdu_function::<PduGetConflictingResourcesFn>(FUNC.as_bytes())?;
-        let result = get_conflicting_resources_fn(
+        let get_conflicting_resources_fn = self.symbols.get_conflicting_resources;
+        let result = wrap_pdu_call(FUNC, || get_conflicting_resources_fn(
             resource_id,
             &module_data as *const _ as _,
             &mut conflict_data_ptr,
-        );
+        ));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -2156,8 +2220,8 @@ impl PduApi {
 
         let mut rsc_data_ptr = ptr::null_mut();
 
-        let get_resource_ids_fn = self.get_pdu_function::<PduGetResourceIdsFn>(FUNC.as_bytes())?;
-        let result = get_resource_ids_fn(h_mod, &resource_data as *const _ as _, &mut rsc_data_ptr);
+        let get_resource_ids_fn = self.symbols.get_resource_ids;
+        let result = wrap_pdu_call(FUNC, || get_resource_ids_fn(h_mod, &resource_data as *const _ as _, &mut rsc_data_ptr));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -2239,8 +2303,8 @@ impl PduApi {
             "D-PDU API Call Args"
         );
 
-        let get_timestamp_fn = self.get_pdu_function::<PduGetTimestampFn>(FUNC.as_bytes())?;
-        let result = get_timestamp_fn(h_mod, timestamp.as_mut_ptr());
+        let get_timestamp_fn = self.symbols.get_timestamp;
+        let result = wrap_pdu_call(FUNC, || get_timestamp_fn(h_mod, timestamp.as_mut_ptr()));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -2272,9 +2336,8 @@ impl PduApi {
             "D-PDU API Call Return"
         );
 
-        let get_timestamp_fn =
-            self.get_pdu_function::<PduGetUniqueRespIdTableFn>(FUNC.as_bytes())?;
-        let result = get_timestamp_fn(h_mod, h_cll, &mut table_item_ptr);
+        let get_timestamp_fn = self.symbols.get_unique_resp_id_table;
+        let result = wrap_pdu_call(FUNC, || get_timestamp_fn(h_mod, h_cll, &mut table_item_ptr));
 
         if !result.is_success() {
             self.log_api_call_fail(FUNC, result);
@@ -2439,15 +2502,18 @@ impl PduApi {
     }
 
     pub(crate) fn vt_module_destructor(&self, h_mod: PduModuleHandle) -> ApiResult<()> {
-        let target = PduStatusTarget::Module(h_mod);
-        let data = self.pdu_get_status_with_suppress_invalid_handle(&target)?;
+        let data = self.pdu_get_status_with_suppress_invalid_handle(&{
+            PduStatusTarget::Module(h_mod)
+        })?;
 
         match data.status_code {
             PduStatus::ModstReady | PduStatus::ModstNotReady => {
-                self.pdu_module_disconnect(Some(h_mod))?;
+                let _ = self.pdu_module_disconnect(Some(h_mod));
             },
             _ => {}
         }
+
+        let _ = self.pdu_register_event_callback(&PduEventTarget::Module(h_mod), None)?;
 
         Ok(())
     }
@@ -2462,10 +2528,12 @@ impl PduApi {
 
         match data.status_code {
             PduStatus::CllstOnline | PduStatus::CllstCommStarted => {
-                self.pdu_disconnect(h_mod, h_cll)?;
+                let _ = self.pdu_disconnect(h_mod, h_cll);
             },
             _ => { /* same as above */ }
         }
+
+        let _ = self.pdu_register_event_callback(&PduEventTarget::LogicalLink(h_mod, h_cll), None);
 
         Ok(())
     }
@@ -2489,6 +2557,289 @@ impl PduApi {
         }
 
         Ok(())
+    }
+
+    /// Reset specific MVCI protocol module.
+    pub fn vt_io_ctl_reset(&self) -> ApiResult<()> {
+        let _ = self.pdu_io_ctl(
+            &PduIoCtlTarget::System,
+            &PduIoCtlCommand::from("PDU_IOCTL_RESET"),
+            None
+        )?;
+        Ok(())
+    }
+
+    /// Clear transmit queue of specific ComLogicalLink.
+    pub fn vt_io_ctl_clear_tx_queue(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: PduCllHandle
+    ) -> ApiResult<()> {
+        let _ = self.pdu_io_ctl(
+            &PduIoCtlTarget::LogicalLink(h_mod, h_cll),
+            &PduIoCtlCommand::from("PDU_IOCTL_CLEAR_TX_QUEUE"),
+            None
+        )?;
+        Ok(())
+    }
+
+    /// Suspend transmit queue of specific ComLogicalLink. The queue processing will be halted
+    /// upon this command. This can be used to fill up a ComLogicalLink's queue with
+    /// ComPrimitives to achieve a steady processing of ComPrimitives after resuming
+    /// the queue (e.g. for fast flash programming operation).
+    pub fn vt_io_ctl_suspend_tx_queue(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: PduCllHandle
+    ) -> ApiResult<()> {
+        let _ = self.pdu_io_ctl(
+            &PduIoCtlTarget::LogicalLink(h_mod, h_cll),
+            &PduIoCtlCommand::from("PDU_IOCTL_SUSPEND_TX_QUEUE"),
+            None
+        )?;
+        Ok(())
+    }
+
+    /// Resume transmit queue of specific ComLogicalLink. The queue processing
+    /// will be started upon this command.
+    pub fn vt_io_ctl_resume_tx_queue(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: PduCllHandle
+    ) -> ApiResult<()> {
+        let _ = self.pdu_io_ctl(
+            &PduIoCtlTarget::LogicalLink(h_mod, h_cll),
+            &PduIoCtlCommand::from("PDU_IOCTL_RESUME_TX_QUEUE"),
+            None
+        )?;
+        Ok(())
+    }
+
+    /// Clear event queue of specific ComLogicalLink.
+    pub fn vt_io_ctl_clear_rx_queue(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: PduCllHandle
+    ) -> ApiResult<()> {
+        let _ = self.pdu_io_ctl(
+            &PduIoCtlTarget::LogicalLink(h_mod, h_cll),
+            &PduIoCtlCommand::from("PDU_IOCTL_CLEAR_RX_QUEUE"),
+            None
+        )?;
+        Ok(())
+    }
+
+    pub fn vt_io_ctl_read_vbatt(&self, h_mod: PduModuleHandle) -> ApiResult<f32> {
+        match self.pdu_io_ctl(
+            &PduIoCtlTarget::Module(h_mod),
+            &PduIoCtlCommand::from("PDU_IOCTL_READ_VBATT"),
+            None
+        )? {
+            Some(PduIoCtlData::U32(v)) => Ok(v as f32 / 1000.0),
+            Some(_) => {
+                error!(
+                    h_mod,
+                    "IoCtl output data is wrong. Emulation of PduError::FctFailed..."
+                );
+                Err(PduError::FctFailed)?
+            },
+            None => {
+                error!(
+                    h_mod,
+                    "IoCtl output data is null. Emulation of PduError::FctFailed..."
+                );
+                Err(PduError::FctFailed)?
+            }
+        }
+    }
+
+    pub fn vt_io_ctl_set_prog_voltage(
+        &self,
+        h_mod: PduModuleHandle,
+        voltage: f32,
+        pin: u32
+    ) -> ApiResult<()> {
+        let _ = self.pdu_io_ctl(
+            &PduIoCtlTarget::Module(h_mod),
+            &PduIoCtlCommand::from("PDU_IOCTL_SET_PROG_VOLTAGE"),
+            Some(&PduIoCtlData::ProgVoltage(IoProgVoltageData {
+                prog_voltage_mv: (voltage * 1000.0) as u32,
+                pin_on_dlc: pin,
+            }))
+        )?;
+        Ok(())
+    }
+
+    pub fn vt_io_ctl_read_prog_voltage(&self, h_mod: PduModuleHandle) -> ApiResult<f32> {
+        match self.pdu_io_ctl(
+            &PduIoCtlTarget::Module(h_mod),
+            &PduIoCtlCommand::from("PDU_IOCTL_READ_PROG_VOLTAGE"),
+            None
+        )? {
+            Some(PduIoCtlData::ProgVoltage(v)) => Ok(v.prog_voltage_mv as f32 / 1000.0),
+            Some(_) => {
+                error!(
+                    h_mod,
+                    "IoCtl output data is wrong. Emulation of PduError::FctFailed..."
+                );
+                Err(PduError::FctFailed)?
+            },
+            None => {
+                error!(
+                    h_mod,
+                    "IoCtl output data is null. Emulation of PduError::FctFailed..."
+                );
+                Err(PduError::FctFailed)?
+            }
+        }
+    }
+
+    pub fn vt_io_ctl_generic(&self, h_mod: PduModuleHandle, data: &[u8]) -> ApiResult<()> {
+        let _ = self.pdu_io_ctl(
+            &PduIoCtlTarget::Module(h_mod),
+            &PduIoCtlCommand::from("PDU_IOCTL_GENERIC"),
+            Some(&PduIoCtlData::ByteArray(IoCtlByteArray(data.to_vec())))
+        )?;
+        Ok(())
+    }
+
+    pub fn vt_io_ctl_set_buffer_size(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: PduCllHandle,
+        size: u32
+    ) -> ApiResult<()> {
+        let _ = self.pdu_io_ctl(
+            &PduIoCtlTarget::LogicalLink(h_mod, h_cll),
+            &PduIoCtlCommand::from("PDU_IOCTL_SET_BUFFER_SIZE"),
+            Some(&PduIoCtlData::U32(size))
+        )?;
+        Ok(())
+    }
+
+    pub fn vt_io_ctl_start_msg_filter(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: PduCllHandle,
+        filter: IoFilterData
+    ) -> ApiResult<()> {
+        let _ = self.pdu_io_ctl(
+            &PduIoCtlTarget::LogicalLink(h_mod, h_cll),
+            &PduIoCtlCommand::from("PDU_IOCTL_START_MSG_FILTER"),
+            Some(&PduIoCtlData::Filter(filter))
+        )?;
+        Ok(())
+    }
+
+    pub fn vt_io_ctl_stop_msg_filter(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: PduCllHandle,
+        number: u32
+    ) -> ApiResult<()> {
+        let _ = self.pdu_io_ctl(
+            &PduIoCtlTarget::LogicalLink(h_mod, h_cll),
+            &PduIoCtlCommand::from("PDU_IOCTL_STOP_MSG_FILTER"),
+            Some(&PduIoCtlData::U32(number))
+        )?;
+        Ok(())
+    }
+
+    pub fn vt_io_ctl_clear_msg_filter(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: PduCllHandle,
+    ) -> ApiResult<()> {
+        let _ = self.pdu_io_ctl(
+            &PduIoCtlTarget::LogicalLink(h_mod, h_cll),
+            &PduIoCtlCommand::from("PDU_IOCTL_CLEAR_MSG_FILTER"),
+            None
+        )?;
+        Ok(())
+    }
+
+    pub fn vt_io_ctl_set_event_queue_properties(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: PduCllHandle,
+        size: u32,
+        mode: PduQueueMode
+    ) -> ApiResult<()> {
+        let _ = self.pdu_io_ctl(
+            &PduIoCtlTarget::LogicalLink(h_mod, h_cll),
+            &PduIoCtlCommand::from("PDU_IOCTL_SET_EVENT_QUEUE_PROPERTIES"),
+            Some(&PduIoCtlData::EventQueueProperty(IoEventQueuePropertyData {
+                queue_size: size,
+                queue_mode: mode,
+            }))
+        )?;
+        Ok(())
+    }
+
+    pub fn vt_io_ctl_get_cable_id(&self, h_mod: PduModuleHandle) -> ApiResult<Option<PduObjectId>> {
+        match self.pdu_io_ctl(
+            &PduIoCtlTarget::Module(h_mod),
+            &PduIoCtlCommand::from("PDU_IOCTL_GET_CABLE_ID"),
+            None
+        )? {
+            Some(PduIoCtlData::U32(v)) if v == PDU_ID_UNDEF => Ok(None),
+            Some(PduIoCtlData::U32(v)) => Ok(Some(v)),
+            Some(_) => {
+                error!(
+                    h_mod,
+                    "IoCtl output data is wrong. Emulation of PduError::FctFailed..."
+                );
+                Err(PduError::FctFailed)?
+            },
+            None => {
+                error!(
+                    h_mod,
+                    "IoCtl output data is null. Emulation of PduError::FctFailed..."
+                );
+                Err(PduError::FctFailed)?
+            }
+        }
+    }
+
+    pub fn vt_io_ctl_send_break(
+        &self,
+        h_mod: PduModuleHandle,
+        h_cll: PduCllHandle
+    ) -> ApiResult<()> {
+        let _ = self.pdu_io_ctl(
+            &PduIoCtlTarget::LogicalLink(h_mod, h_cll),
+            &PduIoCtlCommand::from("PDU_IOCTL_SEND_BREAK"),
+            None
+        )?;
+        Ok(())
+    }
+
+    pub fn vt_io_ctl_read_ignition_sense_state(
+        &self,
+        h_mod: PduModuleHandle,
+        pin: Option<u32>
+    ) -> ApiResult<bool> {
+        match self.pdu_io_ctl(
+            &PduIoCtlTarget::Module(h_mod),
+            &PduIoCtlCommand::from("PDU_IOCTL_READ_IGNITION_SENSE_STATE"),
+            Some(&PduIoCtlData::U32(pin.unwrap_or(0)))
+        )? {
+            Some(PduIoCtlData::U32(v)) => Ok(if v > 0 { true } else { false }),
+            Some(_) => {
+                error!(
+                    h_mod,
+                    "IoCtl output data is wrong. Emulation of PduError::FctFailed..."
+                );
+                Err(PduError::FctFailed)?
+            },
+            None => {
+                error!(
+                    h_mod,
+                    "IoCtl output data is null. Emulation of PduError::FctFailed..."
+                );
+                Err(PduError::FctFailed)?
+            }
+        }
     }
 }
 

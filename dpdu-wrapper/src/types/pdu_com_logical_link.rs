@@ -27,6 +27,8 @@ use tokio::sync::Mutex as TokioMutex;
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 use tracing::{debug, error};
+use crate::constants::{CLL_EVENTS_QUEUE_SIZE, COP_EVENTS_QUEUE_SIZE};
+use crate::error::{GeneralError, GeneralResult};
 use crate::types::pdu_com_param::table::{ComParamDefinitionSet, IntoPduComParam, MapTarget, PduComParamTable, SetTarget};
 
 #[derive(Debug, Clone)]
@@ -49,8 +51,6 @@ pub struct PduLogicalLink {
 }
 
 impl PduLogicalLink {
-    const DEFAULT_COP_EVENT_QUEUE_SIZE: usize = 4096;
-
     pub(crate) fn set_worker(&self, worker: Arc<PduAsyncWorker>) {
         let _ = self.worker.set(worker);
     }
@@ -78,7 +78,7 @@ impl PduLogicalLink {
     fn take_me_expect(&self) -> Arc<PduLogicalLink> {
         self.me
             .upgrade()
-            .expect("internal error: ComLogicalLink self-reference is no longer valid")
+            .expect("internal error: PduLogicalLink self-reference is no longer valid")
     }
 
     pub fn blocking_get_status(&self) -> ApiResult<CllStatus> {
@@ -89,7 +89,7 @@ impl PduLogicalLink {
         Ok(CllStatus(result))
     }
 
-    pub async fn get_status(&self) -> WorkerResult<CllStatus> {
+    pub async fn get_status(&self) -> GeneralResult<CllStatus> {
         match self.worker.get() {
             Some(worker) => {
                 let target = PduStatusTarget::LogicalLink(
@@ -100,17 +100,11 @@ impl PduLogicalLink {
                 Ok(CllStatus(result))
             }
             None => {
-                debug!(
-                    h_mod = self.get_module_handle(),
-                    h_cll = self.get_cll_handle(),
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
-
                 let me = self.take_me_expect();
                 let result = spawn_blocking(move || me.blocking_get_status())
                     .await
                     .expect(
-                        "internal error: ComLogicalLink::blocking_get_status() task panicked",
+                        "internal error: PduLogicalLink::blocking_get_status() task panicked",
                     )?;
 
                 Ok(result)
@@ -130,7 +124,7 @@ impl PduLogicalLink {
         Ok(true)
     }
 
-    pub async fn connect(&self) -> WorkerResult<bool> {
+    pub async fn connect(&self) -> GeneralResult<bool> {
         match self.worker.get() {
             Some(worker) => {
                 let status = self.get_status().await?;
@@ -143,23 +137,17 @@ impl PduLogicalLink {
                 Ok(true)
             }
             None => {
-                debug!(
-                    h_mod = self.get_module_handle(),
-                    h_cll = self.get_cll_handle(),
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
-
                 let me = self.take_me_expect();
                 let result = spawn_blocking(move || me.blocking_connect())
                     .await
-                    .expect("internal error: ComLogicalLink::blocking_connect() task panicked")?;
+                    .expect("internal error: PduLogicalLink::blocking_connect() task panicked")?;
 
                 Ok(result)
             }
         }
     }
 
-    pub fn blocking_disconnect(&self) -> ApiResult<bool> {
+    pub fn blocking_disconnect(&self) -> GeneralResult<bool> {
         let status = self.blocking_get_status()?;
         if status.is_offline() {
             return Ok(false);
@@ -171,7 +159,7 @@ impl PduLogicalLink {
         Ok(true)
     }
 
-    pub async fn disconnect(&self) -> WorkerResult<bool> {
+    pub async fn disconnect(&self) -> GeneralResult<bool> {
         match self.worker.get() {
             Some(worker) => {
                 let status = self.get_status().await?;
@@ -184,15 +172,9 @@ impl PduLogicalLink {
                 Ok(true)
             }
             None => {
-                debug!(
-                    h_mod = self.get_module_handle(),
-                    h_cll = self.get_cll_handle(),
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
-
                 let me = self.take_me_expect();
                 let result = spawn_blocking(move || me.blocking_connect()).await.expect(
-                    "internal error: ComLogicalLink::blocking_disconnect() task panicked",
+                    "internal error: PduLogicalLink::blocking_disconnect() task panicked",
                 )?;
 
                 Ok(result)
@@ -205,11 +187,13 @@ impl PduLogicalLink {
         cop_type: &PduCopt,
         data: &[u8],
         params: Option<&PduPrimitiveParams>,
-    ) -> ApiResult<Arc<PduPrimitive>> {
+        events_queue_size: Option<usize>
+    ) -> GeneralResult<Arc<PduPrimitive>> {
         let _sync_guard = self.sync.lock();
 
+        let events_queue_size = events_queue_size.unwrap_or(COP_EVENTS_QUEUE_SIZE);
         let unique_tag: PduUniqueCopTag = random_non_zero_usize();
-        let (tx, rx) = mpsc::channel(Self::DEFAULT_COP_EVENT_QUEUE_SIZE);
+        let (tx, rx) = mpsc::channel(events_queue_size);
         let tx = Arc::new(tx);
 
         // Register event tx for unique tag.
@@ -263,11 +247,13 @@ impl PduLogicalLink {
         cop_type: &PduCopt,
         data: &[u8],
         params: Option<&PduPrimitiveParams>,
-    ) -> WorkerResult<Arc<PduPrimitive>> {
+        events_queue_size: Option<usize>
+    ) -> GeneralResult<Arc<PduPrimitive>> {
+        let events_queue_size = events_queue_size.unwrap_or(COP_EVENTS_QUEUE_SIZE);
         match self.worker.get() {
             Some(worker) => {
                 let unique_tag: PduUniqueCopTag = random_non_zero_usize();
-                let (tx, rx) = mpsc::channel(Self::DEFAULT_COP_EVENT_QUEUE_SIZE);
+                let (tx, rx) = mpsc::channel(events_queue_size);
                 let tx = Arc::new(tx);
 
                 // Register event tx for unique tag.
@@ -320,9 +306,6 @@ impl PduLogicalLink {
                 Ok(cop)
             }
             None => {
-                debug!(
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
                 let me = self.take_me_expect();
 
                 let cop_type = cop_type.to_owned();
@@ -330,7 +313,12 @@ impl PduLogicalLink {
                 let params = params.cloned();
 
                 let thread =
-                    move || me.blocking_start_primitive(&cop_type, &data, params.as_ref());
+                    move || me.blocking_start_primitive(
+                        &cop_type,
+                        &data,
+                        params.as_ref(),
+                        Some(events_queue_size)
+                    );
 
                 let cop = spawn_blocking(thread).await.expect(
                     "internal error: ComLogicalLink::blocking_start_com_primitive() task panicked",
@@ -341,56 +329,77 @@ impl PduLogicalLink {
         }
     }
 
-    pub fn blocking_start_comm(&self, builder: StartComm) -> ApiResult<Arc<PduPrimitive>> {
+    pub fn blocking_start_comm(&self, builder: StartComm) -> GeneralResult<Arc<PduPrimitive>> {
         self.blocking_start_primitive(
             &PduCopt::StartComm,
             &builder.data,
             Some(&builder.build()),
+            builder.events_queue_size
         )
     }
 
-    pub async fn start_comm(&self, builder: StartComm) -> WorkerResult<Arc<PduPrimitive>> {
-        self.start_primitive(&PduCopt::StartComm, &builder.data, Some(&builder.build()))
-            .await
+    pub async fn start_comm(&self, builder: StartComm) -> GeneralResult<Arc<PduPrimitive>> {
+        self.start_primitive(
+            &PduCopt::StartComm,
+            &builder.data,
+            Some(&builder.build()),
+            builder.events_queue_size
+        ).await
     }
 
-    pub fn blocking_stop_comm(&self, builder: StopComm) -> ApiResult<Arc<PduPrimitive>> {
-        self.blocking_start_primitive(&PduCopt::StopComm, &builder.data, Some(&builder.build()))
+    pub fn blocking_stop_comm(&self, builder: StopComm) -> GeneralResult<Arc<PduPrimitive>> {
+        self.blocking_start_primitive(
+            &PduCopt::StopComm,
+            &builder.data,
+            Some(&builder.build()),
+            builder.events_queue_size
+        )
     }
 
-    pub async fn stop_comm(&self, builder: StopComm) -> WorkerResult<Arc<PduPrimitive>> {
-        self.start_primitive(&PduCopt::StopComm, &builder.data, Some(&builder.build()))
-            .await
+    pub async fn stop_comm(&self, builder: StopComm) -> GeneralResult<Arc<PduPrimitive>> {
+        self.start_primitive(
+            &PduCopt::StopComm,
+            &builder.data,
+            Some(&builder.build()),
+            builder.events_queue_size
+        ).await
     }
 
-    pub fn blocking_send_recv(&self, builder: SendRecv) -> ApiResult<Arc<PduPrimitive>> {
-        self.blocking_start_primitive(&PduCopt::SendRecv, &builder.data, Some(&builder.build()))
+    pub fn blocking_send_recv(&self, builder: SendRecv) -> GeneralResult<Arc<PduPrimitive>> {
+        self.blocking_start_primitive(
+            &PduCopt::SendRecv,
+            &builder.data,
+            Some(&builder.build()),
+            builder.events_queue_size
+        )
     }
 
-    pub async fn send_recv(&self, builder: SendRecv) -> WorkerResult<Arc<PduPrimitive>> {
-        self.start_primitive(&PduCopt::SendRecv, &builder.data, Some(&builder.build()))
-            .await
+    pub async fn send_recv(&self, builder: SendRecv) -> GeneralResult<Arc<PduPrimitive>> {
+        self.start_primitive(
+            &PduCopt::SendRecv,
+            &builder.data,
+            Some(&builder.build()),
+            builder.events_queue_size
+        ).await
     }
 
-    pub fn blocking_update_param(&self) -> ApiResult<Arc<PduPrimitive>> {
-        self.blocking_start_primitive(&PduCopt::UpdateParam, &[], None)
+    pub fn blocking_update_param(&self) -> GeneralResult<Arc<PduPrimitive>> {
+        self.blocking_start_primitive(&PduCopt::UpdateParam, &[], None, None)
     }
 
-    pub async fn update_param(&self) -> WorkerResult<Arc<PduPrimitive>> {
-        self.start_primitive(&PduCopt::UpdateParam, &[], None)
-            .await
+    pub async fn update_param(&self) -> GeneralResult<Arc<PduPrimitive>> {
+        self.start_primitive(&PduCopt::UpdateParam, &[], None, None).await
     }
 
-    pub fn blocking_restore_param(&self) -> ApiResult<Arc<PduPrimitive>> {
-        self.blocking_start_primitive(&PduCopt::RestoreParam, &[], None)
+    pub fn blocking_restore_param(&self) -> GeneralResult<Arc<PduPrimitive>> {
+        self.blocking_start_primitive(&PduCopt::RestoreParam, &[], None, None)
     }
 
-    pub async fn restore_param(&self) -> WorkerResult<Arc<PduPrimitive>> {
-        self.start_primitive(&PduCopt::RestoreParam, &[], None)
-            .await
+    pub async fn restore_param(&self) -> GeneralResult<Arc<PduPrimitive>> {
+        self.start_primitive(&PduCopt::RestoreParam, &[], None, None).await
     }
 
-    pub fn blocking_set_com_params(&self, set_target: impl Into<SetTarget>) -> ApiResult<()> {
+    pub fn blocking_set_com_params(&self, set_target: impl Into<SetTarget>) -> GeneralResult<()> {
         let h_mod = self.get_module_handle();
         let h_cll = self.get_cll_handle();
 
@@ -419,7 +428,7 @@ impl PduLogicalLink {
         Ok(())
     }
 
-    pub async fn set_com_params(&self, set_target: impl Into<SetTarget>) -> WorkerResult<()> {
+    pub async fn set_com_params(&self, set_target: impl Into<SetTarget>) -> GeneralResult<()> {
         let h_mod = self.get_module_handle();
         let h_cll = self.get_cll_handle();
 
@@ -431,7 +440,7 @@ impl PduLogicalLink {
                             let cp = def.build(worker.as_ref()).await?;
                             match worker.pdu_set_com_param(h_mod, h_cll, cp).await {
                                 Ok(()) => {},
-                                Err(WorkerError::ApiError(ApiError::PduError(PduError::ComParamNotSupported))) => {},
+                                Err(GeneralError::ApiError(ApiError::PduError(PduError::ComParamNotSupported))) => {},
                                 Err(err) => Err(err)?
                             }
                         }
@@ -440,7 +449,7 @@ impl PduLogicalLink {
                         for cp in v.iter() {
                             match worker.pdu_set_com_param(h_mod, h_cll, cp.clone()).await {
                                 Ok(()) => {},
-                                Err(WorkerError::ApiError(ApiError::PduError(PduError::ComParamNotSupported))) => {},
+                                Err(GeneralError::ApiError(ApiError::PduError(PduError::ComParamNotSupported))) => {},
                                 Err(err) => Err(err)?
                             }
                         }
@@ -448,10 +457,6 @@ impl PduLogicalLink {
                 }
             },
             None => {
-                debug!(
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
-
                 let me = self.take_me_expect();
 
                 let set_target = set_target.into();
@@ -466,7 +471,7 @@ impl PduLogicalLink {
         Ok(())
     }
 
-    pub fn blocking_set_unique_com_params_table(&self, map_target: impl Into<MapTarget>) -> ApiResult<()> {
+    pub fn blocking_set_unique_com_params_table(&self, map_target: impl Into<MapTarget>) -> GeneralResult<()> {
         let h_mod = self.get_module_handle();
         let h_cll = self.get_cll_handle();
 
@@ -491,7 +496,7 @@ impl PduLogicalLink {
         Ok(())
     }
 
-    pub async fn set_unique_com_params_table(&self, map_target: impl Into<MapTarget>) -> WorkerResult<()> {
+    pub async fn set_unique_com_params_table(&self, map_target: impl Into<MapTarget>) -> GeneralResult<()> {
         let h_mod = self.get_module_handle();
         let h_cll = self.get_cll_handle();
 
@@ -516,10 +521,6 @@ impl PduLogicalLink {
                 }
             },
             None => {
-                debug!(
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
-
                 let me = self.take_me_expect();
 
                 let map_target = map_target.into();
@@ -558,11 +559,6 @@ impl Drop for PduLogicalLink {
                 }
             }
             None => {
-                debug!(
-                    h_mod = self.get_module_handle(),
-                    h_cll = self.get_cll_handle(),
-                    "The use of asynchronous functions is not recommended outside of PduAsyncWorker"
-                );
                 let api = self.api.clone();
                 let h_mod = self.get_module_handle();
                 let h_cll = self.get_cll_handle();
@@ -819,6 +815,8 @@ pub struct StartComm {
     pub param_buffer: ComParamBuffer,
 
     pub filters: Vec<ExpectedResponse>,
+
+    pub events_queue_size: Option<usize>,
 }
 
 impl StartComm {
@@ -842,6 +840,11 @@ impl StartComm {
     /// Use case.
     pub fn send_with_recv_expected_ids(data: &[u8], ids: Vec<u32>) -> Self {
         Self::initial().with_data(data).with_expected_ids(ids)
+    }
+
+    pub fn with_events_queue_size(mut self, size: usize) -> Self {
+        self.events_queue_size = Some(size);
+        self
     }
 
     pub fn with_data(mut self, data: &[u8]) -> Self {
@@ -914,6 +917,8 @@ pub struct StopComm {
     pub param_buffer: ComParamBuffer,
 
     pub filters: Vec<ExpectedResponse>,
+
+    pub events_queue_size: Option<usize>
 }
 
 impl StopComm {
@@ -930,6 +935,11 @@ impl StopComm {
     /// Use case.
     pub fn later_with_send_and_recv_expected_ids(data: &[u8], ids: Vec<u32>) -> Self {
         Self::now().with_data(data).with_expected_ids(ids)
+    }
+
+    pub fn with_events_queue_size(mut self, size: usize) -> Self {
+        self.events_queue_size = Some(size);
+        self
     }
 
     pub fn with_data(mut self, data: &[u8]) -> Self {
@@ -1006,6 +1016,8 @@ pub struct SendRecv {
     pub filters: Vec<ExpectedResponse>,
 
     pub delay: Duration,
+
+    pub events_queue_size: Option<usize>
 }
 
 impl SendRecv {
@@ -1019,6 +1031,7 @@ impl SendRecv {
             param_buffer: ComParamBuffer::default(),
             filters: Vec::default(),
             delay: Duration::from_millis(0),
+            events_queue_size: None,
         }
     }
 
@@ -1030,6 +1043,11 @@ impl SendRecv {
     /// Use case.
     pub fn monitor() -> Self {
         Self::new(&[]).with_receive_cycles(ReceiveCycles::Infinite)
+    }
+
+    pub fn with_events_queue_size(mut self, size: usize) -> Self {
+        self.events_queue_size = Some(size);
+        self
     }
 
     pub fn with_tx_flags(mut self, flags: TransmitFlags) -> Self {

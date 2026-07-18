@@ -9,7 +9,6 @@ use map_macro::hash_set;
 /// Стек возможных коммуникационных параметров для протокола приложения UDS (ISO 14229-3).
 ///
 /// Описания возможных параметров сгенерированы ChatGpt!
-#[non_exhaustive]
 #[derive(Clone, Debug)]
 pub struct UdsStack {
     /// CP_CanTransmissionTime
@@ -41,6 +40,8 @@ pub struct UdsStack {
     /// в ответ на запрос о изменении скорости работы канала связи.
     pub change_speed_rate: u32,
 
+    pub change_speed_res_ctrl: u32,
+
     /// CP_ChangeSpeedTxDelay
     ///
     /// Определяет задержку передачи данных при изменении скорости. Этот параметр указывает
@@ -56,6 +57,13 @@ pub struct UdsStack {
     /// которого система ожидает получения ответа на запрос или команду, прежде чем будет
     /// предпринята следующая попытка или выполнены действия в случае его отсутствия.
     pub cyclic_resp_timeout: u32,
+
+    /// CP_EnablePerformanceTest
+    ///
+    /// Специальный параметр, используемый для включения или отключения измерения
+    /// производительности канала связи между диагностическим приложением и ECU (или между
+    /// приложением и VCI).
+    pub enable_performance_test: u32,
 
     /// CP_Loopback
     ///
@@ -300,8 +308,10 @@ impl Default for UdsStack {
             change_speed_ctrl: 0,
             change_speed_message: vec![],
             change_speed_rate: 0,
+            change_speed_res_ctrl: 0,
             change_speed_tx_delay: 0,
             cyclic_resp_timeout: 0,
+            enable_performance_test: 0,
             loopback: 0,
             modify_timing: 0,
 
@@ -347,8 +357,10 @@ impl ComParamDefinitionStack for UdsStack {
         CP_ChangeSpeedCtrl: u32,
         CP_ChangeSpeedMessage: Vec<u8>,
         CP_ChangeSpeedRate: u32,
+        CP_ChangeSpeedResCtrl: u32,
         CP_ChangeSpeedTxDelay: u32,
         CP_CyclicRespTimeout: u32,
+        CP_EnablePerformanceTest: u32,
         CP_Loopback: u32,
         CP_ModifyTiming: u32,
         CP_P2Max: u32,
@@ -395,6 +407,8 @@ impl ComParamDefinitionStack for UdsStack {
             Def::new(Time, "CP_P2Star", self.p2_star),
             Def::new(Time, "CP_P3Func", self.p3_func),
             Def::new(Time, "CP_P3Phys", self.p3_phys),
+            Def::new(Time, "CP_ChangeSpeedTxDelay", self.change_speed_tx_delay),
+            Def::new(Time, "CP_SessionTimingOverride", self.session_timing_override.clone()),
 
             // Error handling.
             Def::new(ErrHdl, "CP_RC21CompletionTimeout", self.rc21_completion_timeout),
@@ -407,17 +421,17 @@ impl ComParamDefinitionStack for UdsStack {
             Def::new(ErrHdl, "CP_RC78Handling", self.rc78_handling),
             Def::new(ErrHdl, "CP_RCByteOffset", self.rc_byte_offset),
             Def::new(ErrHdl, "CP_RepeatReqCountApp", self.repeat_req_count_app),
-            Def::new(ErrHdl, "CP_SessionTimingOverride", self.session_timing_override.clone()),
             Def::new(ErrHdl, "CP_SuspendQueueOnError", self.suspend_queue_on_error),
 
             // Com.
             Def::new(Com, "CP_ChangeSpeedCtrl", self.change_speed_ctrl),
             Def::new(Com, "CP_ChangeSpeedMessage", self.change_speed_message.clone()),
             Def::new(Com, "CP_ChangeSpeedRate", self.change_speed_rate),
-            Def::new(Com, "CP_ChangeSpeedTxDelay", self.change_speed_tx_delay),
             Def::new(Com, "CP_StartMsgIndEnable", self.start_msg_ind_enable),
             Def::new(Com, "CP_SwCan_HighVoltage", self.sw_can_high_voltage),
             Def::new(Com, "CP_TransmitIndEnable", self.transmit_ind_enable),
+            Def::new(Com, "CP_ChangeSpeedResCtrl", self.change_speed_res_ctrl),
+            Def::new(Com, "CP_EnablePerformanceTest", self.enable_performance_test),
 
             // Tester present.
             Def::new(Tp, "CP_TesterPresentAddrMode", self.tester_present_addr_mode),
