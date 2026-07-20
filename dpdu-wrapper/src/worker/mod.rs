@@ -8,7 +8,9 @@ pub use rpc::Response;
 use std::sync::{Arc, Weak};
 use std::thread::spawn;
 use tokio::sync::oneshot;
-use tracing::{info, warn};
+use tokio::sync::oneshot::error::RecvError;
+use tokio::task::spawn_blocking;
+use tracing::{error, info, warn};
 
 pub type WorkerResult<T> = std::result::Result<T, WorkerError>;
 
@@ -71,6 +73,12 @@ impl PduAsyncWorker {
         });
 
         worker
+    }
+
+    pub(crate) fn clone_arc(&self) -> Arc<Self> {
+        self.me
+            .upgrade()
+            .expect("internal error: unable to upgrade the Weak<PduAsyncWorker> pointer") // infallible
     }
 
     pub fn get_api(&self) -> &PduApi {
@@ -200,12 +208,34 @@ impl PduAsyncWorker {
 impl Drop for PduAsyncWorker {
     fn drop(&mut self) {
         use crossbeam_channel::TrySendError;
+        use tokio::spawn;
 
-        match self.shutdown_tx.try_send(()) {
-            Err(TrySendError::Disconnected(_)) => {
-                panic!("Unexpected closure of the shutdown channel in PduAsyncWorker");
+        let query_tx = self.query_tx.clone();
+        let shutdown_tx = self.shutdown_tx.clone();
+
+        spawn(async move {
+            let (tx, rx) = oneshot::channel();
+
+            match query_tx.try_send((Query::PduDestruct, Some(tx))) {
+                Ok(_) => {
+                    match rx.await {
+                        Ok(_) => {}
+                        Err(err) => {
+                            error!("Query response channel has been unexpectedly closed: {err}");
+                        }
+                    }
+                },
+                Err(err) => {
+                    error!("Unable to send destruct query to the PdyAsyncWorker: {err}");
+                }
+            };
+
+            match shutdown_tx.try_send(()) {
+                Err(TrySendError::Disconnected(_)) => {
+                    error!("Unexpected closure of the shutdown channel in PduAsyncWorker");
+                }
+                _ => {}
             }
-            _ => {}
-        }
+        });
     }
 }

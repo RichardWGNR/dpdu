@@ -15,19 +15,20 @@ exe = { version = "0.5.7" }
 regex = { version = "1.12.4" }
 semver = { version = "1.0.28" }
 strum = { version = "0.28.0", features = ["derive", "strum_macros"] }
-dpdu-api-types = { version = "0.9.9", path = "../dpdu-api-types" }
+dpdu-api-types = { version = "0.10.0", path = "../dpdu-api-types", features = ["full"] }
 libloading = { version = "0.9.0" }
 rand = { version = "0.10.1" }
 chrono = { version = "0.4.45" }
 murmur3 = { version = "0.5.2" }
 tokio = { version = "1.52.3", features = ["sync", "macros", "rt"] }
 crossbeam-channel = { version = "0.5.16" }
-arc-swap = { version = "1.9.2" }
 parking_lot = { version = "0.12.5" }
 serde_json = { version = "1.0.150" }
 async-trait = { version = "0.1.89" }
 map-macro = { version = "0.3.0" }
 retour = { version = "0.4.0-alpha.4" }
 windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_System_LibraryLoader"] }
+thread_local = { version = "1.1.10" }
+scopeguard = { version = "1.2.0" }
 
 [features]

@@ -89,10 +89,6 @@ pub struct PduPrimitive {
 }
 
 impl PduPrimitive {
-    pub(crate) fn set_worker(&self, worker: Arc<PduAsyncWorker>) {
-        let _ = self.worker.set(worker);
-    }
-
     pub fn get_module_handle(&self) -> PduModuleHandle {
         self.h_mod
     }

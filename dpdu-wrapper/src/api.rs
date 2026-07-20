@@ -48,7 +48,7 @@ use dpdu_api_types::{
     PduUnlockResourceFn, PinData, ResultData, RscData, RscStatusData, RscStatusItem,
     UniqueRespIdTableItem, VersionData,
 };
-use std::cell::OnceCell;
+use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::HashMap;
 use std::ffi::{CString, c_void};
 use std::mem::{ManuallyDrop, MaybeUninit};
@@ -56,6 +56,13 @@ use std::num::NonZeroUsize;
 use std::ptr::NonNull;
 use std::sync::{Arc, OnceLock, Weak};
 use std::{ptr, slice};
+use std::any::type_name;
+use std::fmt::{Debug, Formatter};
+use std::rc::Rc;
+use dpdu_api_types::bitflags::PduErrorFlag;
+use parking_lot::RwLock;
+use scopeguard::defer;
+use thread_local::ThreadLocal;
 use tokio::sync::mpsc;
 use tracing::{Level, debug, error, info, trace, warn};
 
@@ -124,7 +131,69 @@ struct ApiSymbols {
     unlock_resource: PduUnlockResourceFn,
 }
 
-#[derive(Debug)]
+/// The internal structure that must be placed in TLS to suppress logging errors that occur
+/// in the D-PDU API.
+///
+/// For internal use only.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct SuppressLogOptions {
+    pub(crate) cancel_primitive: PduErrorFlag,
+    pub(crate) connect: PduErrorFlag,
+    pub(crate) construct: PduErrorFlag,
+    pub(crate) create_logical_link: PduErrorFlag,
+    pub(crate) destruct: PduErrorFlag,
+    pub(crate) destroy_logical_link: PduErrorFlag,
+    pub(crate) destroy_item: PduErrorFlag,
+    pub(crate) disconnect: PduErrorFlag,
+    pub(crate) get_com_param: PduErrorFlag,
+    pub(crate) get_conflicting_resources: PduErrorFlag,
+    pub(crate) get_event_item: PduErrorFlag,
+    pub(crate) get_last_error: PduErrorFlag,
+    pub(crate) get_module_ids: PduErrorFlag,
+    pub(crate) get_object_id: PduErrorFlag,
+    pub(crate) get_resource_ids: PduErrorFlag,
+    pub(crate) get_resource_status: PduErrorFlag,
+    pub(crate) get_status: PduErrorFlag,
+    pub(crate) get_timestamp: PduErrorFlag,
+    pub(crate) get_unique_resp_id_table: PduErrorFlag,
+    pub(crate) get_version: PduErrorFlag,
+    pub(crate) io_ctl: PduErrorFlag,
+    pub(crate) lock_resource: PduErrorFlag,
+    pub(crate) module_connect: PduErrorFlag,
+    pub(crate) module_disconnect: PduErrorFlag,
+    pub(crate) register_event_callback: PduErrorFlag,
+    pub(crate) set_com_param: PduErrorFlag,
+    pub(crate) set_unique_resp_id_table: PduErrorFlag,
+    pub(crate) start_primitive: PduErrorFlag,
+    pub(crate) unlock_resource: PduErrorFlag,
+}
+
+macro_rules! impl_defer_clear_suppress_options {
+    ($self:expr, $func:ident) => {
+        let suppress_log_options = $self
+            .suppress_log_options
+            .get_or_default()
+            .clone();
+        
+        defer! {
+            let mut options = suppress_log_options.write();
+            options.$func = PduErrorFlag::empty();
+        }
+    };
+}
+
+macro_rules! resolve_level_of_log_api_call_fail {
+    ($self:expr, $result:expr, $func:ident) => {
+        {
+            let suppress_log_options = $self.suppress_log_options.get_or_default().read();
+            suppress_log_options
+                .$func
+                .contains($result.flag())
+                .then_some(Level::DEBUG)
+        }
+    }
+}
+
 pub struct PduApi {
     pub(crate) me: Weak<PduApi>,
 
@@ -145,6 +214,25 @@ pub struct PduApi {
     mvci: Option<Mvci>,
 
     symbols: ApiSymbols,
+
+    suppress_log_options: ThreadLocal<Arc<RwLock<SuppressLogOptions>>>,
+}
+
+impl Debug for PduApi {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct(type_name::<Self>())
+            .field("me", &self.me)
+            .field("pdu_options", &self.pdu_options)
+            .field("unique_tag", &self.unique_tag)
+            .field("library", &self.library)
+            .field("library_file", &self.library_file)
+            .field("module_description", &self.module_description)
+            .field("event_tx", &self.event_tx)
+            .field("event_rx", &self.event_rx)
+            .field("mvci", &self.mvci)
+            .field("symbols", &self.symbols)
+            .finish()
+    }
 }
 
 impl PduApi {
@@ -202,6 +290,7 @@ impl PduApi {
             event_rx: Arc::new(rx),
             mvci,
             symbols,
+            suppress_log_options: ThreadLocal::default(),
         });
 
         PduHandleManager::register_api(&result, Arc::downgrade(&tx));
@@ -251,6 +340,14 @@ impl PduApi {
         PduApi::new(options, library, None, module_description, None)
     }
 
+    pub(crate) fn modify_suppress_log_options<F>(&self, f: F)
+    where
+        F: Fn(&mut SuppressLogOptions)
+    {
+        let mut options = self.suppress_log_options.get_or_default();
+        f(&mut *options.write());
+    }
+
     pub fn get_unique_tag(&self) -> PduUniqueApiTag {
         self.unique_tag
     }
@@ -259,30 +356,22 @@ impl PduApi {
         debug!(func, "D-PDU API Call");
     }
 
-    fn log_api_call_fail(&self, func: &str, result: PduError) {
-        error!(
-            func,
-            result_str = %result,
-            result_int = format!("{:#x}", result as usize),
-            "D-PDU API Call failed"
-        );
-    }
-
-    pub(crate) fn log_api_call_virtual_fail(
+    pub(crate) fn log_api_call_fail(
         &self,
         func: &str,
         result: PduError,
-        desc: &str,
+        desc: Option<String>,
         level: Option<Level>,
     ) {
         let level = level.unwrap_or(Level::ERROR);
+        let desc = desc.map(|v| format!(": {v}")).unwrap_or_default();
         match level {
             Level::TRACE => {
                 trace!(
                     func,
                     result_str = %result,
                     result_int = format!("{:#x}", result as usize),
-                    "D-PDU API Call failed: {desc}"
+                    "D-PDU API Call failed{desc}"
                 )
             }
             Level::DEBUG => {
@@ -290,7 +379,7 @@ impl PduApi {
                     func,
                     result_str = %result,
                     result_int = format!("{:#x}", result as usize),
-                    "D-PDU API Call failed: {desc}"
+                    "D-PDU API Call failed{desc}"
                 )
             }
             Level::INFO => {
@@ -298,7 +387,7 @@ impl PduApi {
                     func,
                     result_str = %result,
                     result_int = format!("{:#x}", result as usize),
-                    "D-PDU API Call failed: {desc}"
+                    "D-PDU API Call failed{desc}"
                 )
             }
             Level::WARN => {
@@ -306,7 +395,7 @@ impl PduApi {
                     func,
                     result_str = %result,
                     result_int = format!("{:#x}", result as usize),
-                    "D-PDU API Call failed: {desc}"
+                    "D-PDU API Call failed{desc}"
                 )
             }
             Level::ERROR => {
@@ -314,7 +403,7 @@ impl PduApi {
                     func,
                     result_str = %result,
                     result_int = format!("{:#x}", result as usize),
-                    "D-PDU API Call failed: {desc}"
+                    "D-PDU API Call failed{desc}"
                 )
             }
         }
@@ -327,6 +416,8 @@ impl PduApi {
     }
 
     pub fn pdu_construct(&self) -> ApiResult<()> {
+        impl_defer_clear_suppress_options!(self, construct);
+
         const FUNC: &'static str = "PDUConstruct";
         self.log_api_call(FUNC);
 
@@ -364,7 +455,7 @@ impl PduApi {
         });
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, construct));
             return Err(result)?;
         }
 
@@ -372,6 +463,8 @@ impl PduApi {
     }
 
     pub fn pdu_destruct(&self) -> ApiResult<()> {
+        impl_defer_clear_suppress_options!(self, destruct);
+
         const FUNC: &'static str = "PDUDestruct";
         self.log_api_call(FUNC);
 
@@ -380,13 +473,15 @@ impl PduApi {
         match destruct_fn() {
             PduError::StatusNoError | PduError::PduApiNotConstructed => Ok(()),
             v => {
-                self.log_api_call_fail(FUNC, v);
+                self.log_api_call_fail(FUNC, v, None, resolve_level_of_log_api_call_fail!(self, v, destruct));
                 Err(v)?
             }
         }
     }
 
     pub fn pdu_destroy_item(&self, item_ptr: *mut PduItem) -> ApiResult<()> {
+        impl_defer_clear_suppress_options!(self, destroy_item);
+
         const FUNC: &'static str = "PDUDestroyItem";
         self.log_api_call(FUNC);
 
@@ -404,7 +499,7 @@ impl PduApi {
         let result = wrap_pdu_call(FUNC, || destroy_item_fn(item_ptr));
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, destroy_item));
             return Err(result)?;
         }
 
@@ -412,6 +507,8 @@ impl PduApi {
     }
 
     pub fn pdu_get_event_item(&self, target: &PduEventTarget) -> ApiResult<Option<PduEvent>> {
+        impl_defer_clear_suppress_options!(self, get_event_item);
+
         const FUNC: &'static str = "PDUGetEventItem";
         self.log_api_call(FUNC);
 
@@ -428,7 +525,7 @@ impl PduApi {
         match result {
             PduError::StatusNoError | PduError::EventQueueEmpty => {}
             v => {
-                self.log_api_call_fail(FUNC, result);
+                self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, get_event_item));
                 return Err(v)?;
             }
         }
@@ -566,6 +663,8 @@ impl PduApi {
     }
 
     pub fn pdu_get_version(&self, h_mod: PduModuleHandle) -> ApiResult<PduVersionData> {
+        impl_defer_clear_suppress_options!(self, get_version);
+
         const FUNC: &'static str = "PDUGetVersion";
         self.log_api_call(FUNC);
 
@@ -583,7 +682,7 @@ impl PduApi {
         );
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, get_version));
             return Err(result)?;
         }
 
@@ -612,6 +711,8 @@ impl PduApi {
         object: PduObjt,
         short_name: &str,
     ) -> ApiResult<Option<PduObjectId>> {
+        impl_defer_clear_suppress_options!(self, get_object_id);
+
         const FUNC: &'static str = "PDUGetObjectId";
         self.log_api_call(FUNC);
 
@@ -650,7 +751,7 @@ impl PduApi {
         });
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, get_object_id));
             return Err(result)?;
         }
 
@@ -673,6 +774,8 @@ impl PduApi {
         h_cll: PduCllHandle,
         object_id: PduObjectIdSource,
     ) -> ApiResult<PduComParam> {
+        impl_defer_clear_suppress_options!(self, get_com_param);
+
         const FUNC: &'static str = "PDUGetComParam";
         self.log_api_call(FUNC);
 
@@ -686,11 +789,11 @@ impl PduApi {
 
                     // This is not a critical error.
                     // Therefore, we will not log it separately.
-                    self.log_api_call_virtual_fail(
+                    self.log_api_call_fail(
                         FUNC,
                         result,
-                        &format!("unsupported comparam: {v}"),
-                        Level::WARN.into(),
+                        Some(format!("unsupported com param: {v}")),
+                        Some(Level::WARN),
                     );
 
                     return Err(result)?;
@@ -713,14 +816,18 @@ impl PduApi {
         if !result.is_success() {
             return match result {
                 PduError::ComParamNotSupported | PduError::InvalidParameters => {
-                    // Some drivers return InvalidParameters instead of ComParamNotSupported.
-                    warn!(com_param = %object_id, "ComParam not supported");
                     // This is not a critical error.
                     // Therefore, we will not log it separately.
+                    self.log_api_call_fail(
+                        FUNC,
+                        result,
+                        Some("unsupported com param".to_string()),
+                        Some(Level::WARN),
+                    );
                     Err(PduError::ComParamNotSupported)?
                 }
                 _ => {
-                    self.log_api_call_fail(FUNC, result);
+                    self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, get_com_param));
                     Err(result)?
                 }
             };
@@ -821,6 +928,8 @@ impl PduApi {
         h_cll: PduCllHandle,
         cp: &PduComParam,
     ) -> ApiResult<()> {
+        impl_defer_clear_suppress_options!(self, set_com_param);
+
         const FUNC: &'static str = "PDUSetComParam";
         self.log_api_call(FUNC);
 
@@ -834,7 +943,7 @@ impl PduApi {
             // Therefore, to reduce the number of calls to the D-PDU API, we proactively
             // return the PduError::InvalidParameters error on our side.
             let result = PduError::InvalidParameters;
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, Some("PDUSetComParam accepts only UniqueId classes".to_string()), None);
             return Err(result)?;
         }
 
@@ -917,14 +1026,18 @@ impl PduApi {
         if !result.is_success() {
             return match result {
                 PduError::ComParamNotSupported | PduError::InvalidParameters => {
-                    // Some drivers return InvalidParameters instead of ComParamNotSupported.
-                    warn!(com_param = cp.get_debug_name(), "ComParam not supported");
                     // This is not a critical error.
                     // Therefore, we will not log it separately.
+                    self.log_api_call_fail(
+                        FUNC,
+                        result,
+                        Some("unsupported com param".to_string()),
+                        Some(Level::WARN),
+                    );
                     Err(PduError::ComParamNotSupported)?
                 }
                 _ => {
-                    self.log_api_call_fail(FUNC, result);
+                    self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, get_com_param));
                     Err(result)?
                 }
             };
@@ -939,6 +1052,8 @@ impl PduApi {
         h_cll: PduCllHandle,
         table: &PduComParamTable,
     ) -> ApiResult<()> {
+        impl_defer_clear_suppress_options!(self, set_unique_resp_id_table);
+
         const FUNC: &'static str = "PDUSetUniqueRespIdTable";
         self.log_api_call(FUNC);
 
@@ -968,7 +1083,7 @@ impl PduApi {
                         "Invalid class of the PduComParam stored in PduComParamTable"
                     );
                     let result = PduError::InvalidParameters;
-                    self.log_api_call_fail(FUNC, result);
+                    self.log_api_call_fail(FUNC, result, None, None);
                     return Err(result)?;
                 }
 
@@ -1023,7 +1138,7 @@ impl PduApi {
         });
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, set_unique_resp_id_table));
             return Err(result)?;
         }
 
@@ -1035,6 +1150,8 @@ impl PduApi {
         target: &PduEventTarget,
         callback: Option<EventCallbackFn>,
     ) -> ApiResult<()> {
+        impl_defer_clear_suppress_options!(self, register_event_callback);
+
         const FUNC: &'static str = "PDURegisterEventCallback";
         self.log_api_call(FUNC);
 
@@ -1044,11 +1161,7 @@ impl PduApi {
             PduEventTarget::Module(h_mod) => {
                 if h_mod == &PDU_HANDLE_UNDEF {
                     let result = PduError::InvalidHandle;
-                    error!(
-                        func = FUNC,
-                        "Module handle of the PduEventCallbackTarget cannot be PDU_HANDLE_UNDEF"
-                    );
-                    self.log_api_call_fail(FUNC, result);
+                    self.log_api_call_fail(FUNC, result, Some("module handle of the PduEventCallbackTarget cannot be PDU_HANDLE_UNDEF".to_string()), None);
                     return Err(result)?;
                 }
 
@@ -1057,19 +1170,11 @@ impl PduApi {
             PduEventTarget::LogicalLink(h_mod, h_cll) => {
                 if h_mod == &PDU_HANDLE_UNDEF {
                     let result = PduError::InvalidHandle;
-                    error!(
-                        func = FUNC,
-                        "Module handle of the PduEventCallbackTarget cannot be PDU_HANDLE_UNDEF"
-                    );
-                    self.log_api_call_fail(FUNC, result);
+                    self.log_api_call_fail(FUNC, result, Some("module handle of the PduEventCallbackTarget cannot be PDU_HANDLE_UNDEF".to_string()), None);
                     return Err(result)?;
                 } else if h_cll == &PDU_HANDLE_UNDEF {
                     let result = PduError::InvalidHandle;
-                    error!(
-                        func = FUNC,
-                        "ComLogicalLink handle of the PduEventCallbackTarget cannot be PDU_HANDLE_UNDEF"
-                    );
-                    self.log_api_call_fail(FUNC, result);
+                    self.log_api_call_fail(FUNC, result, Some("logical link handle of the PduEventCallbackTarget cannot be PDU_HANDLE_UNDEF".to_string()), None);
                     return Err(result)?;
                 }
 
@@ -1086,7 +1191,7 @@ impl PduApi {
         });
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, register_event_callback));
             return Err(result)?;
         }
 
@@ -1102,6 +1207,8 @@ impl PduApi {
         params: Option<&PduPrimitiveParams>,
         tag: Option<PduUniqueCopTag>,
     ) -> ApiResult<PduCopData> {
+        impl_defer_clear_suppress_options!(self, start_primitive);
+
         const FUNC: &'static str = "PDUStartComPrimitive";
         self.log_api_call(FUNC);
 
@@ -1258,7 +1365,7 @@ impl PduApi {
         };
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, start_primitive));
             return Err(result)?;
         }
 
@@ -1307,6 +1414,8 @@ impl PduApi {
         command: &PduIoCtlCommand,
         data: Option<&PduIoCtlData>,
     ) -> ApiResult<Option<PduIoCtlData>> {
+        impl_defer_clear_suppress_options!(self, io_ctl);
+
         const FUNC: &'static str = "PDUIoCtl";
         self.log_api_call(FUNC);
 
@@ -1368,10 +1477,10 @@ impl PduApi {
                 None => {
                     let result = PduError::FctFailed;
 
-                    self.log_api_call_virtual_fail(
+                    self.log_api_call_fail(
                         FUNC,
                         result,
-                        &format!("unable to lookup IO_CTRL id by name: {v}"),
+                        Some(format!("unable to lookup IO_CTRL id by name: {v}")),
                         None,
                     );
 
@@ -1406,7 +1515,7 @@ impl PduApi {
         });
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, io_ctl));
             return Err(result)?;
         }
 
@@ -1462,6 +1571,8 @@ impl PduApi {
     }
 
     pub fn pdu_get_module_ids(&self) -> ApiResult<PduModuleList> {
+        impl_defer_clear_suppress_options!(self, get_module_ids);
+
         const FUNC: &'static str = "PDUGetModuleIds";
         self.log_api_call(FUNC);
 
@@ -1471,7 +1582,7 @@ impl PduApi {
         let result = wrap_pdu_call(FUNC, || get_module_ids_fn(&mut module_list_item_ptr));
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, get_module_ids));
             if !module_list_item_ptr.is_null() {
                 self.pdu_destroy_item(module_list_item_ptr as _)?;
             }
@@ -1541,10 +1652,12 @@ impl PduApi {
         Ok(module_list)
     }
 
-    pub(crate) fn pdu_get_status_with_suppress_invalid_handle(
+    pub(crate) fn pdu_get_status(
         &self,
         target: &PduStatusTarget,
     ) -> ApiResult<PduStatusData> {
+        impl_defer_clear_suppress_options!(self, get_status);
+
         const FUNC: &'static str = "PDUGetStatus";
         self.log_api_call(FUNC);
 
@@ -1571,13 +1684,8 @@ impl PduApi {
         });
 
         if !result.is_success() {
-            return match result {
-                PduError::InvalidHandle => Err(result)?,
-                _ => {
-                    self.log_api_call_fail(FUNC, result);
-                    Err(result)?
-                }
-            };
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, get_status));
+            return Err(result)?;
         }
 
         let status_code = unsafe { status_code.assume_init() };
@@ -1609,18 +1717,6 @@ impl PduApi {
         })
     }
 
-    pub fn pdu_get_status(&self, target: &PduStatusTarget) -> ApiResult<PduStatusData> {
-        match self.pdu_get_status_with_suppress_invalid_handle(target) {
-            Ok(v) => Ok(v),
-            Err(ApiError::PduError(PduError::InvalidHandle)) => {
-                let result = PduError::InvalidHandle;
-                self.log_api_call_fail("PDUGetStatus", result);
-                Err(ApiError::PduError(result))?
-            }
-            Err(err) => Err(err),
-        }
-    }
-
     pub fn pdu_create_com_logical_link(
         &self,
         h_mod: PduModuleHandle,
@@ -1628,6 +1724,8 @@ impl PduApi {
         create_flags: &CllCreateFlags,
         tag: Option<PduUniqueCllTag>,
     ) -> ApiResult<PduCllData> {
+        impl_defer_clear_suppress_options!(self, create_logical_link);
+
         const FUNC: &'static str = "PDUCreateComLogicalLink";
         self.log_api_call(FUNC);
 
@@ -1705,7 +1803,7 @@ impl PduApi {
         };
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, create_logical_link));
             return Err(result)?;
         }
 
@@ -1726,6 +1824,8 @@ impl PduApi {
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
     ) -> ApiResult<()> {
+        impl_defer_clear_suppress_options!(self, destroy_logical_link);
+
         const FUNC: &'static str = "PDUDestroyComLogicalLink";
         self.log_api_call(FUNC);
 
@@ -1735,7 +1835,7 @@ impl PduApi {
         let result = wrap_pdu_call(FUNC, || destroy_fn(h_mod, h_cll));
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, destroy_logical_link));
             return Err(result)?;
         }
 
@@ -1743,6 +1843,8 @@ impl PduApi {
     }
 
     pub fn pdu_get_last_error(&self, target: &PduLastErrorTarget) -> ApiResult<PduErrorData> {
+        impl_defer_clear_suppress_options!(self, get_last_error);
+
         const FUNC: &'static str = "PDUGetLastError";
         self.log_api_call(FUNC);
 
@@ -1778,7 +1880,7 @@ impl PduApi {
         });
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, get_last_error));
             return Err(result)?;
         }
 
@@ -1817,6 +1919,8 @@ impl PduApi {
         &self,
         resources: Vec<PduResource>,
     ) -> ApiResult<PduResourceStatus> {
+        impl_defer_clear_suppress_options!(self, get_resource_status);
+
         const FUNC: &'static str = "PDUGetResourceStatus";
         self.log_api_call(FUNC);
 
@@ -1863,7 +1967,7 @@ impl PduApi {
         let result = wrap_pdu_call(FUNC, || get_resource_status_fn(&mut item));
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, get_resource_status));
             return Err(result)?;
         }
 
@@ -1911,6 +2015,8 @@ impl PduApi {
     }
 
     pub fn pdu_connect(&self, h_mod: PduModuleHandle, h_cll: PduCllHandle) -> ApiResult<()> {
+        impl_defer_clear_suppress_options!(self, connect);
+
         const FUNC: &'static str = "PDUConnect";
         self.log_api_call(FUNC);
 
@@ -1920,7 +2026,7 @@ impl PduApi {
         let result = wrap_pdu_call(FUNC, || connect_fn(h_mod, h_cll));
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, connect));
             return Err(result)?;
         }
 
@@ -1928,6 +2034,8 @@ impl PduApi {
     }
 
     pub fn pdu_disconnect(&self, h_mod: PduModuleHandle, h_cll: PduCllHandle) -> ApiResult<()> {
+        impl_defer_clear_suppress_options!(self, disconnect);
+
         const FUNC: &'static str = "PDUDisconnect";
         self.log_api_call(FUNC);
 
@@ -1937,7 +2045,7 @@ impl PduApi {
         let result = wrap_pdu_call(FUNC, || disconnect_fn(h_mod, h_cll));
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, disconnect));
             return Err(result)?;
         }
 
@@ -1950,6 +2058,8 @@ impl PduApi {
         h_cll: PduCllHandle,
         mask: PduLockResourceMask,
     ) -> ApiResult<()> {
+        impl_defer_clear_suppress_options!(self, lock_resource);
+
         const FUNC: &'static str = "PDULockResource";
         self.log_api_call(FUNC);
 
@@ -1969,7 +2079,7 @@ impl PduApi {
         let result = wrap_pdu_call(FUNC, || lock_resource_fn(h_mod, h_cll, mask_data));
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, lock_resource));
             return Err(result)?;
         }
 
@@ -1982,6 +2092,8 @@ impl PduApi {
         h_cll: PduCllHandle,
         mask: PduLockResourceMask,
     ) -> ApiResult<()> {
+        impl_defer_clear_suppress_options!(self, unlock_resource);
+
         const FUNC: &'static str = "PDUUnlockResource";
         self.log_api_call(FUNC);
 
@@ -2001,7 +2113,7 @@ impl PduApi {
         let result = wrap_pdu_call(FUNC, || lock_resource_fn(h_mod, h_cll, mask_data));
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, unlock_resource));
             return Err(result)?;
         }
 
@@ -2009,6 +2121,8 @@ impl PduApi {
     }
 
     pub fn pdu_module_connect(&self, h_mod: PduModuleHandle) -> ApiResult<()> {
+        impl_defer_clear_suppress_options!(self, module_connect);
+
         const FUNC: &'static str = "PDUModuleConnect";
         self.log_api_call(FUNC);
 
@@ -2018,7 +2132,7 @@ impl PduApi {
         let result = wrap_pdu_call(FUNC, || module_connect_fn(h_mod));
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, module_connect));
             return Err(result)?;
         }
 
@@ -2026,6 +2140,8 @@ impl PduApi {
     }
 
     pub fn pdu_module_disconnect(&self, h_mod: Option<PduModuleHandle>) -> ApiResult<()> {
+        impl_defer_clear_suppress_options!(self, module_disconnect);
+
         const FUNC: &'static str = "PDUModuleDisconnect";
         self.log_api_call(FUNC);
 
@@ -2037,19 +2153,21 @@ impl PduApi {
         let result = wrap_pdu_call(FUNC, || module_disconnect_fn(h_mod));
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, module_disconnect));
             return Err(result)?;
         }
 
         Ok(())
     }
 
-    pub(crate) fn pdu_cancel_com_primitive_with_suppress_invalid_handle(
+    pub(crate) fn pdu_cancel_com_primitive(
         &self,
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
         h_cop: PduCopHandle,
     ) -> ApiResult<()> {
+        impl_defer_clear_suppress_options!(self, cancel_primitive);
+
         const FUNC: &'static str = "PDUCancelComPrimitive";
         self.log_api_call(FUNC);
 
@@ -2059,35 +2177,11 @@ impl PduApi {
         let result = wrap_pdu_call(FUNC, || cancel_com_primitive_fn(h_mod, h_cll, h_cop));
 
         if !result.is_success() {
-            match result {
-                PduError::InvalidHandle => {
-                    return Err(result)?;
-                }
-                _ => {
-                    self.log_api_call_fail(FUNC, result);
-                    return Err(result)?;
-                }
-            }
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, cancel_primitive));
+            return Err(result)?;
         }
 
         Ok(())
-    }
-
-    pub fn pdu_cancel_com_primitive(
-        &self,
-        h_mod: PduModuleHandle,
-        h_cll: PduCllHandle,
-        h_cop: PduCopHandle,
-    ) -> ApiResult<()> {
-        match self.pdu_cancel_com_primitive_with_suppress_invalid_handle(h_mod, h_cll, h_cop) {
-            Ok(v) => Ok(v),
-            Err(ApiError::PduError(PduError::InvalidHandle)) => {
-                let result = PduError::InvalidHandle;
-                self.log_api_call_fail("PDUCancelComPrimitive", result);
-                Err(ApiError::PduError(result))?
-            }
-            Err(err) => Err(err),
-        }
     }
 
     pub fn pdu_get_conflicting_resources(
@@ -2095,6 +2189,8 @@ impl PduApi {
         resource_id: PduObjectId,
         modules: Vec<PduModuleData>,
     ) -> ApiResult<PduConflictingModules> {
+        impl_defer_clear_suppress_options!(self, get_conflicting_resources);
+
         const FUNC: &'static str = "PDUGetConflictingResources";
         self.log_api_call(FUNC);
 
@@ -2161,7 +2257,7 @@ impl PduApi {
         });
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, get_conflicting_resources));
             return Err(result)?;
         }
 
@@ -2227,6 +2323,8 @@ impl PduApi {
         protocol: &ProtocolSource,
         pins: &[TargetPin],
     ) -> ApiResult<PduModulesResourcesIds> {
+        impl_defer_clear_suppress_options!(self, get_resource_ids);
+
         const FUNC: &'static str = "PDUGetResourceIds";
         self.log_api_call(FUNC);
 
@@ -2259,7 +2357,7 @@ impl PduApi {
         });
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, get_resource_ids));
             return Err(result)?;
         }
 
@@ -2326,6 +2424,8 @@ impl PduApi {
     }
 
     pub fn pdu_get_timestamp(&self, h_mod: PduModuleHandle) -> ApiResult<u32> {
+        impl_defer_clear_suppress_options!(self, get_timestamp);
+        
         const FUNC: &'static str = "PDUGetTimestamp";
         self.log_api_call(FUNC);
 
@@ -2342,7 +2442,7 @@ impl PduApi {
         let result = wrap_pdu_call(FUNC, || get_timestamp_fn(h_mod, timestamp.as_mut_ptr()));
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, get_timestamp));
             return Err(result)?;
         }
 
@@ -2358,6 +2458,8 @@ impl PduApi {
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
     ) -> ApiResult<PduComParamTable> {
+        impl_defer_clear_suppress_options!(self, get_unique_resp_id_table);
+        
         const FUNC: &'static str = "PDUGetUniqueRespIdTable";
         self.log_api_call(FUNC);
 
@@ -2375,7 +2477,7 @@ impl PduApi {
         let result = wrap_pdu_call(FUNC, || get_timestamp_fn(h_mod, h_cll, &mut table_item_ptr));
 
         if !result.is_success() {
-            self.log_api_call_fail(FUNC, result);
+            self.log_api_call_fail(FUNC, result, None, resolve_level_of_log_api_call_fail!(self, result, get_unique_resp_id_table));
             return Err(result)?;
         }
 
@@ -2537,8 +2639,13 @@ impl PduApi {
     }
 
     pub(crate) fn vt_module_destructor(&self, h_mod: PduModuleHandle) -> ApiResult<()> {
+        self.modify_suppress_log_options(|options| {
+            options.get_status = PduErrorFlag::INVALID_HANDLE;
+        });
+
+        let target = PduStatusTarget::Module(h_mod);
         let data =
-            self.pdu_get_status_with_suppress_invalid_handle(&{ PduStatusTarget::Module(h_mod) })?;
+            self.pdu_get_status(&target)?;
 
         match data.status_code {
             PduStatus::ModstReady | PduStatus::ModstNotReady => {
@@ -2557,8 +2664,12 @@ impl PduApi {
         h_mod: PduModuleHandle,
         h_cll: PduCllHandle,
     ) -> ApiResult<()> {
+        self.modify_suppress_log_options(|options| {
+            options.get_status = PduErrorFlag::INVALID_HANDLE;
+        });
+
         let target = PduStatusTarget::LogicalLink(h_mod, h_cll);
-        let data = self.pdu_get_status_with_suppress_invalid_handle(&target)?;
+        let data = self.pdu_get_status(&target)?;
 
         match data.status_code {
             PduStatus::CllstOnline | PduStatus::CllstCommStarted => {
@@ -2568,6 +2679,7 @@ impl PduApi {
         }
 
         let _ = self.pdu_register_event_callback(&PduEventTarget::LogicalLink(h_mod, h_cll), None);
+        let _ = self.pdu_destroy_com_logical_link(h_mod, h_cll);
 
         Ok(())
     }
@@ -2578,12 +2690,19 @@ impl PduApi {
         h_cll: PduCllHandle,
         h_cop: PduCopHandle,
     ) -> ApiResult<()> {
+        self.modify_suppress_log_options(|options| {
+            options.get_status = PduErrorFlag::INVALID_HANDLE;
+        });
+
         let target = PduStatusTarget::Primitive(h_mod, h_cll, h_cop);
-        let data = self.pdu_get_status_with_suppress_invalid_handle(&target)?;
+        let data = self.pdu_get_status(&target)?;
 
         match data.status_code {
             PduStatus::CopstWaiting | PduStatus::CopstIdle | PduStatus::CopstExecuting => {
-                self.pdu_cancel_com_primitive_with_suppress_invalid_handle(h_mod, h_cll, h_cop)?;
+                self.modify_suppress_log_options(|options| {
+                    options.cancel_primitive = PduErrorFlag::INVALID_HANDLE;
+                });
+                self.pdu_cancel_com_primitive(h_mod, h_cll, h_cop)?;
             }
             _ => { /* same as above */ }
         }
@@ -2897,10 +3016,10 @@ fn target_pins_to_pin_data(
             PinSource::Name(name) => match api.pdu_get_object_id(PduObjt::PinType, name)? {
                 Some(id) => id,
                 None => {
-                    api.log_api_call_virtual_fail(
+                    api.log_api_call_fail(
                         func_name,
                         PduError::FctFailed,
-                        &format!("unable to lookup pin type by name: {name}"),
+                        Some(format!("unable to lookup pin type by name: {name}")),
                         None,
                     );
                     return Err(PduError::FctFailed)?;

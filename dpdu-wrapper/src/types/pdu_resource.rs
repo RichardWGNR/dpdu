@@ -79,10 +79,10 @@ impl BusSource {
             BusSource::Name(name) => {
                 let Some(id) = api.pdu_get_object_id(PduObjt::BusType, name)? else {
                     let result = PduError::InvalidParameters;
-                    api.log_api_call_virtual_fail(
+                    api.log_api_call_fail(
                         func,
                         result,
-                        &format!("Unable to lookup bus type by name: {name}"),
+                        Some(format!("unable to lookup bus type by name: {name}")),
                         None,
                     );
                     return Err(result)?;
@@ -156,10 +156,10 @@ impl ProtocolSource {
             ProtocolSource::Name(name) => {
                 let Some(id) = api.pdu_get_object_id(PduObjt::Protocol, name)? else {
                     let result = PduError::InvalidParameters;
-                    api.log_api_call_virtual_fail(
+                    api.log_api_call_fail(
                         func,
                         result,
-                        &format!("Unable to lookup protocol by name: {name}"),
+                        Some(format!("unable to lookup protocol by name: {name}")),
                         None,
                     );
                     return Err(result)?;

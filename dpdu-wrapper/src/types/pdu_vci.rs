@@ -261,7 +261,7 @@ impl PduVci {
                     let vci = Arc::new_cyclic(|weak| PduVci {
                         me: weak.clone(),
                         api: worker.api.clone(),
-                        worker: OnceLock::default(),
+                        worker: OnceLock::from(worker.clone_arc()),
                         module_data: module.clone(),
                         event_tx: tx.clone(),
                         event_rx: Arc::new(rx),
@@ -404,15 +404,13 @@ impl PduVci {
                 let cll = Arc::new_cyclic(|weak| PduLogicalLink {
                     me: weak.clone(),
                     api: self.api.clone(),
-                    worker: OnceLock::default(),
+                    worker: OnceLock::from(worker.clone()),
                     unique_tag,
                     cll_data: Arc::new(cll_data),
                     event_tx: tx,
                     event_rx: Arc::new(rx),
                     sync: Arc::default(),
                 });
-
-                cll.set_worker(worker.clone());
 
                 // Register cll reference for unique tag.
                 PduHandleManager::register_cll(

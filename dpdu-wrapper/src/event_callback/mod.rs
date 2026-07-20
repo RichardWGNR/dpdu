@@ -3,7 +3,8 @@ use crate::types::pdu_event::{PduEvent, PduEventTarget};
 use crate::types::{PduCllHandle, PduModuleHandle, PduUniqueApiTag, PduUniqueCllTag};
 use dpdu_api_types::PduEvtData;
 use std::ffi::c_void;
-use tracing::{error, trace, warn};
+use dpdu_api_types::bitflags::PduErrorFlag;
+use tracing::{debug, error, trace, warn};
 
 pub(crate) unsafe extern "system-unwind" fn event_callback(
     _event_type: PduEvtData,
@@ -29,13 +30,33 @@ pub(crate) unsafe extern "system-unwind" fn event_callback(
 
     let mut events: Vec<PduEvent> = vec![];
 
-    while let Ok(Some(event)) = api.pdu_get_event_item(&event_target).inspect_err(|err| {
-        error!(
-            api_tag = api.get_unique_tag(),
-            h_mod, h_cll, "PDUEventCallback: error reading an event: {err}"
-        );
-    }) {
-        events.push(event);
+    loop {
+        api.modify_suppress_log_options(|options| {
+            options.get_event_item = PduErrorFlag::INVALID_HANDLE;
+        });
+
+        match api.pdu_get_event_item(&event_target) {
+            Ok(Some(v)) => events.push(v),
+            Ok(None) => {
+                break;
+            },
+            Err(err) => {
+                if event_target.is_logical_link() {
+                    // I'm suppressing this because the ComLogicalLink handle can be destroyed,
+                    // which will give difficult triggers.
+                    //
+                    // This may not be the best solution and I should have a list of deleted
+                    // ComLogicalLinks, but I'll leave it that way.
+                } else {
+                    error!(
+                        api_tag = api.get_unique_tag(),
+                        h_mod, h_cll, "PDUEventCallback: error reading an event: {err}"
+                    );
+                }
+
+                break;
+            }
+        }
     }
 
     for event in events {
@@ -51,7 +72,7 @@ pub(crate) unsafe extern "system-unwind" fn event_callback(
                         h_mod,
                         "PDUEventCallback: unable to lookup event_tx for the PduApi"
                     );
-                    return;
+                    continue;
                 };
 
                 if let Err(err) = api_event_tx.try_send(event) {
@@ -70,7 +91,7 @@ pub(crate) unsafe extern "system-unwind" fn event_callback(
                         h_mod,
                         "PDUEventCallback: unable to lookup event_tx for the PduVci"
                     );
-                    return;
+                    continue;
                 };
 
                 if let Err(err) = module_event_tx.try_send(event) {
@@ -92,7 +113,7 @@ pub(crate) unsafe extern "system-unwind" fn event_callback(
                     // ComPrimitive event.
                     let Some(cop_tag) = event.cop_tag else {
                         warn!(h_cop, "PDUEventCallback: API does not provide a COP tag");
-                        return;
+                        continue;
                     };
 
                     let Some(cop_event_tx) =
@@ -103,7 +124,7 @@ pub(crate) unsafe extern "system-unwind" fn event_callback(
                             tag = cll_tag,
                             "PDUEventCallback: unable to lookup event_tx for the PduComPrimitive"
                         );
-                        return;
+                        continue;
                     };
 
                     if let Err(err) = cop_event_tx.try_send(event) {
@@ -117,12 +138,17 @@ pub(crate) unsafe extern "system-unwind" fn event_callback(
                     let Some(cll_event_tx) =
                         PduHandleManager::lookup_cll_event_tx(api.get_unique_tag(), cll_tag)
                     else {
-                        warn!(
+                        // I'm decreasing log level because the ComLogicalLink handle can
+                        // be destroyed, which will give difficult triggers.
+                        //
+                        // This may not be the best solution and I should have a list of deleted
+                        // ComLogicalLinks, but I'll leave it that way.
+                        debug!(
                             h_cll,
                             tag = cll_tag,
                             "PDUEventCallback: unable to lookup event_tx for the PduComLogicalLink"
                         );
-                        return;
+                        continue;
                     };
 
                     if let Err(err) = cll_event_tx.try_send(event) {

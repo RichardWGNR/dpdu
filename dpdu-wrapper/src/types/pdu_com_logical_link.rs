@@ -46,10 +46,6 @@ pub struct PduLogicalLink {
 }
 
 impl PduLogicalLink {
-    pub(crate) fn set_worker(&self, worker: Arc<PduAsyncWorker>) {
-        let _ = self.worker.set(worker);
-    }
-
     pub fn get_module_handle(&self) -> PduModuleHandle {
         self.cll_data.h_mod
     }
@@ -272,7 +268,7 @@ impl PduLogicalLink {
                 let cop = Arc::new_cyclic(|weak| PduPrimitive {
                     me: weak.clone(),
                     api: self.api.clone(),
-                    worker: OnceLock::default(),
+                    worker: OnceLock::from(worker.clone()),
                     unique_tag,
                     h_mod,
                     h_cll,
@@ -284,8 +280,6 @@ impl PduLogicalLink {
                     pdu_sync: Arc::default(),
                     event_sync: Arc::default(),
                 });
-
-                cop.set_worker(worker.clone());
 
                 // Register cop reference for unique tag.
                 PduHandleManager::register_cop(
