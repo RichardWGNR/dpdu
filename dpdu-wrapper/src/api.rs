@@ -340,7 +340,16 @@ impl PduApi {
         PduApi::new(options, library, None, module_description, None)
     }
 
-    pub(crate) fn modify_suppress_log_options<F>(&self, f: F)
+    /// It allows you to suppress the logging level of an unsuccessful D-PDU API call
+    /// from ERROR to DEBUG, so as not to mislead the user or themselves.
+    ///
+    /// Suppression is applied only to the current thread and only for the duration
+    /// of the required function call.
+    ///
+    /// # Safety
+    /// Changing these options may affect diagnostic behavior and should only be
+    /// done when the caller understands the consequences.
+    pub fn modify_suppress_log_options<F>(&self, f: F)
     where
         F: Fn(&mut SuppressLogOptions)
     {
