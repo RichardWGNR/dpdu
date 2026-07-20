@@ -21,6 +21,10 @@ mod enums;
 mod functions;
 mod structures;
 
+/// Utilities for working with bit flags.
+#[cfg(feature = "bitflags")]
+pub mod bitflags;
+
 use std::ffi::c_void;
 
 pub use enums::*;

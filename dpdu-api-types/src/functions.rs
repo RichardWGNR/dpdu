@@ -25,7 +25,7 @@ pub type PduDestructFn = extern "system-unwind" fn() -> PduError;
 pub type PduIoctlFn = extern "system-unwind" fn(
     h_mod: u32,
     h_cll: u32,
-    ioctl_commanded_id: u32,
+    ioctl_command_id: u32,
     p_input_data: *mut PduDataItem,
     p_output_data: *mut *mut PduDataItem,
 ) -> PduError;
@@ -70,7 +70,7 @@ pub type PduGetLastErrorFn = extern "system-unwind" fn(
     h_mod: u32,
     h_cll: u32,
     p_error_code: *mut PduErrorEvt,
-    ph_cop: *mut u32,
+    p_h_cop: *mut u32,
     p_timestamp: *mut u32,
     p_extra_error_info: *mut u32,
 ) -> PduError;
@@ -96,7 +96,7 @@ pub type PduCreateComLogicalLinkFn = extern "system-unwind" fn(
     p_rsc_data: *mut RscData,
     resource_id: u32,
     p_cll_tag: *mut c_void,
-    ph_cll: *mut u32,
+    p_h_cll: *mut u32,
     p_cll_create_flag: *mut FlagData,
 ) -> PduError;
 
@@ -180,7 +180,7 @@ pub type PduStartComPrimitiveFn = extern "system-unwind" fn(
     p_cop_data: *mut u8,
     p_cop_ctrl_data: *mut CopCtrlData,
     p_cop_tag: *mut c_void,
-    ph_cop: *mut u32,
+    p_h_cop: *mut u32,
 ) -> PduError;
 
 /// Cancels and stops a ComPrimitive

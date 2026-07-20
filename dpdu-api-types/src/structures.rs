@@ -522,46 +522,59 @@ pub struct ParamStructFieldData {
 }
 
 #[repr(C)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Session timing for [ParamStructFieldData] when [ParamStructFieldData::com_param_struct_type] is [PduCpst::SessionTiming]
 pub struct ParamStructSessionTiming {
     /// Session ID
-    #[serde(alias = "SessionNumber")]
+    #[cfg_attr(feature = "serde", serde(alias = "SessionNumber"))]
     pub session: u16,
 
     /// 1ms resolution
-    #[serde(alias = "P2Max_High")]
+    #[cfg_attr(feature = "serde", serde(alias = "P2Max_High"))]
     pub p2_max_high: u8,
 
     /// 1ms resolution
-    #[serde(alias = "P2Max_Low")]
+    #[cfg_attr(feature = "serde", serde(alias = "P2Max_Low"))]
     pub p2_max_low: u8,
 
     /// 10ms resolution
-    #[serde(alias = "P2Star_High")]
+    #[cfg_attr(feature = "serde", serde(alias = "P2Star_High"))]
     pub p2_star_high: u8,
 
     /// 10ms resolution
-    #[serde(alias = "P2Star_Low")]
+    #[cfg_attr(feature = "serde", serde(alias = "P2Star_Low"))]
     pub p2_star_low: u8,
 }
 
 #[repr(C)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Access timing for [ParamStructFieldData] when [ParamStructFieldData::com_param_struct_type] is [PduCpst::AccessTiming]
 pub struct ParamStructAccessTiming {
     /// 0.5ms resolution - Minimum time between tester request and ECU response
+    #[cfg_attr(feature = "serde", serde(alias = "P2Min"))]
+
     pub p2_min: u8,
+
     /// 0.5ms resolution - Maximum time between tester request and ECU response
+    #[cfg_attr(feature = "serde", serde(alias = "P2Max"))]
     pub p2_max: u8,
+
     /// 250ms resolution - Minimum time between ECU response and start of new tester request
+    #[cfg_attr(feature = "serde", serde(alias = "P3Min"))]
     pub p3_min: u8,
+
     /// 250ms resolution - Maximum time between ECU response and start of new tester request
+    #[cfg_attr(feature = "serde", serde(alias = "P3Max"))]
     pub p3_max: u8,
+
     /// 0.5ms resolution - Minimum inter-byte time for tester request
+    #[cfg_attr(feature = "serde", serde(alias = "P4Min"))]
     pub p4_min: u8,
+
     /// Timing set type
+    #[cfg_attr(feature = "serde", serde(alias = "TimingSet"))]
     pub timing_set: TimingSet,
 }
 

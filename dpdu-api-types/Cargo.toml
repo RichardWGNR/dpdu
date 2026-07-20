@@ -1,19 +1,28 @@
 [package]
 name = "dpdu-api-types"
 version = "0.9.9"
-authors = ["Ashcon Mohseninia <ashconm@outlook.com>", "RichardWGNR <171420035+RichardWGNR@users.noreply.github.com>"]
+authors = ["Ashcon Mohseninia <ashconm@outlook.com>", "MRWGNRRR <171420035+MRWGNRRR@users.noreply.github.com>"]
 edition = "2024"
 description = "An implementation of the core D-PDU (ISO22900-2) library in Rust"
 license = "MIT"
-repository = "https://github.com/RichardWGNR/dpdu-api-types"
+repository = "https://github.com/MRWGNRRR/dpdu-api-types"
 readme = "README.md"
 keywords = ["ISO22900", "dpdu", "ecu", "VCI", "diagnostics"]
 
 [badges]
 maintenance = { status = "actively-developed" }
 
+[features]
+serde = ["dep:serde"]
+bitflags = ["dep:bitflags"]
+num_enum = ["dep:num_enum"]
+thiserror = ["dep:thiserror"]
+strum = ["dep:strum"]
+full = ["serde", "bitflags", "num_enum", "thiserror", "strum"]
+
 [dependencies]
-strum = { version = "0.28.0", features = ["strum_macros", "derive"] }
-thiserror = { version = "2.0.18" }
-num_enum = { version = "0.7.6" }
-serde = { version = "1.0.228", features = ["derive"] }
+strum = { version = "0.28.0", features = ["strum_macros", "derive"], optional = true }
+thiserror = { version = "2.0.18", optional = true }
+num_enum = { version = "0.7.6", optional = true }
+serde = { version = "1.0.228", features = ["derive"], optional = true }
+bitflags = { version = "2.13.1", optional = true }
