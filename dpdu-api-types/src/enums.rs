@@ -204,9 +204,9 @@ pub enum PduFilter {
     /// Matched messages stay out of the receive queue
     Block = 0x00000002,
     /// Matches messages go into the receive queue that are UUDT only (For ISO1765)
-    PassUUDT = 0x00000011,
+    PassUudt = 0x00000011,
     /// Matches messages stay out of the receive queue that are UUDT only (For ISO1765)
-    BlockUUDT = 0x00000012,
+    BlockUudt = 0x00000012,
 }
 
 #[cfg(feature = "strum")]
@@ -384,51 +384,51 @@ pub enum PduError {
 
     /// DoIP Routing activation failed (Generic failure)
     #[cfg_attr(feature = "thiserror", error("DoIP Routing activation failed (Generic failure)"))]
-    DoIPRoutingActivationFailed = 0x000000B1,
+    DoIpRoutingActivationFailed = 0x000000B1,
 
     /// DoIP Routing activation failed - missing / wrong authentication
     #[cfg_attr(feature = "thiserror", error("DoIP Routing activation failed - missing / wrong authentication"))]
-    DoIPRoutingActivationAuthFailed = 0x000000B2,
+    DoIpRoutingActivationAuthFailed = 0x000000B2,
     
     /// DoIP Logical address is defined multiple times so it is ambiguous
     #[cfg_attr(feature = "thiserror", error("DoIP Logical address is defined multiple times so it is ambiguous"))]
-    DoIPAmbiguousLogicalAddress = 0x000000B3,
+    DoIpAmbiguousLogicalAddress = 0x000000B3,
 
     /// DoIP Routing activation failed - Unknown or invalid source address
     #[cfg_attr(feature = "thiserror", error("DoIP Routing activation failed - Unknown or invalid source address"))]
-    DoIPRoutineActivationInvalidSrcAddress = 0x000000B4,
+    DoIpRoutineActivationInvalidSrcAddress = 0x000000B4,
 
     /// DoIP Routing activation failed - No more free sockets available
     #[cfg_attr(feature = "thiserror", error("DoIP Routing activation failed - No more free sockets available"))]
-    DoIPRoutingActivationNoDataSocketAvailable = 0x000000B5,
+    DoIpRoutingActivationNoDataSocketAvailable = 0x000000B5,
 
     /// DoIP Routing activation failed - The source address changed
     #[cfg_attr(feature = "thiserror", error("DoIP Routing activation failed - The source address changed"))]
-    DoIPRoutineActivationSourceAddressChanged = 0x000000B6,
+    DoIpRoutineActivationSourceAddressChanged = 0x000000B6,
 
     /// DoIP Routing activation failed - Source address already in use
     #[cfg_attr(feature = "thiserror", error("DoIP Routing activation failed - Source address already in use"))]
-    DoIPRoutingActivationSourceAddressInUse = 0x000000B7,
+    DoIpRoutingActivationSourceAddressInUse = 0x000000B7,
 
     /// DoIP Routing activation failed - Rejected confirmation
     #[cfg_attr(feature = "thiserror", error("DoIP Routing activation failed - Rejected confirmation"))]
-    DoIPRoutineActivationConfirmationRejected = 0x000000B8,
+    DoIpRoutineActivationConfirmationRejected = 0x000000B8,
 
     /// DoIP Routing activation failed - Requested activation type was unsupported
     #[cfg_attr(feature = "thiserror", error("DoIP Routing activation failed - Requested activation type was unsupported"))]
-    DoIPRoutineActivationTypeUnsupported = 0x000000B9,
+    DoIpRoutineActivationTypeUnsupported = 0x000000B9,
 
     /// DoIP Routing activation failed - Response code was unknown
     #[cfg_attr(feature = "thiserror", error("DoIP Routing activation failed - Response code was unknown"))]
-    DoIPRoutineActivationResponseCodeUnknown = 0x000000BA,
+    DoIpRoutineActivationResponseCodeUnknown = 0x000000BA,
 
     /// DoIP Routing activation failed - Timeout waiting for activation response
     #[cfg_attr(feature = "thiserror", error("DoIP Routing activation failed - Timeout waiting for activation response"))]
-    DoIPRoutingActivationResponseTimeout = 0x000000BB,
+    DoIpRoutingActivationResponseTimeout = 0x000000BB,
 
     /// DoIP general timeout
     #[cfg_attr(feature = "thiserror", error("DoIP general timeout"))]
-    DoIPResponseTimeout = 0x000000BC,
+    DoIpResponseTimeout = 0x000000BC,
 }
 
 #[cfg(feature = "strum")]
@@ -466,9 +466,9 @@ pub enum PduErrorEvt {
     /// ComPrimitive error by protocol
     ProtErr = 0x00000105,
     /// Communication to MVCI module was lost
-    LostCommToVCI = 0x00000106,
+    LostCommToVci = 0x00000106,
     /// MVCI hardware fault
-    VCIHardwareFault = 0x00000107,
+    VciHardwareFault = 0x00000107,
     /// Protocol initialization error
     InitError = 0x00000108,
 }
@@ -562,9 +562,9 @@ pub enum VidPreselectMode {
     /// No preselection
     None = 0,
     /// DoIP with given VIN
-    VIN = 1,
+    Vin = 1,
     /// DoIP with given EID
-    EID = 2,
+    Eid = 2,
 }
 
 #[cfg(feature = "strum")]

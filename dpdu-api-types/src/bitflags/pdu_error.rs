@@ -90,38 +90,38 @@ impl PduError {
             PduError::ModuleFwOutOfDate => PduErrorFlag::MODULE_FW_OUT_OF_DATE,
             PduError::PinNotConnected => PduErrorFlag::PIN_NOT_CONNECTED,
             PduError::IpProtocolNotSupported => PduErrorFlag::IP_PROTOCOL_NOT_SUPPORTED,
-            PduError::DoIPRoutingActivationFailed => PduErrorFlag::DOIP_ROUTING_ACTIVATION_FAILED,
-            PduError::DoIPRoutingActivationAuthFailed => {
+            PduError::DoIpRoutingActivationFailed => PduErrorFlag::DOIP_ROUTING_ACTIVATION_FAILED,
+            PduError::DoIpRoutingActivationAuthFailed => {
                 PduErrorFlag::DOIP_ROUTING_ACTIVATION_AUTH_FAILED
             }
-            PduError::DoIPAmbiguousLogicalAddress => {
+            PduError::DoIpAmbiguousLogicalAddress => {
                 PduErrorFlag::DOIP_AMBIGUOUS_LOGICAL_ADDRESS
             }
-            PduError::DoIPRoutineActivationInvalidSrcAddress => {
+            PduError::DoIpRoutineActivationInvalidSrcAddress => {
                 PduErrorFlag::DOIP_ROUTINE_ACTIVATION_INVALID_SRC_ADDRESS
             }
-            PduError::DoIPRoutingActivationNoDataSocketAvailable => {
+            PduError::DoIpRoutingActivationNoDataSocketAvailable => {
                 PduErrorFlag::DOIP_ROUTING_ACTIVATION_NO_DATA_SOCKET
             }
-            PduError::DoIPRoutineActivationSourceAddressChanged => {
+            PduError::DoIpRoutineActivationSourceAddressChanged => {
                 PduErrorFlag::DOIP_ROUTINE_SOURCE_ADDRESS_CHANGED
             }
-            PduError::DoIPRoutingActivationSourceAddressInUse => {
+            PduError::DoIpRoutingActivationSourceAddressInUse => {
                 PduErrorFlag::DOIP_ROUTING_SOURCE_ADDRESS_IN_USE
             }
-            PduError::DoIPRoutineActivationConfirmationRejected => {
+            PduError::DoIpRoutineActivationConfirmationRejected => {
                 PduErrorFlag::DOIP_ROUTINE_CONFIRMATION_REJECTED
             }
-            PduError::DoIPRoutineActivationTypeUnsupported => {
+            PduError::DoIpRoutineActivationTypeUnsupported => {
                 PduErrorFlag::DOIP_ROUTINE_TYPE_UNSUPPORTED
             }
-            PduError::DoIPRoutineActivationResponseCodeUnknown => {
+            PduError::DoIpRoutineActivationResponseCodeUnknown => {
                 PduErrorFlag::DOIP_ROUTINE_RESPONSE_UNKNOWN
             }
-            PduError::DoIPRoutingActivationResponseTimeout => {
+            PduError::DoIpRoutingActivationResponseTimeout => {
                 PduErrorFlag::DOIP_ROUTING_RESPONSE_TIMEOUT
             }
-            PduError::DoIPResponseTimeout => PduErrorFlag::DOIP_RESPONSE_TIMEOUT,
+            PduError::DoIpResponseTimeout => PduErrorFlag::DOIP_RESPONSE_TIMEOUT,
         }
     }
 }
